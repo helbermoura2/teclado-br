@@ -16,9 +16,11 @@ Código próprio; não contém código ou recursos extraídos do Keyvya ou da Sa
 
 Implementação inicial. O motor de texto foi compilado isoladamente com Java e passou
 por 18 verificações de capitalização, correção e sugestões. Os XMLs foram validados.
-A versão 0.1.0 passou em compilação Android e testes no GitHub Actions.
-A versão atual deve ser conferida na execução de Actions correspondente.
-Ainda não há validação de aparência ou interação em aparelho/emulador.
+A versão 0.2.0 passou em compilação Android e testes unitários no GitHub Actions.
+Um teste de capturas em emulador Android 15 concluiu a sequência de toques;
+as imagens foram inspecionadas para confirmar tema, navegação e os dois modos da barra.
+Esse teste não valida automaticamente o texto final, a latência ou a qualidade do corretor.
+Execução: https://github.com/helbermoura2/teclado-br/actions/runs/41175098554
 Não considerar pronto para uso diário. A compatibilidade com o Nothing Phone (1)
 deve ser confirmada instalando e testando o APK.
 

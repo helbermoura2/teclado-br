@@ -1,7 +1,10 @@
 # Testes no Nothing Phone (1)
 
-Os testes unitários cobrem apenas o motor de texto. A compilação e os testes
-de interação abaixo ainda precisam ser executados; não foram validados em aparelho.
+Os testes unitários cobrem o motor de texto e o estado da barra. A compilação
+e um teste de capturas em emulador Android 15 passaram. As capturas confirmaram
+tema escuro, espaço da navegação e alternância da barra; o teste de capturas não
+confere automaticamente o texto inserido. Os cenários abaixo continuam sendo
+a lista de validação no Nothing Phone (1).
 
 1. Ativar e selecionar o teclado pelas configurações do Android.
 2. Digitar `ola. voce esta bem? sim!` e conferir a maiúscula inicial e após pontuação.
