@@ -11,6 +11,11 @@ import android.accessibilityservice.AccessibilityServiceInfo;
 import android.widget.*;
 import helium314.keyboard.keyboard.*;
 import helium314.keyboard.latin.settings.Settings;
+import helium314.keyboard.latin.RichInputMethodManager;
+import helium314.keyboard.latin.database.ClipboardDao;
+import helium314.keyboard.latin.database.Database;
+import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode;
+import android.database.Cursor;
 import helium314.keyboard.latin.suggestions.SuggestionStripView;
 import helium314.keyboard.latin.utils.DeviceProtectedUtils;
 import helium314.keyboard.latin.utils.ToolbarKey;
@@ -20,8 +25,10 @@ import java.util.function.Predicate;
 
 /** Debug-only real touch injection; no calls to the IME text insertion methods. */
 public final class HeliTrialInstrumentation extends Instrumentation {
-    UiAutomation ui; File shots; final Bundle result=new Bundle();
-    @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+    UiAutomation ui; File shots; final Bundle result=new Bundle();String phase="full";
+    static final String PIN_TEXT="Texto fixado para usar em outros dias.";
+    static final String TEMP_TEXT="Texto temporário do teste de expiração.";
+    @Override public void onCreate(Bundle args){super.onCreate(args);if(args!=null)phase=args.getString("phase","full");start();}
     void check(boolean ok,String why){if(!ok)throw new AssertionError(why);}
     void shell(String command)throws Exception{try(InputStream in=new ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand(command))){byte[] b=new byte[4096];while(in.read(b)>=0){}}}
     AccessibilityNodeInfo walk(AccessibilityNodeInfo n,Predicate<AccessibilityNodeInfo> test){if(n==null)return null;if(test.test(n))return n;for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo found=walk(n.getChild(i),test);if(found!=null)return found;}return null;}
@@ -39,14 +46,15 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     }
     View findView(View v,Predicate<View> test){if(v==null)return null;if(test.test(v))return v;if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++){View found=findView(g.getChildAt(i),test);if(found!=null)return found;}}return null;}
     MainKeyboardView main(){return KeyboardSwitcher.getInstance().getMainKeyboardView();}
-    Rect bounds(char letter,boolean popup)throws Exception{
+    Rect bounds(char letter,boolean popup)throws Exception{return keyBounds(letter,popup);}
+    Rect keyBounds(int letter,boolean popup)throws Exception{
         long deadline=SystemClock.uptimeMillis()+12000;
         do{Rect[] found={null};runOnMainSync(()->{
             MainKeyboardView m=main();if(m==null||m.getKeyboard()==null||!m.isShown())return;
             View start=m.getRootView();
             KeyboardView view=popup?(KeyboardView)findView(start,v->v instanceof KeyboardView&&!(v instanceof MainKeyboardView)&&v.isShown()):m;
             if(view==null||view.getKeyboard()==null)return;
-            for(Key key:view.getKeyboard().getSortedKeys())if(Character.toLowerCase(key.getCode())==Character.toLowerCase(letter)||String.valueOf(letter).equalsIgnoreCase(key.getLabel())){
+            for(Key key:view.getKeyboard().getSortedKeys())if(Character.toLowerCase(key.getCode())==Character.toLowerCase(letter)||String.valueOf((char)letter).equalsIgnoreCase(key.getLabel())){
                 int[] origin=new int[2];view.getLocationOnScreen(origin);int x=origin[0]+view.getPaddingLeft()+key.getX(),y=origin[1]+view.getPaddingTop()+key.getY();found[0]=new Rect(x,y,x+key.getWidth(),y+key.getHeight());break;
             }
         });if(found[0]!=null)return found[0];Thread.sleep(100);}while(SystemClock.uptimeMillis()<deadline);
@@ -67,11 +75,55 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         View[] target={null};runOnMainSync(()->{target[0]=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key);check(target[0]!=null,"Missing shortcut "+key);target[0].requestRectangleOnScreen(new Rect(0,0,target[0].getWidth(),target[0].getHeight()),true);});Thread.sleep(250);
         Rect r=new Rect();runOnMainSync(()->{check(target[0].isShown(),"Hidden shortcut "+key);int[] origin=new int[2];target[0].getLocationOnScreen(origin);r.set(origin[0],origin[1],origin[0]+target[0].getWidth(),origin[1]+target[0].getHeight());});tap(r);Thread.sleep(300);
     }
+    void tagged(ToolbarKey key)throws Exception{
+        long deadline=SystemClock.uptimeMillis()+10000;
+        do{Rect[] rect={null};runOnMainSync(()->{View root=KeyboardSwitcher.getInstance().getWrapperView().getRootView();View v=findView(root,n->n.getTag()==key&&n.isShown());if(v!=null){int[] xy=new int[2];v.getLocationOnScreen(xy);rect[0]=new Rect(xy[0],xy[1],xy[0]+v.getWidth(),xy[1]+v.getHeight());}});
+            if(rect[0]!=null){tap(rect[0]);Thread.sleep(350);return;}Thread.sleep(100);
+        }while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("Visible shortcut missing: "+key);
+    }
+    void language(String wanted)throws Exception{
+        long deadline=SystemClock.uptimeMillis()+8000;
+        do{String[] tag={""};runOnMainSync(()->tag[0]=RichInputMethodManager.getInstance().getCurrentSubtypeLocale().getLanguage());if(tag[0].equals(wanted))return;Thread.sleep(100);}while(SystemClock.uptimeMillis()<deadline);
+        throw new AssertionError("Language did not switch to "+wanted);
+    }
+    boolean storedPinned(){
+        try(Cursor c=Database.Companion.getInstance(getTargetContext()).getReadableDatabase().rawQuery("SELECT PINNED FROM CLIPBOARD WHERE TEXT = ?",new String[]{PIN_TEXT})){
+            return c.moveToFirst()&&c.getInt(0)==1;
+        }
+    }
+    void pinnedEntry(boolean verifyOnly)throws Exception{
+        if(!verifyOnly){
+            ClipboardManager clip=(ClipboardManager)getTargetContext().getSystemService(Context.CLIPBOARD_SERVICE);
+            runOnMainSync(()->clip.setPrimaryClip(ClipData.newPlainText("Teste",PIN_TEXT)));Thread.sleep(400);
+            clear();type("oi"); // word suggestions collapse the toolbar; pinned shortcut must remain accessible
+        }
+        tagged(ToolbarKey.CLIPBOARD);
+        long deadline=SystemClock.uptimeMillis()+8000;AccessibilityNodeInfo item;
+        do{item=find(n->PIN_TEXT.contentEquals(n.getText()==null?"":n.getText()));if(item!=null)break;Thread.sleep(100);}while(SystemClock.uptimeMillis()<deadline);
+        check(item!=null,"Pinned text is missing in clipboard UI");Rect itemRect=new Rect();item.getBoundsInScreen(itemRect);
+        if(verifyOnly){
+            check(storedPinned(),"Pin flag did not survive restart/update");tap(itemRect);expect(PIN_TEXT);shot("12-pin-colado-apos-reiniciar");return;
+        }
+        long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{itemRect});Thread.sleep(850);event(d,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{itemRect});Thread.sleep(350);
+        check(storedPinned(),"Long press did not pin the copied text");shot("11-texto-fixado");tagged(ToolbarKey.CLOSE_HISTORY);
+        runOnMainSync(()->{
+            ClipboardDao dao=ClipboardDao.Companion.getInstance(getTargetContext());check(dao!=null,"No clipboard database");
+            dao.addClip(System.currentTimeMillis(),false,TEMP_TEXT);
+            long old=System.currentTimeMillis()-30L*24*60*60*1000;
+            for(int i=0;i<dao.count();i++)if(dao.getAt(i).getText().equals(PIN_TEXT)||dao.getAt(i).getText().equals(TEMP_TEXT))dao.getAt(i).setTimeStamp(old);
+            Database.Companion.getInstance(getTargetContext()).getWritableDatabase().execSQL("UPDATE CLIPBOARD SET TIMESTAMP = ? WHERE TEXT IN (?, ?)",new Object[]{old,PIN_TEXT,TEMP_TEXT});
+            dao.clearOldClips(true);check(storedPinned(),"Pinned text expired after aging");
+            for(int i=0;i<dao.count();i++)check(!dao.getAt(i).getText().equals(TEMP_TEXT),"Unpinned expired text was retained");
+        });
+        result.putString("pin_retention","Pinned text survives 30-day timestamp aging; unpinned text expires");
+    }
     @Override public void onStart(){try{
         ui=getUiAutomation();AccessibilityServiceInfo info=ui.getServiceInfo();info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;ui.setServiceInfo(info);
         shots=new File(getTargetContext().getCacheDir(),"heli-shots");shots.mkdirs();
         shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");shell("ime set br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");
-        Thread.sleep(10000);options(false,false);launch();check(bounds('ç',false)!=null,"No cedilla");shot("01-base-ptbr");
+        Thread.sleep(10000);options(false,false);launch();
+        if(phase.equals("verify_pins")){check(storedPinned(),"Stored pin lost after process restart");pinnedEntry(true);result.putString("result","PASS");result.putString("coverage","Pinned clipboard text survives app restart and reinstall with same certificate, and can be pasted");finish(Activity.RESULT_OK,result);return;}
+        check(bounds('ç',false)!=null,"No cedilla");shot("01-base-ptbr");
         Rect e=bounds('e',false),r=bounds('r',false);StringBuilder expected=new StringBuilder();long begin=SystemClock.uptimeMillis();
         for(int i=0;i<100;i++){long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});event(d,MotionEvent.ACTION_POINTER_DOWN|(1<<8),new int[]{0,1},new Rect[]{e,r});boolean reverse=i%2==1;event(d,MotionEvent.ACTION_POINTER_UP|((reverse?1:0)<<8),new int[]{0,1},new Rect[]{e,r});event(d,MotionEvent.ACTION_UP,new int[]{reverse?0:1},new Rect[]{reverse?e:r});expected.append("er");}
         result.putLong("touch_injection_ms",SystemClock.uptimeMillis()-begin);expect(expected.toString());result.putInt("overlapping_characters",200);shot("02-toques-sobrepostos");
@@ -86,6 +138,8 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         clear();long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);Rect accent=bounds('ê',true);event(d,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{accent});shot("05-deslizando-subtecla");event(d,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{accent});expect("ê");shot("06-acento-soltar");
         options(true,true);launch();type("bom. dia ");expect("Bom. Dia ");shot("07-maiusculas");
         clear();type("voce ");expect("Você ");shot("08-autocorrecao");
-        result.putString("result","PASS");result.putString("coverage","PT-BR dictionary, Ç layout, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
+        options(false,false);launch();language("pt");tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("en");clear();type("hello ");expect("hello ");shot("09-ingles-globo");
+        tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("pt");check(bounds('ç',false)!=null,"Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);
+        result.putString("result","PASS");result.putString("coverage","Globe PT-BR/English switching, pinned clipboard shortcut, long-press pin, expiration exclusion, PT-BR dictionary, Ç layout, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
     }catch(Throwable failure){try{shot("failure");}catch(Exception ignored){}StringWriter trace=new StringWriter();failure.printStackTrace(new PrintWriter(trace));result.putString("failure",trace.toString());result.putString("result","FAIL");finish(Activity.RESULT_CANCELED,result);}}
 }

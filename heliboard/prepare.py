@@ -17,8 +17,8 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6000')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.0-heli3.6"')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6010')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.1-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')

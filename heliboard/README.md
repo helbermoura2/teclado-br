@@ -1,10 +1,11 @@
 # Teclado BR — teste com base HeliBoard
 
 Base: HeliBorg/HeliBoard v3.6 (SDK 35; a v4.2 exige SDK 37 indisponível no ambiente), fixada no commit de upstream.json.
-Variante experimental 0.6.0-heli3.6, pacote br.com.tecladobr.heli.debug.
+Variante experimental 0.6.1-heli3.6, pacote br.com.tecladobr.heli.debug.
 Instala separadamente do Teclado BR anterior e do HeliBoard oficial.
 
-Compilação, 142 testes unitários e interação no Android 15 aprovados.
+A base 0.6.0 passou em compilação, 142 testes unitários e interação no Android 15.
+As mudanças 0.6.1 estão descritas em [IDIOMAS-E-PINS.md](IDIOMAS-E-PINS.md).
 Resultados e limites em [VALIDACAO.md](VALIDACAO.md).
 No Nothing, ativar e selecionar **Teclado BR · Heli teste** nas configurações do Android.
 

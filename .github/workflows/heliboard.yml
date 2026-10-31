@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -25,6 +26,23 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;28.0.13004108'
           log-accepted-android-sdk-licenses: false
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: teclado-br-heli-test-signing-v1
+      - name: Restaurar assinatura de teste
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 heliboard/signing.py
+      - name: Guardar backup privado da assinatura de teste
+        uses: actions/upload-artifact@v4
+        with:
+          name: teclado-br-heli-chave-teste-v1
+          path: |
+            ~/.android/debug.keystore
+            heli-artifacts/signing-cert.sha256
+          retention-days: 90
+          include-hidden-files: true
       - uses: gradle/actions/setup-gradle@v4
       - name: Preparar variante brasileira e fontes correspondentes
         run: |
@@ -49,6 +67,7 @@ jobs:
           path: |
             heli-source/app/build/outputs/apk/debugNoMinify/*.apk
             heli-artifacts/teclado-br-heli-fontes.tar.gz
+            heli-artifacts/signing-cert.sha256
   interaction:
     needs: build
     runs-on: ubuntu-24.04
