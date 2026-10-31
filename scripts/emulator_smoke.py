@@ -38,12 +38,21 @@ time.sleep(3)
 
 # Locate the toolbar in the actual rendered frame; navigation insets vary by image.
 SCALE=2.75
-raw=adb('exec-out','screencap')
-width,height,fmt=struct.unpack_from('<III',raw)
-assert fmt==1, 'Expected RGBA screen'
-header=len(raw)-width*height*4
-TOP=next((y for y in range(height//3,height) if raw[header+(y*width+1)*4:header+(y*width+1)*4+3]==bytes([23,23,25])),None)
-assert TOP is not None, 'Dark keyboard toolbar not rendered'
+TOP=None
+for attempt in range(12):
+    raw=adb('exec-out','screencap')
+    width,height,fmt=struct.unpack_from('<III',raw)
+    assert fmt==1, 'Expected RGBA screen'
+    header=len(raw)-width*height*4
+    for y in range(height//3,height):
+        pixel=raw[header+(y*width+2)*4:header+(y*width+2)*4+3]
+        if pixel in (bytes([23,23,25]),bytes([25,23,23])):
+            TOP=y;break
+    if TOP is not None:break
+    time.sleep(1)
+if TOP is None:
+    (OUT/'screen.raw').write_bytes(raw)
+    raise AssertionError('Dark keyboard toolbar not rendered')
 print('Keyboard top:',TOP,flush=True)
 
 def tap_dp(x,y):
