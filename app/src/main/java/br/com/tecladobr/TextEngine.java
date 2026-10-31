@@ -16,6 +16,7 @@ public final class TextEngine {
         "ainda já até só nós são tem têm oi olá beleza certo combinado desculpa por favor"
     ).split(" +"));
     static {
+        FIXES.put("opcoes", "opções"); FIXES.put("ortografiaa", "ortografia");
         FIXES.put("voce", "você"); FIXES.put("voces", "vocês");
         FIXES.put("nao", "não"); FIXES.put("tambem", "também");
         FIXES.put("entao", "então"); FIXES.put("amanha", "amanhã");

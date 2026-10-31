@@ -27,7 +27,7 @@ public class PreviewActivity extends Activity {
         TextView instructions=new TextView(this);
         instructions.setText("Digite para mostrar sugestões. Use a seta da barra para voltar aos atalhos.");
         instructions.setTextColor(Color.LTGRAY);layout.addView(instructions);
-        EditText edit=new EditText(this);edit.setTextColor(Color.WHITE);edit.setHintTextColor(Color.GRAY);
+        EditText edit=new EditText(this);edit.setGravity(android.view.Gravity.TOP);edit.setTextColor(Color.WHITE);edit.setHintTextColor(Color.GRAY);
         edit.setHint("Experimente aqui");edit.setTextSize(22);
         edit.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         layout.addView(edit,new LinearLayout.LayoutParams(-1,0,1));setContentView(layout);

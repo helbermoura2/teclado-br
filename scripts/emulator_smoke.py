@@ -102,3 +102,23 @@ screenshot('05-emojis.png')
 fatal=adb('logcat','-d','-s','AndroidRuntime:E').decode()
 assert 'br.com.tecladobr' not in fatal, 'Keyboard process crashed: '+fatal
 print('PASS: screenshot smoke completed without app crash; inspect captures for touch behavior',flush=True)
+# Open writing assistant after dismissing the emoji popup.
+adb('shell','input','keyevent','4')
+time.sleep(1)
+adb('shell','input','text','voce%stem%sopcoes')
+time.sleep(1)
+tap_dp(196,23)
+time.sleep(1)
+screenshot('06-assistente-escrita.png')
+# Panel geometry: 70 dp header, 244 dp scroll area and 54 dp navigation padding.
+PANEL_TOP=2340-368*SCALE
+
+def panel_tap(x,y):
+    adb('shell','input','tap',str(round(x*SCALE)),str(round(PANEL_TOP+y*SCALE)))
+    time.sleep(1)
+
+panel_tap(65,157)
+screenshot('07-revisao-basica.png')
+panel_tap(290,35) # Back to main menu.
+panel_tap(195,157)
+screenshot('08-estilos-escrita.png')

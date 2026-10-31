@@ -13,6 +13,7 @@ import java.util.List;
 
 public class KeyboardService extends InputMethodService {
     private LinearLayout root, candidates;
+    private WritingPanel writingPanel;
     private final ToolbarState toolbar = new ToolbarState();
     private boolean shift, capsLock, manualShift, symbols, sensitive, literal, numeric;
     private String undoOriginal, undoExpected;
@@ -56,6 +57,7 @@ public class KeyboardService extends InputMethodService {
             (info.inputType & InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS) != 0;
         numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE ||
             cls == InputType.TYPE_CLASS_DATETIME;
+        writingPanel = null;
         toolbar.reset();
         symbols = numeric; shift = false; capsLock = false; manualShift = false;
         clearUndo(); expectedCursor = -1;
@@ -66,6 +68,7 @@ public class KeyboardService extends InputMethodService {
     }
     @Override public boolean onEvaluateFullscreenMode() { return false; }
     @Override public void onFinishInput() {
+        writingPanel = null;
         clearUndo(); expectedCursor = -1;
         if (candidates != null) candidates.removeAllViews();
         super.onFinishInput();
@@ -145,7 +148,14 @@ public class KeyboardService extends InputMethodService {
     }
     private void render() {
         if (root == null) return;
-        root.removeAllViews(); candidates = new LinearLayout(this);
+        root.removeAllViews();
+        if(writingPanel!=null)root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{0xff28384f,0xff28483e,0xff362d4c}));
+        else root.setBackgroundColor(Color.BLACK);
+        if(writingPanel!=null){
+            candidates=null;writingPanel.render(root);
+            if(!writingPanel.isEditing())return;
+        }
+        candidates = new LinearLayout(this);
         candidates.setGravity(Gravity.CENTER_VERTICAL);
         candidates.setBackgroundColor(Color.rgb(23,23,25));
         candidates.setPadding(dp(6),0,dp(6),0);
@@ -199,6 +209,12 @@ public class KeyboardService extends InputMethodService {
     private void unavailable(String feature){
         Toast.makeText(this,feature+" ainda não está disponível nesta versão.",Toast.LENGTH_LONG).show();
     }
+    private void openWritingPanel(){
+        if(literal){Toast.makeText(this,"Assistente indisponível neste tipo de campo.",Toast.LENGTH_SHORT).show();return;}
+        clearUndo();writingPanel=new WritingPanel(this);render();
+    }
+    void closeWritingPanel(){writingPanel=null;autoShift();render();}
+    void refreshWritingPanel(){render();}
     private void openSettings(){
         startActivity(new Intent(this,SettingsActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
@@ -238,7 +254,7 @@ public class KeyboardService extends InputMethodService {
         if(toolbar.isExpanded()){
             toolbarButton("clipboard","Colar texto copiado",this::pasteClipboard,false);
             toolbarButton("emoji","Emojis",()->showEmojis(candidates),false);
-            toolbarButton("ai","IA (em desenvolvimento)",()->unavailable("A IA"),false);
+            toolbarButton("ai","Assistente de escrita",this::openWritingPanel,false);
             toolbarButton("translate","Tradução (em desenvolvimento)",()->unavailable("A tradução"),false);
             toolbarButton("settings","Configurações",this::openSettings,false);
         }else{
@@ -261,6 +277,7 @@ public class KeyboardService extends InputMethodService {
         clearUndo(); afterEdit();
     }
     private void insert(String text) {
+        if(writingPanel!=null&&writingPanel.isEditing()){if(!capsLock){shift=false;manualShift=false;}writingPanel.insert(text);return;}
         InputConnection ic = getCurrentInputConnection(); if (ic == null) return;
         clearUndo(); toolbar.onTyping();
         boolean boundary = text.equals(" ") || ".,!?;:\n".contains(text);
@@ -279,6 +296,7 @@ public class KeyboardService extends InputMethodService {
         afterEdit();
     }
     private void backspace() {
+        if(writingPanel!=null&&writingPanel.isEditing()){writingPanel.backspace();return;}
         toolbar.onTyping();
         InputConnection ic = getCurrentInputConnection(); if (ic == null) return;
         CharSequence selected = ic.getSelectedText(0);
@@ -290,6 +308,7 @@ public class KeyboardService extends InputMethodService {
         clearUndo(); afterEdit();
     }
     private void enter() {
+        if(writingPanel!=null&&writingPanel.isEditing()){writingPanel.insert("\n");return;}
         EditorInfo info = getCurrentInputEditorInfo(); InputConnection ic = getCurrentInputConnection();
         if (info == null || ic == null) return;
         int action = info.imeOptions & EditorInfo.IME_MASK_ACTION;
@@ -307,6 +326,6 @@ public class KeyboardService extends InputMethodService {
     @Override public void onUpdateSelection(int oldStart, int oldEnd, int start, int end, int cs, int ce) {
         super.onUpdateSelection(oldStart, oldEnd, start, end, cs, ce);
         if (start != end || (expectedCursor >= 0 && end != expectedCursor)) clearUndo();
-        autoShift(); render();
+        if(writingPanel==null){autoShift();render();}
     }
 }
