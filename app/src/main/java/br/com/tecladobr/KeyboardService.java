@@ -14,6 +14,7 @@ import java.util.List;
 public class KeyboardService extends InputMethodService {
     private LinearLayout root, candidates;
     private WritingPanel writingPanel;
+    private boolean editingToolbar;
     private final ToolbarState toolbar = new ToolbarState();
     private boolean shift, capsLock, manualShift, symbols, sensitive, literal, numeric;
     private String undoOriginal, undoExpected;
@@ -58,6 +59,7 @@ public class KeyboardService extends InputMethodService {
         numeric = cls == InputType.TYPE_CLASS_NUMBER || cls == InputType.TYPE_CLASS_PHONE ||
             cls == InputType.TYPE_CLASS_DATETIME;
         writingPanel = null;
+        if(!restarting)editingToolbar=false;
         toolbar.reset();
         symbols = numeric; shift = false; capsLock = false; manualShift = false;
         clearUndo(); expectedCursor = -1;
@@ -68,6 +70,7 @@ public class KeyboardService extends InputMethodService {
     }
     @Override public boolean onEvaluateFullscreenMode() { return false; }
     @Override public void onFinishInput() {
+        editingToolbar=false;
         writingPanel = null;
         clearUndo(); expectedCursor = -1;
         if (candidates != null) candidates.removeAllViews();
@@ -207,13 +210,13 @@ public class KeyboardService extends InputMethodService {
         if(fixed){lp.width=dp(38);lp.weight=0;}
         b.setLayoutParams(lp);
     }
-    private void toggleToolbar(){toolbar.toggle();updateSuggestions();}
+    private void toggleToolbar(){editingToolbar=false;toolbar.toggle();updateSuggestions();}
     private void unavailable(String feature){
         Toast.makeText(this,feature+" ainda não está disponível nesta versão.",Toast.LENGTH_LONG).show();
     }
     private void openWritingPanel(){
         if(literal){Toast.makeText(this,"Assistente indisponível neste tipo de campo.",Toast.LENGTH_SHORT).show();return;}
-        clearUndo();writingPanel=new WritingPanel(this);render();
+        clearUndo();editingToolbar=false;writingPanel=new WritingPanel(this);render();
     }
     void closeWritingPanel(){writingPanel=null;autoShift();render();}
     void refreshWritingPanel(){render();}
@@ -223,10 +226,54 @@ public class KeyboardService extends InputMethodService {
     private void showMore(View anchor){
         PopupMenu menu=new PopupMenu(this,anchor);
         menu.getMenu().add(toolbar.isExpanded()?"Mostrar sugestões":"Mostrar atalhos").setOnMenuItemClickListener(i->{toggleToolbar();return true;});
+        menu.getMenu().add("Ferramentas de edição").setOnMenuItemClickListener(i->{openEditingToolbar();return true;});
+        menu.getMenu().add("Desfazer").setOnMenuItemClickListener(i->{contextAction(android.R.id.undo,"desfazer");return true;});
+        menu.getMenu().add("Refazer").setOnMenuItemClickListener(i->{contextAction(android.R.id.redo,"refazer");return true;});
         menu.getMenu().add("Configurações").setOnMenuItemClickListener(i->{openSettings();return true;});
         menu.getMenu().add("Trocar teclado").setOnMenuItemClickListener(i->{((InputMethodManager)getSystemService(INPUT_METHOD_SERVICE)).showInputMethodPicker();return true;});
         menu.getMenu().add("Recolher teclado").setOnMenuItemClickListener(i->{requestHideSelf(0);return true;});
         menu.show();
+    }
+    private void openEditingToolbar(){
+        if(writingPanel!=null)return;
+        editingToolbar=true;clearUndo();updateSuggestions();
+    }
+    private void contextAction(int action,String label){
+        if(writingPanel!=null)return;
+        if(sensitive){Toast.makeText(this,"Comando indisponível em campos de senha.",Toast.LENGTH_SHORT).show();return;}
+        InputConnection ic=getCurrentInputConnection();if(ic==null)return;
+        if(action==android.R.id.copy||action==android.R.id.cut){
+            CharSequence selected=ic.getSelectedText(0);
+            if(selected==null||selected.length()==0){Toast.makeText(this,"Selecione um texto primeiro.",Toast.LENGTH_SHORT).show();return;}
+        }
+        clearUndo();
+        if(!ic.performContextMenuAction(action))Toast.makeText(this,"Este aplicativo não permitiu "+label+".",Toast.LENGTH_SHORT).show();
+        afterEdit();
+    }
+    private void moveCursor(int direction){
+        if(writingPanel!=null)return;
+        InputConnection ic=getCurrentInputConnection();if(ic==null)return;
+        clearUndo();
+        ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN,direction));
+        ic.sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP,direction));
+        afterEdit();
+    }
+    private void renderEditingToolbar(){
+        toolbarButton("expand","Voltar à barra anterior",()->{editingToolbar=false;updateSuggestions();},true);
+        toolbarButton("selectall","Selecionar tudo",()->contextAction(android.R.id.selectAll,"selecionar tudo"),false);
+        toolbarButton("copy","Copiar seleção",()->contextAction(android.R.id.copy,"copiar"),false);
+        toolbarButton("cut","Recortar seleção",()->contextAction(android.R.id.cut,"recortar"),false);
+        toolbarButton("clipboard","Colar",this::pasteClipboard,false);
+        toolbarButton("left","Mover cursor para a esquerda",()->moveCursor(KeyEvent.KEYCODE_DPAD_LEFT),true);
+        toolbarButton("right","Mover cursor para a direita",()->moveCursor(KeyEvent.KEYCODE_DPAD_RIGHT),true);
+        toolbarButton("more","Mais opções de edição",()->showMore(candidates),true);
+        InputConnection ic=getCurrentInputConnection();
+        CharSequence selected=sensitive||ic==null?null:ic.getSelectedText(0);
+        boolean selection=selected!=null&&selected.length()>0;
+        candidates.getChildAt(1).setEnabled(!sensitive);
+        candidates.getChildAt(2).setEnabled(!sensitive&&selection);
+        candidates.getChildAt(3).setEnabled(!sensitive&&selection);
+        candidates.getChildAt(4).setEnabled(!sensitive);
     }
     private void pasteClipboard(){
         if(writingPanel!=null)return;
@@ -253,9 +300,10 @@ public class KeyboardService extends InputMethodService {
     private void updateSuggestions() {
         if(candidates==null)return;
         candidates.removeAllViews();
+        if(editingToolbar){renderEditingToolbar();return;}
         toolbarButton(toolbar.isExpanded()?"collapse":"expand",toolbar.isExpanded()?"Mostrar sugestões":"Mostrar atalhos",this::toggleToolbar,true);
         if(toolbar.isExpanded()){
-            toolbarButton("clipboard","Colar texto copiado",this::pasteClipboard,false);
+            toolbarButton("editing","Ferramentas de edição",this::openEditingToolbar,false);
             toolbarButton("emoji","Emojis",()->showEmojis(candidates),false);
             toolbarButton("ai","Assistente de escrita",this::openWritingPanel,false);
             toolbarButton("translate","Tradução (em desenvolvimento)",()->unavailable("A tradução"),false);
@@ -276,14 +324,14 @@ public class KeyboardService extends InputMethodService {
     private void choose(String word) {
         if(writingPanel!=null&&writingPanel.isEditing()){writingPanel.insert(word+" ");return;}
         InputConnection ic = getCurrentInputConnection(); if (ic == null || word.isEmpty()) return;
-        toolbar.onTyping();
+        editingToolbar=false;toolbar.onTyping();
         ic.beginBatchEdit(); replaceWord(ic, TextEngine.currentWord(before()), word + " "); ic.endBatchEdit();
         clearUndo(); afterEdit();
     }
     private void insert(String text) {
         if(writingPanel!=null&&writingPanel.isEditing()){if(!capsLock){shift=false;manualShift=false;}writingPanel.insert(text);return;}
         InputConnection ic = getCurrentInputConnection(); if (ic == null) return;
-        clearUndo(); toolbar.onTyping();
+        editingToolbar=false;clearUndo(); toolbar.onTyping();
         boolean boundary = text.equals(" ") || ".,!?;:\n".contains(text);
         CharSequence selected = ic.getSelectedText(0);
         ic.beginBatchEdit();
@@ -300,6 +348,7 @@ public class KeyboardService extends InputMethodService {
         afterEdit();
     }
     private void backspace() {
+        editingToolbar=false;
         if(writingPanel!=null&&writingPanel.isEditing()){writingPanel.backspace();return;}
         toolbar.onTyping();
         InputConnection ic = getCurrentInputConnection(); if (ic == null) return;

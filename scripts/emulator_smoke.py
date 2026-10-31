@@ -122,3 +122,40 @@ screenshot('07-revisao-basica.png')
 panel_tap(290,35) # Back to main menu.
 panel_tap(195,157)
 screenshot('08-estilos-escrita.png')
+
+# Return to the keyboard and exercise the native editor/clipboard end to end.
+panel_tap(90,35)
+time.sleep(1)
+tap_dp(76,23) # Editing-tools icon in the shortcuts toolbar.
+time.sleep(1)
+original=editor()
+assert original and original!='Experimente aqui', 'Missing sample text for clipboard test'
+screenshot('09-barra-edicao.png')
+
+def wait_editor(expected):
+    actual=None
+    for _ in range(5):
+        actual=editor()
+        if actual in expected:return actual
+        time.sleep(1)
+    raise AssertionError('Unexpected editor text: '+repr(actual))
+
+tap_dp(74,23) # Select all.
+screenshot('10-selecionar-tudo.png')
+tap_dp(129,23) # Copy selection.
+tap_dp(74,23) # Reselect in case the source app collapsed the selection after copying.
+adb('shell','input','keyevent','67') # Delete selection without changing the clipboard.
+wait_editor(['','Experimente aqui'])
+tap_dp(239,23) # Paste copied text.
+wait_editor([original])
+tap_dp(74,23)
+tap_dp(184,23) # Cut selection.
+wait_editor(['','Experimente aqui'])
+tap_dp(239,23)
+wait_editor([original])
+tap_dp(287,23) # Cursor left.
+tap_dp(327,23) # Cursor right.
+screenshot('11-copiar-recortar-colar.png')
+tap_dp(26,23) # Return to shortcuts/suggestions.
+screenshot('12-voltar-barra.png')
+print('PASS: select-all, copy, cut and paste preserve the source text in the Android editor',flush=True)

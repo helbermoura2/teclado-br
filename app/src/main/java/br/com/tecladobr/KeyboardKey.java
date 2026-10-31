@@ -52,6 +52,19 @@ public final class KeyboardKey extends Button {
                 if(icon.equals("expand"))path(c,13,8,9,12,13,16);
                 else path(c,10,8,14,12,10,16);
                 break;
+            case "editing":
+            case "selectall":
+                paint.setPathEffect(new DashPathEffect(new float[]{2,2},0));
+                c.drawRect(3,3,21,21,paint);paint.setPathEffect(null);
+                if(icon.equals("editing")){line(c,12,7,12,17);line(c,9,7,15,7);line(c,9,17,15,17);}
+                else {line(c,7,9,17,9);line(c,7,15,17,15);}break;
+            case "copy":
+                c.drawRoundRect(3,3,17,18,1,1,paint);c.drawRoundRect(7,7,21,22,1,1,paint);break;
+            case "cut":
+                c.drawCircle(6,6,3,paint);c.drawCircle(6,18,3,paint);
+                line(c,8,8,21,21);line(c,8,16,21,3);break;
+            case "left":path(c,15,4,7,12,15,20);break;
+            case "right":path(c,9,4,17,12,9,20);break;
             case "clipboard":
                 c.drawRoundRect(4,4,20,22,2,2,paint);
                 c.drawRoundRect(8,2,16,7,2,2,paint);break;
