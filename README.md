@@ -4,7 +4,29 @@ Protótipo de teclado Android independente com visual inspirado no Samsung Keybo
 destinado inicialmente a testes no Nothing Phone (1). Não é um produto Samsung.
 Código próprio; não contém código ou recursos extraídos do Keyvya ou da Samsung.
 
-## Versão 0.2.0
+## Versão 0.3.0
+
+O botão das estrelas abre o assistente: Ortografia e gramática, Estilo de escrita,
+Resumir, Marcador, Tabela e Compositor. Os estilos exibidos são Profissional,
+Casual, Mídia, Educado e Com emojis.
+
+**Ainda não há motor de IA instalado ou serviço online conectado.** A revisão
+atual é uma substituição ortográfica local de palavras conhecidas, sem análise
+gramatical. Uma frase como `nós vai` pode permanecer incorreta. Os estilos,
+o resumo e o compositor informam que aguardam IA e não geram resultados simulados.
+
+A revisão trabalha sobre a seleção ou o campo completo (até 6.000 caracteres).
+A prévia oferece Editar, Copiar e Substituir; editar usa as teclas para acrescentar
+ou apagar no fim da prévia. Só Substituir aplica o resultado, e a aplicação é
+bloqueada se o texto ou a seleção tiver mudado. Campos de senha, URL e e-mail
+não disponibilizam o assistente. Marcadores e tabela Markdown são formatações
+locais, sem IA.
+
+Compilação e testes unitários da versão 0.3.0 passaram. Capturas em emulador
+Android 15 AOSP confirmaram menu, revisão local e estilos. A verificação visual
+não testa todas as ações, nem substitui a validação no Nothing Phone (1).
+
+## Base visual da versão 0.2.0
 
 - Tema escuro com teclas cinza, símbolos secundários e ícones desenhados no app.
 - Barra de altura fixa: atalhos ao abrir, sugestões ao digitar, seta para alternar.

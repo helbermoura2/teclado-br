@@ -33,3 +33,17 @@ sem repetição de Backspace ao manter pressionado; sem integração de IA.
 6. Abrir emojis, inserir um emoji e apagar; conferir símbolos por pressão longa nas letras.
 7. Abrir configurações e menu de opções. IA e tradução devem informar que estão em desenvolvimento.
 8. Comparar as teclas em retrato/paisagem e com fonte ampliada. Conferir que acentos e emojis não saem da tela.
+
+## Assistente de escrita (0.3.0)
+
+1. Digitar `voce tem opcoes`, abrir estrelas e Ortografia e gramática. Conferir
+   o aviso de revisão limitada e a prévia `você tem opções` (capitalização conforme a entrada).
+2. Conferir que abrir a prévia não altera o texto original; testar Copiar.
+3. Editar a prévia com as teclas, apagar um emoji e concluir sem aplicar.
+4. Tocar em Substituir: só o trecho selecionado deve mudar; sem seleção, o campo inteiro.
+5. Alterar o texto/seleção no app antes de Substituir: deve bloquear e pedir nova revisão.
+6. Abrir Estilo de escrita e conferir os cinco tons. Ao tocar, deve informar que IA não está conectada.
+7. Conferir o mesmo aviso em Resumir e Compositor, sem resultados inventados.
+8. Testar campos vazios, senhas, seleção invertida, campo inacessível e texto acima de 6.000 caracteres.
+9. Testar marcadores e tabela Markdown na prévia antes de aplicar.
+10. Voltar ao teclado, trocar de aplicativo e conferir que a prévia anterior foi descartada.
