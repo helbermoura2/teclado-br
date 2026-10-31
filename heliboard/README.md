@@ -5,6 +5,7 @@ Variante experimental 0.6.1-heli3.6, pacote br.com.tecladobr.heli.debug.
 Instala separadamente do Teclado BR anterior e do HeliBoard oficial.
 
 A base 0.6.0 passou em compilação, 142 testes unitários e interação no Android 15.
+A 0.6.1 passou nos testes de idiomas, pins e persistência em emulador.
 As mudanças 0.6.1 estão descritas em [IDIOMAS-E-PINS.md](IDIOMAS-E-PINS.md).
 Resultados e limites em [VALIDACAO.md](VALIDACAO.md).
 No Nothing, ativar e selecionar **Teclado BR · Heli teste** nas configurações do Android.
