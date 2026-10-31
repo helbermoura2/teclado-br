@@ -72,7 +72,17 @@ public class KeyboardStressInstrumentation extends Instrumentation {
     private void launchEditor()throws Exception{
         getTargetContext().startActivity(new Intent(getTargetContext(),PreviewActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
         Thread.sleep(1500);
-        AccessibilityNodeInfo field=find(n->"android.widget.EditText".contentEquals(n.getClassName()),10000);
+        AccessibilityNodeInfo field=null;long deadline=SystemClock.uptimeMillis()+60000;
+        while(field==null&&SystemClock.uptimeMillis()<deadline){
+            AccessibilityNodeInfo launcherDialog=find(n->n.getText()!=null&&n.getText().toString().contains("Quickstep")&&n.getText().toString().contains("respond"),0);
+            if(launcherDialog!=null){
+                AccessibilityNodeInfo close=find(n->"android.widget.Button".contentEquals(n.getClassName())&&"Close app".contentEquals(n.getText()==null?"":n.getText()),0);
+                if(close!=null)close.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
+            field=find(n->"android.widget.EditText".contentEquals(n.getClassName()),0);
+            if(field==null)Thread.sleep(250);
+        }
+        check(field!=null,"Editor did not become available after launch");
         Rect area=new Rect();field.getBoundsInScreen(area);area.bottom=Math.min(area.bottom,area.top+100);
         tap(area);Thread.sleep(500);
     }
