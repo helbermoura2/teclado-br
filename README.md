@@ -4,7 +4,25 @@ Protótipo de teclado Android independente com visual inspirado no Samsung Keybo
 destinado inicialmente a testes no Nothing Phone (1). Não é um produto Samsung.
 Código próprio; não contém código ou recursos extraídos do Keyvya ou da Samsung.
 
-## Versão 0.3.0
+## Versão 0.4.0 — ferramentas de edição
+
+O ícone de edição na barra de atalhos abre uma linha com Selecionar tudo, Copiar,
+Recortar, Colar, cursor à esquerda/direita e menu. A seta retorna à barra anterior;
+ao digitar, as sugestões voltam. O menu `…` também permite abrir essas ferramentas
+quando a barra está no modo de sugestões.
+
+Copiar e Recortar só ficam ativos com seleção. Campos de senha não permitem as
+ações de área de transferência. Seleção, cópia, recorte, Desfazer e Refazer usam
+comandos nativos do aplicativo atual; a disponibilidade varia conforme esse app.
+A função Colar usa somente o texto atual da área de transferência, sem histórico.
+
+Compilação e testes passaram. O teste de interação no Android 15 AOSP verificou
+selecionar tudo, copiar, apagar sem mudar a área de transferência, colar, recortar
+e colar novamente, com comparação do texto integral. Capturas confirmaram os
+estados ativado/desativado dos botões. Desfazer/Refazer, senha e aplicativos
+específicos ainda precisam de validação manual no Nothing Phone (1).
+
+## Assistente da versão 0.3.0
 
 O botão das estrelas abre o assistente: Ortografia e gramática, Estilo de escrita,
 Resumir, Marcador, Tabela e Compositor. Os estilos exibidos são Profissional,

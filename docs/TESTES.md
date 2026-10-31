@@ -47,3 +47,24 @@ sem repetição de Backspace ao manter pressionado; sem integração de IA.
 8. Testar campos vazios, senhas, seleção invertida, campo inacessível e texto acima de 6.000 caracteres.
 9. Testar marcadores e tabela Markdown na prévia antes de aplicar.
 10. Voltar ao teclado, trocar de aplicativo e conferir que a prévia anterior foi descartada.
+
+## Barra de edição (0.4.0)
+
+Executado no emulador Android 15 AOSP: seleção total, cópia, exclusão da seleção
+sem alterar o clipboard, colagem, recorte e nova colagem com igualdade do texto
+original. As capturas mostram estados dos botões e a barra mantendo a altura.
+[Execução](https://github.com/helbermoura2/teclado-br/actions/runs/41197980035).
+Os demais cenários abaixo continuam como validação manual.
+
+1. Abrir o ícone de edição na barra de atalhos e conferir Selecionar tudo, Copiar,
+   Recortar, Colar, setas e menu, sem mudar a altura da barra.
+2. Sem seleção, Copiar e Recortar devem ficar desativados.
+3. Selecionar tudo e copiar. Apagar a seleção com a tecla de apagar do editor e colar:
+   deve restaurar o texto copiado, incluindo acentos.
+4. Selecionar tudo, recortar e colar: deve restaurar o texto sem duplicação.
+5. Selecionar um trecho no app, copiar/recortar só esse trecho e conferir a colagem.
+6. Mover cursor com as setas, inclusive perto de caracteres acentuados e emojis.
+7. Retornar à barra anterior e digitar para mostrar sugestões.
+8. Em senha/PIN, ações de área de transferência devem estar desativadas.
+9. Testar Desfazer/Refazer no menu; apps que não aceitam devem informar indisponibilidade.
+10. Repetir em notas, navegador e WhatsApp no Nothing Phone (1).
