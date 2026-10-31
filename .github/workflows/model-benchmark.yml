@@ -14,10 +14,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: qwen3-06b
-            repo: Qwen/Qwen3-0.6B-GGUF
-          - name: qwen3-17b
-            repo: Qwen/Qwen3-1.7B-GGUF
+          - name: qwen3-4b
+            repo: Qwen/Qwen3-4B-GGUF
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
