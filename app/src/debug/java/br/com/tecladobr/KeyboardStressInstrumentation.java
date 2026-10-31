@@ -33,7 +33,10 @@ public class KeyboardStressInstrumentation extends Instrumentation {
         throw new AssertionError("Control not found");
     }
     private AccessibilityNodeInfo node(String description)throws Exception{
-        try{return find(n->(description.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())||description.contentEquals(n.getText()==null?"":n.getText()))&&n.isEnabled(),12000);}
+        try{return find(n->"android.widget.Button".contentEquals(n.getClassName())&&n.isEnabled()&&(
+            description.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())||
+            description.contentEquals(n.getText()==null?"":n.getText())||
+            description.length()==1&&n.getContentDescription()!=null&&description.equalsIgnoreCase(n.getContentDescription().toString())),12000);}
         catch(AssertionError e){throw new AssertionError("Missing enabled control: "+description,e);}
     }
     private Rect bounds(String description)throws Exception{
@@ -100,6 +103,10 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             clearText();ascii("como ");node("você");click("você");expectText("como você ");node("está");click("está");expectText("como você está ");node("bem");shot("03-previsao-frase");
             clearText();ascii("comovov");node("comovov");shot("04-palavra-desconhecida");
             clearText();long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(650);event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{e});click("é");expectText("é");shot("05-acento-sem-duplicar");
+            getTargetContext().getSharedPreferences("keyboard",0).edit().putBoolean("caps",true).putBoolean("correction",true).commit();
+            getTargetContext().startActivity(new Intent(getTargetContext(),PreviewActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            expectText("");find(n->"O".contentEquals(n.getContentDescription()==null?"":n.getContentDescription()),5000);
+            ascii("ola. voce ");expectText("Olá. Você ");shot("06-maiuscula-autocorrecao");
             openShortcuts();AccessibilityNodeInfo scroll=find(n->"android.widget.HorizontalScrollView".contentEquals(n.getClassName()),5000);Rect sb=new Rect();scroll.getBoundsInScreen(sb);
             int oldLeft=bounds("Ferramentas de edição").left;check(scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD),"Shortcut strip did not scroll");Thread.sleep(400);shot("06-todos-atalhos-deslizantes");
             click("Lupa (em desenvolvimento)");click("Assistente · IA offline não instalada");node("IA offline não instalada");shot("07-estado-ia-claro");click("⌨ Teclado");
