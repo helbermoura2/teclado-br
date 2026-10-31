@@ -112,8 +112,8 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             clearText();long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);
             Rect accent=bounds("ê");event(down,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{accent});Thread.sleep(120);shot("05-opcao-deslizada");
             event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{accent});expectText("ê");shot("05-acento-sem-segundo-toque");
-            clearText();Rect n=bounds("n");down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{n});Thread.sleep(700);
-            expectText("?");shot("05-simbolo-inserido-ainda-segurando");event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{n});expectText("?");
+            clearText();Rect symbolKey=bounds("n");down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{symbolKey});Thread.sleep(700);
+            expectText("?");shot("05-simbolo-inserido-ainda-segurando");event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{symbolKey});expectText("?");
             clearText();down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);node("é");
             event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{e});expectText("é");
             clearText();down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);node("é");
