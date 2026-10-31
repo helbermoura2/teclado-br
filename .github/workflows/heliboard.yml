@@ -29,7 +29,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: teclado-br-heli-test-signing-v1
+          key: teclado-br-heli-test-signing-v2
       - name: Restaurar assinatura de teste
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,6 +54,8 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify
+      - name: Conferir certificado do APK
+        run: python3 heliboard/verify_signing.py
       - name: Guardar testes unitários
         uses: actions/upload-artifact@v4
         if: always()
