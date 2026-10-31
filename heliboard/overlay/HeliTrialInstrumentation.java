@@ -65,7 +65,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void toolbar(ToolbarKey key)throws Exception{
         runOnMainSync(()->{View strip=KeyboardSwitcher.getInstance().getStripContainer();SuggestionStripView s=(SuggestionStripView)findView(strip,v->v instanceof SuggestionStripView);check(s!=null,"No suggestion strip");s.setToolbarVisibility(true);});Thread.sleep(250);
         View[] target={null};runOnMainSync(()->{target[0]=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key);check(target[0]!=null,"Missing shortcut "+key);target[0].requestRectangleOnScreen(new Rect(0,0,target[0].getWidth(),target[0].getHeight()),true);});Thread.sleep(250);
-        Rect r=new Rect();runOnMainSync(()->check(target[0].getGlobalVisibleRect(r),"Hidden shortcut "+key));tap(r);Thread.sleep(300);
+        Rect r=new Rect();runOnMainSync(()->{check(target[0].isShown(),"Hidden shortcut "+key);int[] origin=new int[2];target[0].getLocationOnScreen(origin);r.set(origin[0],origin[1],origin[0]+target[0].getWidth(),origin[1]+target[0].getHeight());});tap(r);Thread.sleep(300);
     }
     @Override public void onStart(){try{
         ui=getUiAutomation();AccessibilityServiceInfo info=ui.getServiceInfo();info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;ui.setServiceInfo(info);
@@ -75,7 +75,11 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         Rect e=bounds('e',false),r=bounds('r',false);StringBuilder expected=new StringBuilder();long begin=SystemClock.uptimeMillis();
         for(int i=0;i<100;i++){long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});event(d,MotionEvent.ACTION_POINTER_DOWN|(1<<8),new int[]{0,1},new Rect[]{e,r});boolean reverse=i%2==1;event(d,MotionEvent.ACTION_POINTER_UP|((reverse?1:0)<<8),new int[]{0,1},new Rect[]{e,r});event(d,MotionEvent.ACTION_UP,new int[]{reverse?0:1},new Rect[]{reverse?e:r});expected.append("er");}
         result.putLong("touch_injection_ms",SystemClock.uptimeMillis()-begin);expect(expected.toString());result.putInt("overlapping_characters",200);shot("02-toques-sobrepostos");
-        toolbar(ToolbarKey.SELECT_ALL);toolbar(ToolbarKey.COPY);clear();toolbar(ToolbarKey.PASTE);expect(expected.toString());shot("03-edicao");
+        toolbar(ToolbarKey.SELECT_ALL);
+        long selectedDeadline=SystemClock.uptimeMillis()+5000;boolean selected=false;do{AccessibilityNodeInfo f=field();selected=Math.abs(f.getTextSelectionEnd()-f.getTextSelectionStart())==200;if(selected)break;Thread.sleep(100);}while(SystemClock.uptimeMillis()<selectedDeadline);check(selected,"SELECT_ALL did not select 200 characters");shot("03-texto-selecionado");
+        toolbar(ToolbarKey.COPY);ClipboardManager clipboard=(ClipboardManager)getTargetContext().getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData copied=clipboard.getPrimaryClip();check(copied!=null&&copied.getItemCount()>0&&expected.toString().contentEquals(copied.getItemAt(0).getText()),"COPY did not preserve the text");
+        clear();toolbar(ToolbarKey.PASTE);expect(expected.toString());shot("03-edicao");
         clear();type("voce");long deadline=SystemClock.uptimeMillis()+10000;List<String> words;
         do{words=suggestions();if(words.stream().anyMatch(s->s.equalsIgnoreCase("você")))break;Thread.sleep(200);}while(SystemClock.uptimeMillis()<deadline);
         check(words.stream().anyMatch(s->s.equalsIgnoreCase("você")),"PT-BR dictionary did not suggest você: "+words);result.putString("ptbr_suggestions",words.toString());shot("04-dicionario-portugues");
