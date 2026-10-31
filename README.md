@@ -4,6 +4,25 @@ Protótipo de teclado Android independente com visual inspirado no Samsung Keybo
 destinado inicialmente a testes no Nothing Phone (1). Não é um produto Samsung.
 Código próprio; não contém código ou recursos extraídos do Keyvya ou da Samsung.
 
+## Versão 0.5.1 — subteclas sem segundo toque
+
+Uma tecla com somente um símbolo secundário o insere ao atingir o tempo de
+pressão longa: segurar N troca a letra por `?`, ainda antes de soltar o dedo.
+Nas teclas com várias opções, como E, manter pressionado abre as opções;
+deslizar destaca a opção e soltar a insere. Soltar sem deslizar escolhe a primeira
+opção. Arrastar para fora da região cancela a escolha. A letra inicial é
+substituída, sem duplicação, e o toque curto continua inserindo a letra normal.
+
+Compilação, testes unitários e
+[testes de gestos no Android 15 AOSP](https://github.com/helbermoura2/teclado-br/actions/runs/41203751306)
+passaram na 0.5.1 (commit `df29b7b349f3df79fc1791fb48e5acadcf8e78ec`).
+A execução conferiu símbolo antes de soltar, acento escolhido por deslizamento
+sem segundo toque, primeira opção ao soltar sem mover, cancelamento e toque curto.
+Também repetiu a sequência de 200 caracteres sobrepostos sem perdas ou inversões,
+com zero reconstruções durante a sequência e zero consultas de contexto na thread
+principal. Emulador com tela lógica de 540×1170 / 220 dpi para reduzir a carga gráfica;
+a fluidez e a ergonomia no Nothing Phone (1) continuam como validação no aparelho.
+
 ## Versão 0.5.0 — digitação e sugestões
 
 As teclas permanecem montadas durante a digitação. Letras são registradas no início
