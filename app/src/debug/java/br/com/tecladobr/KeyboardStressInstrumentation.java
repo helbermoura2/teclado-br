@@ -69,6 +69,13 @@ public class KeyboardStressInstrumentation extends Instrumentation {
         if(toggle!=null)click("Mostrar atalhos");
     }
     private void clearText()throws Exception{openShortcuts();click("Selecionar tudo");click("Apagar ou desfazer correção");expectText("");Thread.sleep(200);}
+    private void launchEditor()throws Exception{
+        getTargetContext().startActivity(new Intent(getTargetContext(),PreviewActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
+        Thread.sleep(1500);
+        AccessibilityNodeInfo field=find(n->"android.widget.EditText".contentEquals(n.getClassName()),10000);
+        Rect area=new Rect();field.getBoundsInScreen(area);area.bottom=Math.min(area.bottom,area.top+100);
+        tap(area);Thread.sleep(500);
+    }
     private void ascii(String value)throws Exception{
         for(char c:value.toCharArray()){
             if(c==' '){click("Espaço; mantenha pressionado para trocar teclado");continue;}
@@ -82,7 +89,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             shots=new File(getTargetContext().getCacheDir(),"typing-shots");shots.mkdirs();
             getTargetContext().getSharedPreferences("keyboard",0).edit().putBoolean("caps",false).putBoolean("correction",false).putBoolean("haptic",false).putBoolean("numbers",true).putInt("height",8).commit();
             shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr/.KeyboardService");shell("ime set br.com.tecladobr/.KeyboardService");
-            getTargetContext().startActivity(new Intent(getTargetContext(),PreviewActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            launchEditor();
             Rect e=bounds("e"),r=bounds("r");Thread.sleep(300);
             check(KeyboardService.activeInstance!=null,"IME not bound");int[] builds={0};
             runOnMainSync(()->builds[0]=KeyboardService.activeInstance.keyboardBuilds);
@@ -104,7 +111,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             clearText();ascii("comovov");node("comovov");shot("04-palavra-desconhecida");
             clearText();long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(650);event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{e});click("é");expectText("é");shot("05-acento-sem-duplicar");
             getTargetContext().getSharedPreferences("keyboard",0).edit().putBoolean("caps",true).putBoolean("correction",true).commit();
-            getTargetContext().startActivity(new Intent(getTargetContext(),PreviewActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));
+            launchEditor();
             expectText("");find(n->"O".contentEquals(n.getContentDescription()==null?"":n.getContentDescription()),5000);
             ascii("ola. voce ");expectText("Olá. Você ");shot("06-maiuscula-autocorrecao");
             openShortcuts();AccessibilityNodeInfo scroll=find(n->"android.widget.HorizontalScrollView".contentEquals(n.getClassName()),5000);Rect sb=new Rect();scroll.getBoundsInScreen(sb);
