@@ -1,0 +1,70 @@
+name: Testar base HeliBoard
+on:
+  push:
+    branches: [main]
+    paths: ['heliboard/**', '.github/workflows/heliboard.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  trial:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: HeliBorg/HeliBoard
+          ref: 0c60dffb03a4e2e7a37cb82210f5299f93c03979
+          path: heli-source
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-37 build-tools;37.0.0 ndk;28.0.13004108'
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Preparar variante brasileira e fontes correspondentes
+        run: |
+          python3 heliboard/prepare.py heli-source
+          mkdir -p heli-artifacts
+          tar --exclude=.git --exclude=build --exclude=.gradle -czf heli-artifacts/teclado-br-heli-fontes.tar.gz -C heli-source .
+      - name: Testar e compilar a base
+        working-directory: heli-source
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify
+      - name: Habilitar aceleração do emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          disable-animations: true
+          script: |
+            adb shell wm size 540x1170
+            adb shell wm density 220
+            adb install -r heli-source/app/build/outputs/apk/debugNoMinify/*.apk
+            python3 heliboard/smoke.py
+      - name: Guardar diagnóstico
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: teclado-br-heli-testes
+          path: |
+            heli-results/
+            heli-source/app/build/reports/tests/
+      - name: Guardar APK verificado e fontes
+        uses: actions/upload-artifact@v4
+        with:
+          name: teclado-br-heli-apk-e-fontes
+          path: |
+            heli-source/app/build/outputs/apk/debugNoMinify/*.apk
+            heli-artifacts/teclado-br-heli-fontes.tar.gz

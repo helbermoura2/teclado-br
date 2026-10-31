@@ -1,5 +1,9 @@
 # Teclado BR
 
+A avaliação de uma base HeliBoard está em [heliboard/README.md](heliboard/README.md).
+É uma variante separada sob GPLv3, com código do upstream; as versões 0.1–0.5
+descritas abaixo são o protótipo anterior. Gemma 4 E2B segue no teste final offline.
+
 Protótipo de teclado Android independente com visual inspirado no Samsung Keyboard,
 destinado inicialmente a testes no Nothing Phone (1). Não é um produto Samsung.
 Código próprio; não contém código ou recursos extraídos do Keyvya ou da Samsung.

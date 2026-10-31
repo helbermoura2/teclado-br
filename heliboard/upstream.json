@@ -1,0 +1,8 @@
+{
+  "repository": "HeliBorg/HeliBoard",
+  "tag": "v4.2",
+  "commit": "0c60dffb03a4e2e7a37cb82210f5299f93c03979",
+  "license": "GPL-3.0-only",
+  "application_id": "br.com.tecladobr.heli.debug",
+  "trial_version": "0.6.0-heli4.2"
+}
