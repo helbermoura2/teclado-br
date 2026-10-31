@@ -5,7 +5,7 @@ import android.content.*;
 import android.graphics.Color;
 import android.graphics.drawable.*;
 import android.os.*;
-import android.text.*;
+import android.text.InputType;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.*;

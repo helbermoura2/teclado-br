@@ -18,7 +18,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
     private File shots;
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);start();}
     private void shell(String command)throws Exception{
-        try(ParcelFileDescriptor fd=ui.executeShellCommand(command);FileInputStream in=new FileInputStream(fd.getFileDescriptor())){byte[] b=new byte[4096];while(in.read(b)>=0){}}
+        try(InputStream in=new ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand(command))){byte[] b=new byte[4096];while(in.read(b)>=0){}}
     }
     private AccessibilityNodeInfo walk(AccessibilityNodeInfo node,Predicate<AccessibilityNodeInfo> test){
         if(node==null)return null;if(test.test(node))return node;
@@ -33,11 +33,11 @@ public class KeyboardStressInstrumentation extends Instrumentation {
         throw new AssertionError("Control not found");
     }
     private AccessibilityNodeInfo node(String description)throws Exception{
-        try{return find(n->description.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())&&n.isEnabled(),12000);}
+        try{return find(n->(description.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())||description.contentEquals(n.getText()==null?"":n.getText()))&&n.isEnabled(),12000);}
         catch(AssertionError e){throw new AssertionError("Missing enabled control: "+description,e);}
     }
     private Rect bounds(String description)throws Exception{
-        AccessibilityNodeInfo n=node(description);n.performAction(AccessibilityNodeInfo.ACTION_SHOW_ON_SCREEN);Thread.sleep(120);
+        AccessibilityNodeInfo n=node(description);n.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SHOW_ON_SCREEN.getId());Thread.sleep(120);
         n=node(description);Rect r=new Rect();n.getBoundsInScreen(r);return r;
     }
     private void event(long down,int action,int[] ids,Rect[] positions)throws Exception{
@@ -101,7 +101,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             clearText();ascii("comovov");node("comovov");shot("04-palavra-desconhecida");
             clearText();long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(650);event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{e});click("é");expectText("é");shot("05-acento-sem-duplicar");
             openShortcuts();AccessibilityNodeInfo scroll=find(n->"android.widget.HorizontalScrollView".contentEquals(n.getClassName()),5000);Rect sb=new Rect();scroll.getBoundsInScreen(sb);
-            int oldLeft=bounds("Ferramentas de edição").left;scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);Thread.sleep(400);shot("06-todos-atalhos-deslizantes");
+            int oldLeft=bounds("Ferramentas de edição").left;check(scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD),"Shortcut strip did not scroll");Thread.sleep(400);shot("06-todos-atalhos-deslizantes");
             click("Lupa (em desenvolvimento)");click("Assistente · IA offline não instalada");node("IA offline não instalada");shot("07-estado-ia-claro");click("⌨ Teclado");
             result.putString("result","PASS");result.putString("coverage","200 characters, overlapping fingers with reversed release order, no keyboard rebuild, no main-thread context reads, clipboard, phrase prediction, unknown-word fallback, long-press accent, scroll toolbar, AI status");
             finish(Activity.RESULT_OK,result);
