@@ -18,7 +18,7 @@ fun configureTecladoBr(context: Context) {
         .withLayout(LayoutType.MAIN, "tecladobr").toPref()
     val keys = listOf(ToolbarKey.SETTINGS, ToolbarKey.CLIPBOARD, ToolbarKey.EMOJI,
         ToolbarKey.SELECT_ALL, ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE,
-        ToolbarKey.LEFT, ToolbarKey.RIGHT, ToolbarKey.UNDO, ToolbarKey.REDO, ToolbarKey.DPAD)
+        ToolbarKey.LEFT, ToolbarKey.RIGHT, ToolbarKey.UNDO, ToolbarKey.REDO)
     prefs.edit()
         .putString(Settings.PREF_ADDITIONAL_SUBTYPES, subtype)
         .putString(Settings.PREF_ENABLED_SUBTYPES, subtype)
