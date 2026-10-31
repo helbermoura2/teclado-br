@@ -3,11 +3,38 @@ package br.com.tecladobr;
 import android.content.Context;
 import android.graphics.*;
 import android.widget.Button;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 
 /** Draw labels and small secondary symbols without relying on colored emoji fonts. */
 public final class KeyboardKey extends Button {
-    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final android.text.TextPaint paint = new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
     private String hint = "", icon = "";
+    private boolean quickTouch,repeat;
+    private final Runnable held=new Runnable(){public void run(){
+        if(!isPressed())return;
+        if(repeat){performClick();postDelayed(this,65);}
+        else if(isLongClickable())performLongClick();
+    }};
+    public void quickTouch(boolean value){quickTouch=value;}
+    public void repeatOnHold(){quickTouch=true;repeat=true;}
+    @Override public boolean onTouchEvent(MotionEvent event){
+        if(!quickTouch||!isEnabled())return super.onTouchEvent(event);
+        int action=event.getActionMasked();
+        if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_POINTER_DOWN){
+            removeCallbacks(held);setPressed(true);performClick();
+            if(event.getPointerCount()==1)postDelayed(held,repeat?350:ViewConfiguration.getLongPressTimeout());
+            return true;
+        }
+        if(action==MotionEvent.ACTION_MOVE){
+            if(event.getX()<0||event.getX()>getWidth()||event.getY()<0||event.getY()>getHeight())removeCallbacks(held);
+            return true;
+        }
+        if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL){removeCallbacks(held);setPressed(false);return true;}
+        if(action==MotionEvent.ACTION_POINTER_UP){removeCallbacks(held);return true;}
+        return true;
+    }
+    @Override protected void onDetachedFromWindow(){removeCallbacks(held);super.onDetachedFromWindow();}
     public KeyboardKey(Context context) { super(context); }
     public void hint(String value) { hint = value; invalidate(); }
     public void icon(String value) { icon = value; invalidate(); }
@@ -23,7 +50,8 @@ public final class KeyboardKey extends Button {
             paint.setTextAlign(Paint.Align.CENTER); paint.setTextSize(getTextSize());
             Paint.FontMetrics fm = paint.getFontMetrics();
             float baseline = getHeight()/2f - (fm.ascent+fm.descent)/2f;
-            canvas.drawText(getText().toString(), getWidth()/2f, baseline + (hint.isEmpty()?0:dp(2)), paint);
+            String shown=android.text.TextUtils.ellipsize(getText(),paint,Math.max(1,getWidth()-dp(8)),android.text.TextUtils.TruncateAt.END).toString();
+            canvas.drawText(shown, getWidth()/2f, baseline + (hint.isEmpty()?0:dp(2)), paint);
         }
         if (!hint.isEmpty()) {
             paint.setTextAlign(Paint.Align.RIGHT); paint.setTextSize(dp(9));
@@ -52,6 +80,10 @@ public final class KeyboardKey extends Button {
                 if(icon.equals("expand"))path(c,13,8,9,12,13,16);
                 else path(c,10,8,14,12,10,16);
                 break;
+            case "search":
+                c.drawCircle(10,10,7,paint);line(c,15,15,22,22);break;
+            case "undo":path(c,8,4,3,9,8,14);c.drawArc(3,8,22,24,190,180,false,paint);break;
+            case "redo":path(c,16,4,21,9,16,14);c.drawArc(2,8,21,24,-10,-180,false,paint);break;
             case "editing":
             case "selectall":
                 paint.setPathEffect(new DashPathEffect(new float[]{2,2},0));

@@ -1,0 +1,9 @@
+Portuguese frequency word data: Hermit Dave, FrequencyWords, 2018 Portuguese list.
+Source: https://github.com/hermitdave/FrequencyWords/blob/master/content/2018/pt/pt_50k.txt
+Source blob: 9f71ace9efc9b003c4fc8948c7dc24c42e7b7000
+Adaptation: first 5,000 entries of the source list. The app filters entries to letter words at load time.
+Content license: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).
+License: https://creativecommons.org/licenses/by-sa/4.0/
+Legal code: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+No endorsement by the original author is implied. Changes to the dictionary data remain under CC BY-SA 4.0.
+FrequencyWords code is MIT; this project uses only the word data. App code is independent.

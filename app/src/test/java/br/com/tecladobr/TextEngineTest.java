@@ -35,4 +35,12 @@ public class TextEngineTest {
         assertEquals("dia", TextEngine.suggestionsForContext("Bom ").get(0));
         assertEquals("bem", TextEngine.suggestionsForContext("Tudo ").get(0));
     }
+    @Test public void unknownWordsKeepAnOptionAndDoNotForceCorrection(){
+        assertTrue(TextEngine.suggest("Xyzzyphone").contains("Xyzzyphone"));
+        assertFalse(TextEngine.suggestionsForContext("Olá comovov").isEmpty());
+        assertEquals("Xyzzyphone",TextEngine.correct("Xyzzyphone"));
+        assertEquals("você",TextEngine.suggestionsForContext("Olá como ").get(0));
+        assertEquals("bem",TextEngine.suggestionsForContext("Você está ").get(0));
+        assertEquals("Você",TextEngine.suggest("V").get(0));
+    }
 }

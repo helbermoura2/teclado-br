@@ -12,6 +12,7 @@ final class WritingPanel {
     private String page="menu", source="", draft="", original="", notice="";
     private int start, end, selectionStart, selectionEnd;
     private boolean editing;
+    private TextView preview;
     WritingPanel(KeyboardService service){this.service=service;}
     boolean isEditing(){return editing;}
     private int dp(int n){return Math.round(n*service.getResources().getDisplayMetrics().density);}
@@ -46,13 +47,13 @@ final class WritingPanel {
         if(capture()){draft=BasicReview.correct(source);page="review";notice="Revisão básica local: corrige apenas palavras conhecidas. Gramática por IA ainda não está conectada.";}
         service.refreshWritingPanel();
     }
-    private void pending(String feature){page="pending";notice=feature+" precisa do motor de IA. A escolha entre IA local e serviço online ainda está pendente. Nenhum texto foi enviado.";service.refreshWritingPanel();}
+    private void pending(String feature){page="pending";notice=feature+" precisa do motor de IA. A IA offline foi escolhida, mas o modelo e o motor ainda não estão instalados no teclado. Nenhum texto foi enviado.";service.refreshWritingPanel();}
     void render(LinearLayout root){
         LinearLayout header=row(root);button(header,"⌨ Teclado",()->service.closeWritingPanel());
-        button(header,page.equals("menu")?"Assistente de escrita":"‹ Voltar",()->{page="menu";editing=false;source="";draft="";original="";notice="";service.refreshWritingPanel();});
+        button(header,page.equals("menu")?"IA offline não instalada":"‹ Voltar",()->{page="menu";editing=false;source="";draft="";original="";notice="";service.refreshWritingPanel();});
         if(editing){
             root.addView(label("Editar prévia · alterações no fim do texto",13));
-            TextView preview=label(draft+"▏",16);preview.setMaxLines(3);root.addView(preview);
+            preview=label(draft+"▏",16);preview.setMaxLines(3);root.addView(preview);
             LinearLayout r=row(root);button(r,"Concluir edição",()->{editing=false;service.refreshWritingPanel();});return;
         }
         ScrollView scroll=new ScrollView(service);LinearLayout content=column();scroll.addView(content);
@@ -104,6 +105,8 @@ final class WritingPanel {
         if(applied)service.closeWritingPanel();
         else{ic.setSelection(selectionStart,selectionEnd);notice="Este aplicativo não permitiu substituir o trecho. Use Copiar.";service.refreshWritingPanel();}
     }
+    void refreshPreview(){if(preview!=null)preview.setText(draft+"▏");}
+    boolean replaceRecent(String previous,String replacement){if(!draft.endsWith(previous))return false;draft=draft.substring(0,draft.length()-previous.length())+replacement;service.refreshWritingPanel();return true;}
     void insert(String text){draft+=text;service.refreshWritingPanel();}
     void backspace(){if(!draft.isEmpty())draft=draft.substring(0,draft.offsetByCodePoints(draft.length(),-1));service.refreshWritingPanel();}
 }

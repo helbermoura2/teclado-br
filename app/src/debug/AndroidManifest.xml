@@ -2,4 +2,5 @@
     <application>
         <activity android:name=".PreviewActivity" android:exported="true" tools:replace="android:exported" android:label="Teste do teclado" />
     </application>
+    <instrumentation android:name=".KeyboardStressInstrumentation" android:targetPackage="br.com.tecladobr" android:functionalTest="true" />
 </manifest>
