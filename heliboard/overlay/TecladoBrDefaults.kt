@@ -3,6 +3,9 @@
 package helium314.keyboard.latin
 
 import android.content.Context
+import android.graphics.Color
+import helium314.keyboard.latin.common.ColorType
+import helium314.keyboard.latin.common.DefaultColors
 import helium314.keyboard.latin.settings.Settings
 import helium314.keyboard.latin.settings.Defaults
 import helium314.keyboard.latin.settings.SettingsSubtype.Companion.toSettingsSubtype
@@ -62,4 +65,32 @@ fun configureTecladoBr(context: Context) {
             .putBoolean("teclado_br_languages_pins_v1", true)
             .commit()
     }
+    if (!prefs.getBoolean("teclado_br_visual_v1", false)) {
+        val theme = "Teclado BR · escuro"
+        val blue = Color.rgb(109, 159, 231)
+        val base = DefaultColors("Material", true,
+            Color.rgb(23, 23, 25), Color.BLACK, Color.rgb(49, 49, 51),
+            Color.rgb(20, 20, 22), Color.rgb(53, 53, 55), Color.rgb(242, 242, 244),
+            Color.rgb(140, 140, 145), Color.rgb(235, 235, 238), Color.rgb(220, 220, 223), blue)
+        val colors = ColorType.entries.associateWith { base.get(it) }.toMutableMap()
+        colors[ColorType.ACTION_KEY_BACKGROUND] = Color.rgb(20, 20, 22)
+        colors[ColorType.ACTION_KEY_ICON] = Color.WHITE
+        colors[ColorType.SHIFT_KEY_ICON] = blue
+        colors[ColorType.CLIPBOARD_PIN] = blue
+        colors[ColorType.STRIP_BACKGROUND] = Color.rgb(23, 23, 25)
+        colors[ColorType.TOOL_BAR_EXPAND_KEY_BACKGROUND] = Color.rgb(42, 42, 45)
+        prefs.edit()
+            .putString(Settings.PREF_THEME_STYLE, "Material")
+            .putBoolean(Settings.PREF_THEME_KEY_BORDERS, true)
+            .putBoolean(Settings.PREF_THEME_DAY_NIGHT, false)
+            .putString(Settings.PREF_THEME_COLORS, theme)
+            .putString(Settings.PREF_THEME_COLORS_NIGHT, theme)
+            .putInt(Settings.PREF_USER_MORE_COLORS_PREFIX + theme, 2)
+            .putString(Settings.PREF_USER_ALL_COLORS_PREFIX + theme, colors.entries.joinToString(";") { "${it.key},${it.value}" })
+            .putFloat(Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX + "_false", 1.10f)
+            .putBoolean(Settings.PREF_NARROW_KEY_GAPS, false)
+            .putBoolean("teclado_br_visual_v1", true)
+            .commit()
+    }
+
 }

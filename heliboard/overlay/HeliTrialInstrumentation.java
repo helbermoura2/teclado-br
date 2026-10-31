@@ -42,7 +42,15 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         // Only dismiss an unrelated launcher ANR; never hide a keyboard/app ANR.
         AccessibilityNodeInfo launcher=find(n->n.getText()!=null&&n.getText().toString().contains("Quickstep")&&n.getText().toString().contains("respond"));
         if(launcher!=null){AccessibilityNodeInfo close=find(n->"Close app".contentEquals(n.getText()==null?"":n.getText()));if(close!=null)close.performAction(AccessibilityNodeInfo.ACTION_CLICK);}
-        Rect area=new Rect();field().getBoundsInScreen(area);area.bottom=Math.min(area.bottom,area.top+80);tap(area);bounds('e',false);Thread.sleep(1000);
+        Rect area=new Rect();field().getBoundsInScreen(area);area.bottom=Math.min(area.bottom,area.top+80);tap(area);
+        Rect previous=null;int stable=0;long keyboardDeadline=SystemClock.uptimeMillis()+15000;
+        while(stable<3&&SystemClock.uptimeMillis()<keyboardDeadline){
+            Rect key=bounds('e',false);boolean inside=false;
+            for(AccessibilityWindowInfo window:ui.getWindows())if(window.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD){Rect ime=new Rect();window.getBoundsInScreen(ime);if(ime.contains(key.centerX(),key.centerY()))inside=true;}
+            if(inside&&key.equals(previous))stable++;else stable=0;
+            previous=key;Thread.sleep(200);
+        }
+        check(stable>=3,"Keyboard window did not settle after opening");
     }
     View findView(View v,Predicate<View> test){if(v==null)return null;if(test.test(v))return v;if(v instanceof ViewGroup){ViewGroup g=(ViewGroup)v;for(int i=0;i<g.getChildCount();i++){View found=findView(g.getChildAt(i),test);if(found!=null)return found;}}return null;}
     MainKeyboardView main(){return KeyboardSwitcher.getInstance().getMainKeyboardView();}
@@ -136,7 +144,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         do{words=suggestions();if(words.stream().anyMatch(s->s.equalsIgnoreCase("você")))break;Thread.sleep(200);}while(SystemClock.uptimeMillis()<deadline);
         check(words.stream().anyMatch(s->s.equalsIgnoreCase("você")),"PT-BR dictionary did not suggest você: "+words);result.putString("ptbr_suggestions",words.toString());shot("04-dicionario-portugues");
         clear();long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);Rect accent=bounds('ê',true);event(d,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{accent});shot("05-deslizando-subtecla");event(d,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{accent});expect("ê");shot("06-acento-soltar");
-        options(true,true);launch();type("bom. dia ");expect("Bom. Dia ");shot("07-maiusculas");
+        options(true,true);launch();shot("07-inicio-maiusculas");type("bom. dia ");expect("Bom. Dia ");shot("07-maiusculas");
         clear();type("voce ");expect("Você ");shot("08-autocorrecao");
         options(false,false);launch();language("pt");tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("en");clear();type("hello ");expect("hello ");shot("09-ingles-globo");
         tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("pt");check(bounds('ç',false)!=null,"Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);

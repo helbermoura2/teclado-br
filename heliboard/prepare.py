@@ -17,9 +17,9 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6010')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6020')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.1-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.2-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -27,6 +27,16 @@ replace('app/src/main/res/values/donottranslate.xml', '<item>QWERTY</item>', '<i
 shutil.copyfile(here/'overlay/TecladoBrDefaults.kt', root/'app/src/main/java/helium314/keyboard/latin/TecladoBrDefaults.kt')
 layout = root/'app/src/main/assets/layouts/main/tecladobr.txt'
 layout.write_text('q\nw\ne\nr\nt\ny\nu\ni\no\np\n\na\ns\nd\nf\ng\nh\nj\nk\nl\nç\n\nz\nx\nc\nv\nb\nn\nm\n')
+# Visual resources only: the input engine and touch dispatch stay upstream.
+replace('app/src/main/res/values/config.xml', '<fraction name="config_key_vertical_gap_holo">6.127%p</fraction>', '<fraction name="config_key_vertical_gap_holo">4.6%p</fraction>')
+replace('app/src/main/res/values/config.xml', '<fraction name="config_key_horizontal_gap_holo">1.739%p</fraction>', '<fraction name="config_key_horizontal_gap_holo">1.35%p</fraction>')
+replace('app/src/main/res/values/config.xml', '<fraction name="config_key_hint_letter_ratio_lxx">25%</fraction>', '<fraction name="config_key_hint_letter_ratio_lxx">16%</fraction>')
+for name in ('btn_keyboard_key_normal_lxx_base_border.xml', 'btn_keyboard_key_pressed_lxx_base_border.xml'):
+    file = root/'app/src/main/res/drawable'/name
+    file.write_text(file.read_text().replace('5dp', '7dp'))
+replace('app/src/main/java/helium314/keyboard/keyboard/KeyboardView.java',
+    '        mTypeface = Settings.getInstance().getCustomTypeface();',
+    '        final Typeface customTypeface = Settings.getInstance().getCustomTypeface();\n        mTypeface = customTypeface != null ? customTypeface : Typeface.create("sans-serif-condensed", Typeface.NORMAL);')
 # Keep PT-BR and English data in this trial; other languages remain importable.
 for dictionary in (root/'app/src/main/assets/dicts').glob('main_*.dict'):
     if dictionary.name not in ('main_pt-BR.dict', 'main_en-US.dict'):
