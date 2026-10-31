@@ -1,4 +1,5 @@
 """Exercise actual keyboard touch events and capture both toolbar states."""
+import atexit
 import pathlib
 import re
 import subprocess
@@ -12,8 +13,11 @@ def adb(*args):
     return subprocess.check_output(["adb", *args])
 
 def nodes():
-    adb("shell", "uiautomator", "dump", "/sdcard/window.xml")
-    return ET.fromstring(adb("shell", "cat", "/sdcard/window.xml")).iter("node")
+    adb("shell", "uiautomator", "dump", "--compressed", "/sdcard/window.xml")
+    result = subprocess.run(["adb", "shell", "cat", "/sdcard/window.xml"], capture_output=True)
+    if result.returncode:
+        return []
+    return list(ET.fromstring(result.stdout).iter("node"))
 
 def wait_for(description, attempts=8):
     for _ in range(attempts):
@@ -22,7 +26,8 @@ def wait_for(description, attempts=8):
                 return node
         time.sleep(1)
     screenshot("failure.png")
-    (OUT / "failure-ui.xml").write_bytes(adb("shell", "cat", "/sdcard/window.xml"))
+    dump = subprocess.run(["adb", "shell", "cat", "/sdcard/window.xml"], capture_output=True)
+    (OUT / "failure-ui.xml").write_bytes(dump.stdout)
     (OUT / "logcat.txt").write_bytes(adb("logcat", "-d", "-t", "6000"))
     (OUT / "input-method.txt").write_bytes(adb("shell", "dumpsys", "input_method"))
     raise AssertionError(f"Missing control: {description}")
@@ -36,6 +41,12 @@ def tap(description):
 def screenshot(name):
     (OUT / name).write_bytes(adb("exec-out", "screencap", "-p"))
 
+def diagnostics():
+    screenshot("last-screen.png")
+    (OUT / "logcat.txt").write_bytes(adb("logcat", "-d", "-t", "6000"))
+    (OUT / "input-method.txt").write_bytes(adb("shell", "dumpsys", "input_method"))
+atexit.register(diagnostics)
+
 adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
 time.sleep(8)
 print(adb("shell", "ime", "list", "-a").decode(), flush=True)
@@ -46,11 +57,9 @@ time.sleep(2)
 print(adb("shell", "ime", "enable", "br.com.tecladobr/.KeyboardService").decode(), flush=True)
 print(adb("shell", "ime", "set", "br.com.tecladobr/.KeyboardService").decode(), flush=True)
 print("Selected:", adb("shell", "settings", "get", "secure", "default_input_method").decode(), flush=True)
-for node in nodes():
-    if node.get("class") == "android.widget.EditText":
-        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
-        adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
-        break
+adb("shell", "input", "tap", "540", "700")
+time.sleep(1)
+screenshot("00-abertura.png")
 wait_for("Mostrar sugestões")
 screenshot("01-atalhos.png")
 tap("E")
