@@ -20,7 +20,9 @@ replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applica
 replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6000')
 replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.0-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
-replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        SubtypeSettings.init(this)', '        configureTecladoBr(this)\n        SubtypeSettings.init(this)')
+replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
+replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
+replace('app/src/main/res/values/donottranslate.xml', '<item>QWERTY</item>', '<item>QWERTY</item>\n        <item>Português BR (Ç)</item>')
 shutil.copyfile(here/'overlay/TecladoBrDefaults.kt', root/'app/src/main/java/helium314/keyboard/latin/TecladoBrDefaults.kt')
 layout = root/'app/src/main/assets/layouts/main/tecladobr.txt'
 layout.write_text('q\nw\ne\nr\nt\ny\nu\ni\no\np\n\na\ns\nd\nf\ng\nh\nj\nk\nl\nç\n\nz\nx\nc\nv\nb\nn\nm\n')

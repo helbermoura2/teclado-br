@@ -13,7 +13,7 @@ import java.util.Locale
 fun configureTecladoBr(context: Context) {
     if (BuildConfig.BUILD_TYPE != "debugNoMinify") return
     val prefs = context.prefs()
-    if (prefs.getBoolean("teclado_br_defaults_v1", false)) return
+    if (prefs.getBoolean("teclado_br_defaults_v2", false)) return
     val subtype = SettingsSubtype(Locale.forLanguageTag("pt-BR"), "")
         .withLayout(LayoutType.MAIN, "tecladobr").toPref()
     val keys = listOf(ToolbarKey.SETTINGS, ToolbarKey.CLIPBOARD, ToolbarKey.EMOJI,
@@ -36,6 +36,6 @@ fun configureTecladoBr(context: Context) {
         .putBoolean(Settings.PREF_USE_APPS, false)
         .putString(Settings.PREF_TOOLBAR_MODE, "EXPANDABLE")
         .putString(Settings.PREF_TOOLBAR_KEYS, keys.joinToString("|") { "${it.name}:true" })
-        .putBoolean("teclado_br_defaults_v1", true)
+        .putBoolean("teclado_br_defaults_v2", true)
         .commit()
 }
