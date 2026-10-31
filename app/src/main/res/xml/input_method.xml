@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<input-method xmlns:android="http://schemas.android.com/apk/res/android" android:settingsActivity="br.com.tecladobr.SettingsActivity" android:supportsSwitchingToNextInputMethod="true">
+    <subtype android:label="@string/portuguese" android:imeSubtypeLocale="pt_BR" android:languageTag="pt-BR" android:imeSubtypeMode="keyboard" android:isAsciiCapable="true" />
+</input-method>
