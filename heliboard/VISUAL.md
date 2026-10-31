@@ -21,3 +21,19 @@ e a reinstalação únicos, por causa da assinatura antiga.
 
 Gemma 4 E2B segue prevista para o teste final offline; IA, prompt e lupa continuam
 pendentes de integração e não fazem parte desta mudança visual.
+
+## Validação da versão entregue
+
+Build e interação Android 35 aprovados no [run 41240289013](https://github.com/helbermoura2/teclado-br/actions/runs/41240289013),
+commit `eb9e54735d01591dd70c60fc9b9fe10403b225b2`.
+142 testes unitários, sem falhas. Testes de 200 caracteres com toques sobrepostos,
+seleção/cópia/cola, acento ao deslizar e soltar, maiúscula após ponto, autocorreção,
+globo PT-BR/EN e pins passaram. O pin resistiu ao envelhecimento simulado de
+30 dias e à reinstalação do mesmo APK com reinício do processo.
+Captura `07-inicio-maiusculas.png` conferida visualmente. Os testes foram feitos
+em emulador; a aparência e o conforto final no Nothing Phone (1) ainda dependem
+do teste no aparelho.
+
+SHA-256 do APK: `131dcbde0c490756565917b2c1361669672894e400dafa84cba3c98bf78587e9`.
+SHA-256 das fontes: `8b2d630c575c23579de2ead52a057cfd2d30ffb7ac78e6a94276b9f482853e31`.
+Certificado do APK verificado, igual à versão 0.6.1.
