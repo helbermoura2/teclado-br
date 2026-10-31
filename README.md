@@ -4,6 +4,46 @@ Protótipo de teclado Android independente com visual inspirado no Samsung Keybo
 destinado inicialmente a testes no Nothing Phone (1). Não é um produto Samsung.
 Código próprio; não contém código ou recursos extraídos do Keyvya ou da Samsung.
 
+## Versão 0.5.0 — digitação e sugestões
+
+As teclas permanecem montadas durante a digitação. Letras são registradas no início
+do toque, com suporte a dedos sobrepostos; soltar um dedo depois do outro não deve
+inverter caracteres. Consultas de contexto ao aplicativo e pesquisa de sugestões
+ocorrem em executores separados. A capitalização atualiza os rótulos existentes.
+Backspace repete ao manter pressionado; acentos substituem a letra inicial sem duplicá-la.
+
+A barra de atalhos desliza horizontalmente. Inclui edição, seleção total, copiar,
+recortar, colar, setas do cursor, desfazer/refazer e configurações. Ao digitar,
+voltam as sugestões; a seta reabre os atalhos. O botão da lupa aparece identificado
+como recurso em desenvolvimento, sem tradução simulada.
+
+O dicionário acrescenta 5.000 entradas de frequência, busca por prefixo, pequenas
+variações e alguns contextos de próxima palavra. Palavras desconhecidas continuam
+como opção. A previsão usa regras locais e ainda não equivale à qualidade de um
+teclado consolidado. A autocorreção automática permanece conservadora.
+
+Dados adaptados de [FrequencyWords de Hermit Dave](https://github.com/hermitdave/FrequencyWords),
+lista portuguesa de 2018, primeiras 5.000 linhas. O conteúdo do dicionário usa
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/); atribuição e detalhes
+acompanham o APK em `assets/DICTIONARY-LICENSE.txt` e nas configurações.
+Essa licença se aplica aos dados do dicionário, separadamente do código do app.
+
+**IA offline ainda não instalada.** O assistente deixa isso explícito.
+Revisão gramatical por IA, geração por prompt no Compositor e lupa tradutora
+continuam pendentes. A revisão básica atual usa substituições locais.
+
+Validação 0.5.0: compilação e testes unitários passaram. A
+[execução Android 15 AOSP](https://github.com/helbermoura2/teclado-br/actions/runs/41201671536)
+comparou 200 caracteres produzidos por toques com dedos sobrepostos e ordem
+alternada de soltura: sem perda/inversão, zero reconstruções das teclas durante
+a sequência e zero consultas de contexto na thread principal. Também passaram
+cópia/recorte/colagem, sugestões encadeadas, palavra desconhecida, acento sem
+duplicação, maiúscula/autocorreção e rolagem dos atalhos. A sequência de eventos
+levou 34.453 ms no emulador e não é uma medição de latência nem garantia de
+fluidez no Nothing. Capturas isoladas incluem quadros de transição; não usar
+esses quadros como medição de renderização. O APK verificado corresponde ao
+commit `b9ac19523e3f792d002b42dc9b75b866099f1946`.
+
 ## Versão 0.4.0 — ferramentas de edição
 
 O ícone de edição na barra de atalhos abre uma linha com Selecionar tudo, Copiar,
