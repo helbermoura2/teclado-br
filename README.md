@@ -4,11 +4,21 @@ Protótipo de teclado Android independente com visual inspirado no Samsung Keybo
 destinado inicialmente a testes no Nothing Phone (1). Não é um produto Samsung.
 Código próprio; não contém código ou recursos extraídos do Keyvya ou da Samsung.
 
+## Versão 0.2.0
+
+- Tema escuro com teclas cinza, símbolos secundários e ícones desenhados no app.
+- Barra de altura fixa: atalhos ao abrir, sugestões ao digitar, seta para alternar.
+- Botões para colar o texto atualmente copiado, emojis e configurações.
+- IA e tradução aparecem como recursos em desenvolvimento, sem processamento simulado.
+- Sugestões de próxima palavra por regras simples, além de completar palavras.
+
 ## Estado
 
 Implementação inicial. O motor de texto foi compilado isoladamente com Java e passou
 por 18 verificações de capitalização, correção e sugestões. Os XMLs foram validados.
-Ainda sem compilação Android completa ou teste em aparelho neste ambiente.
+A versão 0.1.0 passou em compilação Android e testes no GitHub Actions.
+A versão atual deve ser conferida na execução de Actions correspondente.
+Ainda não há validação de aparência ou interação em aparelho/emulador.
 Não considerar pronto para uso diário. A compatibilidade com o Nothing Phone (1)
 deve ser confirmada instalando e testando o APK.
 
@@ -23,7 +33,7 @@ deve ser confirmada instalando e testando o APK.
 
 A lista inicial **não equivale a um corretor completo**. Ainda faltam um dicionário
 amplo, tratamento de abreviações/números na capitalização, digitação por gestos,
-emojis integrados, área de transferência e IA. O teclado ainda não contém modelo de IA.
+catálogo completo de emojis, histórico de área de transferência e IA. O teclado ainda não contém modelo de IA.
 
 ## Gerar APK no GitHub
 

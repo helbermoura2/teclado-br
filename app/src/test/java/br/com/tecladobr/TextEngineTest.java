@@ -28,4 +28,11 @@ public class TextEngineTest {
         assertTrue(TextEngine.suggest("cora").contains("coração"));
         assertTrue(TextEngine.suggest("").isEmpty());
     }
+    @Test public void toolbarSuggestsCompletionsOrNextWords() {
+        assertEquals("que", TextEngine.suggestionsForContext("É assim ").get(0));
+        assertEquals("você", TextEngine.suggestionsForContext("oi voce").get(0));
+        assertEquals("Eu", TextEngine.suggestionsForContext("Terminou. ").get(0));
+        assertEquals("dia", TextEngine.suggestionsForContext("Bom ").get(0));
+        assertEquals("bem", TextEngine.suggestionsForContext("Tudo ").get(0));
+    }
 }

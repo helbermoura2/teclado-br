@@ -64,4 +64,20 @@ public final class TextEngine {
         }
         return new ArrayList<>(result);
     }
+    /** Small hand-written next-word list, separate from prefix completion. */
+    public static List<String> suggestionsForContext(String before) {
+        String word = currentWord(before);
+        if (!word.isEmpty()) return suggest(word);
+        if (sentenceStart(before)) return Arrays.asList("Eu", "Você", "Bom");
+        String previous = currentWord(before.trim()).toLowerCase(PT);
+        switch (previous) {
+            case "assim": return Arrays.asList("que", "mesmo", "como");
+            case "eu": return Arrays.asList("quero", "estou", "vou");
+            case "você": case "voce": return Arrays.asList("está", "pode", "quer");
+            case "bom": return Arrays.asList("dia", "trabalho", "mesmo");
+            case "boa": return Arrays.asList("tarde", "noite", "ideia");
+            case "tudo": return Arrays.asList("bem", "certo", "pronto");
+            default: return Arrays.asList("que", "de", "para");
+        }
+    }
 }

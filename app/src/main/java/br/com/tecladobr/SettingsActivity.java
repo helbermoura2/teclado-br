@@ -16,7 +16,7 @@ public class SettingsActivity extends Activity {
         root.setPadding(p, p, p, p);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         scroll.addView(root); setContentView(scroll);
-        TextView title = new TextView(this); title.setText("Teclado BR · versão inicial");
+        TextView title = new TextView(this); title.setText("Teclado BR · 0.2.0");
         title.setTextSize(26); root.addView(title);
         TextView intro = new TextView(this);
         intro.setText("Teclado brasileiro com visual inspirado no Samsung.\n\n1. Ative o teclado.\n2. Selecione Teclado BR.\n3. Experimente no campo abaixo.\n\n");
@@ -46,7 +46,7 @@ public class SettingsActivity extends Activity {
             android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES | android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE);
         root.addView(demo);
         TextView note = new TextView(this);
-        note.setText("\nMantenha uma letra pressionada para ver acentos. Após uma autocorreção, toque em ⌫ para desfazer.\n\nEsta versão não tem IA, gestos ou dicionário completo. As sugestões usam uma lista pequena de palavras. Não acessa a internet nem mantém histórico do que você digita.\n\nProjeto independente, sem vínculo com Samsung ou Nothing.");
+        note.setText("\nMantenha uma letra pressionada para ver acentos e símbolos. Após uma autocorreção, toque em ⌫ para desfazer.\n\nA barra superior mostra sugestões ao digitar. Toque na seta à esquerda para alternar com os atalhos. O botão de área de transferência cola o texto copiado; o rosto abre emojis. Mantenha o espaço pressionado para trocar de teclado.\n\nOs atalhos de IA e tradução indicam recursos em desenvolvimento. Esta versão não tem IA, gestos ou dicionário completo. As sugestões usam uma lista pequena de palavras. Não acessa a internet nem mantém histórico do que você digita.\n\nProjeto independente, sem vínculo com Samsung ou Nothing.");
         root.addView(note);
     }
     private void option(LinearLayout root, String key, String label, boolean fallback) {

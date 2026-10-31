@@ -17,5 +17,16 @@ de interação abaixo ainda precisam ser executados; não foram validados em apa
 10. Desativar maiúsculas e autocorreção nas opções e reabrir o teclado.
 
 Limitações conhecidas: capitalização por pontuação pode interpretar abreviações
-e casas decimais como fim de frase; dicionário reduzido; interface clara fixa;
+e casas decimais como fim de frase; dicionário reduzido; interface escura fixa;
 sem repetição de Backspace ao manter pressionado; sem integração de IA.
+
+## Barra e aparência (0.2.0)
+
+1. Abrir o teclado e conferir fundo preto, teclas cinza e atalhos na barra superior.
+2. Digitar: conferir recolhimento dos atalhos e três posições para sugestões, sem salto de altura.
+3. Tocar na seta: reabrir atalhos, depois voltar às sugestões; repetir após apagar e selecionar sugestões.
+4. Digitar `É assim ` e conferir sugestões `que`, `mesmo`, `como`.
+5. Copiar um texto em outro aplicativo e tocar em colar; conferir bloqueio no campo de senha.
+6. Abrir emojis, inserir um emoji e apagar; conferir símbolos por pressão longa nas letras.
+7. Abrir configurações e menu de opções. IA e tradução devem informar que estão em desenvolvimento.
+8. Comparar as teclas em retrato/paisagem e com fonte ampliada. Conferir que acentos e emojis não saem da tela.
