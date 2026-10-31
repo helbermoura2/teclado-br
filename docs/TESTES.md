@@ -1,10 +1,10 @@
 # Testes no Nothing Phone (1)
 
-Os testes unitários cobrem o motor de texto e o estado da barra. A compilação
-e um teste de capturas em emulador Android 15 passaram. As capturas confirmaram
-tema escuro, espaço da navegação e alternância da barra; o teste de capturas não
-confere automaticamente o texto inserido. Os cenários abaixo continuam sendo
-a lista de validação no Nothing Phone (1).
+Os testes unitários cobrem o motor de texto, o cache de contexto e o estado da barra.
+O teste de instrumentação da versão 0.5.0 injeta eventos de toque e compara o texto
+real do editor em processo separado. Os resultados da execução ficam no artefato
+`teclado-br-telas-android`, arquivo `typing-results.txt`. Os cenários abaixo continuam
+necessários no Nothing Phone (1); emulador não mede a latência percebida no aparelho.
 
 1. Ativar e selecionar o teclado pelas configurações do Android.
 2. Digitar `ola. voce esta bem? sim!` e conferir a maiúscula inicial e após pontuação.
@@ -21,7 +21,7 @@ a lista de validação no Nothing Phone (1).
 
 Limitações conhecidas: capitalização por pontuação pode interpretar abreviações
 e casas decimais como fim de frase; dicionário reduzido; interface escura fixa;
-sem repetição de Backspace ao manter pressionado; sem integração de IA.
+sem integração de IA.
 
 ## Barra e aparência (0.2.0)
 
@@ -68,3 +68,40 @@ Os demais cenários abaixo continuam como validação manual.
 8. Em senha/PIN, ações de área de transferência devem estar desativadas.
 9. Testar Desfazer/Refazer no menu; apps que não aceitam devem informar indisponibilidade.
 10. Repetir em notas, navegador e WhatsApp no Nothing Phone (1).
+
+
+## Digitação rápida e barra deslizante (0.5.0)
+
+O teste `KeyboardStressInstrumentation` roda somente em builds debug e usa a
+interface real do teclado. Injeta 100 pares de letras com dois dedos simultâneos,
+alternando qual dedo é solto primeiro. Compara os 200 caracteres finais, registra
+reconstruções do teclado e consultas de contexto na thread principal. O tempo
+registrado inclui injeção síncrona de eventos no emulador, não é medida de latência
+de toque nem representa velocidade máxima no Nothing.
+
+Também verifica cópia/recorte/colagem, sugestões encadeadas `como você está`,
+preservação de `comovov` nas sugestões, acento sem letra duplicada, maiúsculas e
+correções em `ola. voce `, rolagem da barra e aviso de IA offline não instalada.
+
+No Nothing, repetir:
+
+1. Digitar rapidamente com dois polegares, inclusive alternando letras na mesma
+   linha e entre linhas, e conferir ausência de letras perdidas ou trocadas.
+2. Digitar `como `, escolher `você`, depois `está` e verificar `bem` nas sugestões.
+3. Digitar palavra inexistente, nome e texto longo; verificar que a barra não some.
+4. Deslizar a barra de atalhos nos dois sentidos e usar copiar/colar após selecionar.
+5. Manter uma vogal e escolher acento; conferir uma única letra acentuada.
+6. Segurar Backspace e verificar repetição; soltar e conferir parada imediata.
+7. Repetir em WhatsApp, navegador e notas, incluindo seleção e mudança de cursor.
+8. Conferir explicitamente os avisos de IA offline ausente e lupa em desenvolvimento.
+
+
+Resultado automatizado da 0.5.0: PASS em Android 15 AOSP, commit
+`b9ac19523e3f792d002b42dc9b75b866099f1946`, execução
+https://github.com/helbermoura2/teclado-br/actions/runs/41201671536.
+200 caracteres completos na ordem esperada, 0 reconstruções durante a sequência,
+0 consultas de contexto na thread principal, 96 consultas em segundo plano
+registradas até o fim da sequência. Duração da injeção: 34.453 ms, incluindo
+sobrecarga do emulador; não é benchmark de latência nem simulação de velocidade
+máxima. Alguns PNGs capturam transições antes da composição final, portanto
+são evidência visual parcial. O resultado textual compara o editor via acessibilidade.
