@@ -7,9 +7,9 @@ on:
 permissions:
   contents: read
 jobs:
-  trial:
+  build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -36,6 +36,37 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify
+      - name: Guardar testes unitários
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: teclado-br-heli-unitarios
+          path: heli-source/app/build/reports/tests/
+      - name: Guardar APK compilado e fontes
+        uses: actions/upload-artifact@v4
+        with:
+          name: teclado-br-heli-compilado
+          path: |
+            heli-source/app/build/outputs/apk/debugNoMinify/*.apk
+            heli-artifacts/teclado-br-heli-fontes.tar.gz
+  interaction:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: teclado-br-heli-compilado
+          path: heli-package
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
       - name: Habilitar aceleração do emulador
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -47,24 +78,22 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_5
+          disk-size: 2048M
+          emulator-boot-timeout: 300
           disable-animations: true
           script: |
             adb shell wm size 540x1170
             adb shell wm density 220
-            adb install -r heli-source/app/build/outputs/apk/debugNoMinify/*.apk
+            adb install -r $(find heli-package -name '*.apk' -print -quit)
             python3 heliboard/smoke.py
       - name: Guardar diagnóstico
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: teclado-br-heli-testes
-          path: |
-            heli-results/
-            heli-source/app/build/reports/tests/
+          path: heli-results/
       - name: Guardar APK verificado e fontes
         uses: actions/upload-artifact@v4
         with:
           name: teclado-br-heli-apk-e-fontes
-          path: |
-            heli-source/app/build/outputs/apk/debugNoMinify/*.apk
-            heli-artifacts/teclado-br-heli-fontes.tar.gz
+          path: heli-package/
