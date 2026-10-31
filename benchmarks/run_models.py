@@ -35,7 +35,7 @@ try:
     env=os.environ.copy();env['LD_LIBRARY_PATH']=str(server.parent.resolve())+':'+env.get('LD_LIBRARY_PATH','')
     if convert:
         quantizer=next(pathlib.Path('llama').rglob('llama-quantize'));quantizer.chmod(0o755)
-        with (OUT/'quantize.log').open('w') as log:subprocess.run([str(quantizer.resolve()),str(model),'model.gguf','Q4_K_M','2'],env=env,stdout=log,stderr=log,check=True)
+        with (OUT/'quantize.log').open('w') as log:subprocess.run([str(quantizer.resolve()),'--allow-requantize',str(model),'model.gguf','Q4_K_M','2'],env=env,stdout=log,stderr=log,check=True)
         model.unlink();model=pathlib.Path('model.gguf')
     meta['model_bytes']=model.stat().st_size;meta['model_sha256']=hashlib.file_digest(model.open('rb'),'sha256').hexdigest();save()
     log=(OUT/'server.log').open('w')

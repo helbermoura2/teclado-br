@@ -14,16 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: qwen25-15b
-            repo: Qwen/Qwen2.5-1.5B-Instruct-GGUF
           - name: qwen3-06b
             repo: Qwen/Qwen3-0.6B-GGUF
           - name: qwen3-17b
             repo: Qwen/Qwen3-1.7B-GGUF
-          - name: smollm2-17b
-            repo: HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF
-          - name: gemma3-1b
-            repo: ggml-org/gemma-3-1b-it-GGUF
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
