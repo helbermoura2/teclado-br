@@ -1,0 +1,46 @@
+name: Comparar quatro modelos offline novos
+on:
+  push:
+    branches: [main]
+    paths: ['benchmarks/run_models_v2.py', '.github/workflows/model-benchmark-v2.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: qwen35-2b
+            repo: bartowski/Qwen_Qwen3.5-2B-GGUF
+          - name: gemma4-e2b
+            repo: ggml-org/gemma-4-E2B-it-GGUF
+          - name: smollm3-3b
+            repo: ggml-org/SmolLM3-3B-GGUF
+          - name: gemma3n-e2b
+            repo: ggml-org/gemma-3n-E2B-it-GGUF
+          - name: qwen3-17b-control
+            repo: Qwen/Qwen3-1.7B-GGUF
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Instalar llama.cpp b12020 verificado
+        run: |
+          curl --fail --location --retry 3 --output llama.tar.gz https://github.com/ggml-org/llama.cpp/releases/download/b12020/llama-b12020-bin-ubuntu-x64.tar.gz
+          echo '1b69032f9ab60dc6aa909689fda941fa1b9162f6ab46b863582d5649d96ac6be  llama.tar.gz' | sha256sum --check
+          mkdir llama
+          tar -xzf llama.tar.gz -C llama
+      - name: Executar os mesmos pedidos sintéticos
+        run: python benchmarks/run_models_v2.py --repo '${{ matrix.repo }}' --name '${{ matrix.name }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rodada2-${{ matrix.name }}
+          path: benchmark-results/
+          if-no-files-found: error
+          retention-days: 30

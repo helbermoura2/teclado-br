@@ -2,7 +2,7 @@ name: Comparar modelos offline em português
 on:
   push:
     branches: [main]
-    paths: ['benchmarks/**', '.github/workflows/model-benchmark.yml']
+    paths: ['benchmarks/cases.json', 'benchmarks/run_models.py', '.github/workflows/model-benchmark.yml']
   workflow_dispatch:
 permissions:
   contents: read
