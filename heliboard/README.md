@@ -1,7 +1,7 @@
 # Teclado BR — teste com base HeliBoard
 
-Base: HeliBorg/HeliBoard v4.2, fixada no commit de upstream.json.
-Variante experimental 0.6.0-heli4.2, pacote br.com.tecladobr.heli.debug.
+Base: HeliBorg/HeliBoard v3.6 (SDK 35; a v4.2 exige SDK 37 indisponível no ambiente), fixada no commit de upstream.json.
+Variante experimental 0.6.0-heli3.6, pacote br.com.tecladobr.heli.debug.
 Instala separadamente do Teclado BR anterior e do HeliBoard oficial.
 
 Mudanças locais, 31/10/2026 (desenvolvimento assistido por IA):
@@ -26,7 +26,7 @@ nenhuma biblioteca proprietária foi adicionada. Os gestos de subteclas já são
 1. Baixar o commit exato de upstream.json para uma pasta limpa.
 2. Executar `python3 heliboard/prepare.py /caminho/HeliBoard` a partir do repositório Teclado BR.
 3. No HeliBoard preparado: `./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify`.
-   JDK 17, SDK 37 e NDK 28.0.13004108; Gradle Wrapper do upstream.
+   JDK 17, SDK 35 e NDK 28.0.13004108; Gradle Wrapper do upstream.
 4. O workflow heliboard.yml também testa o APK em Android 15 AOSP.
 
 ## Licença e origem
