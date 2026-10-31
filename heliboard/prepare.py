@@ -17,16 +17,23 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6020')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6030')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.2-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.3-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
-replace('app/src/main/res/values/donottranslate.xml', '<item>QWERTY</item>', '<item>QWERTY</item>\n        <item>Português BR (Ç)</item>')
+replace('app/src/main/res/values/donottranslate.xml', '<item>QWERTY</item>', '<item>QWERTY</item>\n        <item>Português BR</item>')
 shutil.copyfile(here/'overlay/TecladoBrDefaults.kt', root/'app/src/main/java/helium314/keyboard/latin/TecladoBrDefaults.kt')
 layout = root/'app/src/main/assets/layouts/main/tecladobr.txt'
-layout.write_text('q\nw\ne\nr\nt\ny\nu\ni\no\np\n\na\ns\nd\nf\ng\nh\nj\nk\nl\nç\n\nz\nx\nc\nv\nb\nn\nm\n')
+layout.write_text('q\nw\ne\nr\nt\ny\nu\ni\no\np\n\na\ns\nd\nf\ng\nh\nj\nk\nl\n\nz\nx\nc\nv\nb\nn\nm\n')
+# Put the native emoji key immediately after 123, preserving the globe.
+functional = root/'app/src/main/assets/layouts/functional/functional_keys.json'
+rows = json.loads(functional.read_text())
+emoji = rows[1].pop(3)
+assert 'emojiKeyEnabled' in emoji
+rows[1].insert(1, emoji)
+functional.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n')
 # Visual resources only: the input engine and touch dispatch stay upstream.
 replace('app/src/main/res/values/config.xml', '<fraction name="config_key_vertical_gap_holo">6.127%p</fraction>', '<fraction name="config_key_vertical_gap_holo">4.6%p</fraction>')
 replace('app/src/main/res/values/config.xml', '<fraction name="config_key_horizontal_gap_holo">1.739%p</fraction>', '<fraction name="config_key_horizontal_gap_holo">1.35%p</fraction>')

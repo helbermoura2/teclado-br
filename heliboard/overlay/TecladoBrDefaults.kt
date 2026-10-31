@@ -65,6 +65,12 @@ fun configureTecladoBr(context: Context) {
             .putBoolean("teclado_br_languages_pins_v1", true)
             .commit()
     }
+    if (!prefs.getBoolean("teclado_br_layout_v2", false)) {
+        prefs.edit()
+            .putBoolean(Settings.PREF_SHOW_EMOJI_KEY, true)
+            .putBoolean("teclado_br_layout_v2", true)
+            .commit()
+    }
     if (!prefs.getBoolean("teclado_br_visual_v1", false)) {
         val theme = "Teclado BR · escuro"
         val blue = Color.rgb(109, 159, 231)

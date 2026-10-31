@@ -131,7 +131,13 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");shell("ime set br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");
         Thread.sleep(10000);options(false,false);launch();
         if(phase.equals("verify_pins")){check(storedPinned(),"Stored pin lost after process restart");pinnedEntry(true);result.putString("result","PASS");result.putString("coverage","Pinned clipboard text survives app restart and reinstall with same certificate, and can be pasted");finish(Activity.RESULT_OK,result);return;}
-        check(bounds('ç',false)!=null,"No cedilla");shot("01-base-ptbr");
+        check(bounds('a',false).left>bounds('q',false).left,"A-L row must be centered");
+        check(keyBounds(KeyCode.EMOJI,false).centerX()>keyBounds(KeyCode.SYMBOL_ALPHA,false).centerX(),"Emoji must follow 123");
+        shot("01-base-ptbr");
+        long cedillaDown=SystemClock.uptimeMillis();Rect c=bounds('c',false);
+        event(cedillaDown,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{c});Thread.sleep(700);
+        Rect cedilla=bounds('ç',true);event(cedillaDown,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{cedilla});
+        event(cedillaDown,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{cedilla});expect("ç");shot("01-cedilha-subtecla");clear();
         Rect e=bounds('e',false),r=bounds('r',false);StringBuilder expected=new StringBuilder();long begin=SystemClock.uptimeMillis();
         for(int i=0;i<100;i++){long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});event(d,MotionEvent.ACTION_POINTER_DOWN|(1<<8),new int[]{0,1},new Rect[]{e,r});boolean reverse=i%2==1;event(d,MotionEvent.ACTION_POINTER_UP|((reverse?1:0)<<8),new int[]{0,1},new Rect[]{e,r});event(d,MotionEvent.ACTION_UP,new int[]{reverse?0:1},new Rect[]{reverse?e:r});expected.append("er");}
         result.putLong("touch_injection_ms",SystemClock.uptimeMillis()-begin);expect(expected.toString());result.putInt("overlapping_characters",200);shot("02-toques-sobrepostos");
@@ -147,7 +153,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         options(true,true);launch();shot("07-inicio-maiusculas");type("bom. dia ");expect("Bom. Dia ");shot("07-maiusculas");
         clear();type("voce ");expect("Você ");shot("08-autocorrecao");
         options(false,false);launch();language("pt");tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("en");clear();type("hello ");expect("hello ");shot("09-ingles-globo");
-        tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("pt");check(bounds('ç',false)!=null,"Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);
-        result.putString("result","PASS");result.putString("coverage","Globe PT-BR/English switching, pinned clipboard shortcut, long-press pin, expiration exclusion, PT-BR dictionary, Ç layout, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
+        tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("pt");check(bounds('a',false).left>bounds('q',false).left,"Centered Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);
+        result.putString("result","PASS");result.putString("coverage","Globe PT-BR/English switching, pinned clipboard shortcut, long-press pin, expiration exclusion, PT-BR dictionary, centered A-L layout, C long-press cedilla, emoji key beside 123, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
     }catch(Throwable failure){try{shot("failure");}catch(Exception ignored){}StringWriter trace=new StringWriter();failure.printStackTrace(new PrintWriter(trace));result.putString("failure",trace.toString());result.putString("result","FAIL");finish(Activity.RESULT_CANCELED,result);}}
 }
