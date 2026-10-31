@@ -101,7 +101,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
                 event(down,MotionEvent.ACTION_POINTER_UP|((reverse?1:0)<<MotionEvent.ACTION_POINTER_INDEX_SHIFT),new int[]{0,1},new Rect[]{e,r});
                 event(down,MotionEvent.ACTION_UP,new int[]{reverse?0:1},new Rect[]{reverse?e:r});expected.append("er");
             }
-            result.putLong("burst_event_ms",SystemClock.uptimeMillis()-begin);ui.syncInputTransactions();expectText(expected.toString());
+            result.putLong("burst_event_ms",SystemClock.uptimeMillis()-begin);expectText(expected.toString());
             int[] stats=new int[3];runOnMainSync(()->{stats[0]=KeyboardService.activeInstance.keyboardBuilds;stats[1]=KeyboardService.activeInstance.contextReadsOnMain;stats[2]=KeyboardService.activeInstance.contextReads;});
             check(stats[0]==builds[0],"Keyboard rebuilt during input: "+builds[0]+" -> "+stats[0]);check(stats[1]==0,"Blocking context read on main thread");
             result.putInt("burst_characters",200);result.putInt("keyboard_rebuilds_during_burst",stats[0]-builds[0]);result.putInt("main_thread_context_reads",stats[1]);result.putInt("background_context_reads",stats[2]);shot("01-200-toques-sobrepostos");
