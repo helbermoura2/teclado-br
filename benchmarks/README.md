@@ -1,5 +1,14 @@
 # Comparação preliminar de modelos para o Teclado BR
 
+## Resultados
+
+- [Rodada 2: Qwen3.5, Gemma 4, SmolLM3 e Gemma 3n](results/2026-10-31-rodada2-relatorio.md): quatro modelos novos e Qwen3-1.7B como controle, com llama.cpp b12020. Gemma 4 E2B foi o mais consistente nesta amostra; falta teste no telefone.
+- [Primeira rodada: seis modelos](results/2026-10-31-relatorio.md): preservada como referência, com llama.cpp b6500.
+
+O script `run_models.py` reproduz a primeira rodada. O script `run_models_v2.py` e o workflow `Comparar quatro modelos offline novos` reproduzem a segunda. Os binários e configurações do motor diferem; consulte as ressalvas de comparabilidade em cada relatório.
+
+## Primeira rodada
+
 Dez pedidos sintéticos idênticos: correção gramatical/ortográfica, texto já correto,
 tom profissional, recusa educada, composição por prompt, resumo com incerteza,
 tradução idiomática, texto com instrução embutida e emojis com restrição de quantidade.
