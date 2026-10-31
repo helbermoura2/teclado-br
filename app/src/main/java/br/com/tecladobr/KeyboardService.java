@@ -31,6 +31,13 @@ public class KeyboardService extends InputMethodService {
         getWindow().getWindow().setNavigationBarColor(Color.BLACK);
         getWindow().getWindow().getDecorView().setSystemUiVisibility(0);
         root.setPadding(0, 0, 0, dp(6));
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            int bottom = android.os.Build.VERSION.SDK_INT >= 30
+                ? insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+                : insets.getSystemWindowInsetBottom();
+            root.setPadding(0, 0, 0, dp(6) + bottom);
+            return insets;
+        });
         render(); return root;
     }
     @Override public void onStartInput(EditorInfo info, boolean restarting) {

@@ -18,6 +18,10 @@ public class PreviewActivity extends Activity {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(24,48,24,24);
         layout.setBackgroundColor(Color.BLACK);
+        layout.setOnApplyWindowInsetsListener((v,insets)->{
+            layout.setPadding(24,48+insets.getSystemWindowInsetTop(),24,24);
+            return insets;
+        });
         TextView title=new TextView(this);title.setText("Teclado BR · teste de digitação");
         title.setTextColor(Color.WHITE);title.setTextSize(22);layout.addView(title);
         TextView instructions=new TextView(this);
