@@ -11,6 +11,7 @@ import helium314.keyboard.latin.utils.prefs
 import java.util.Locale
 
 fun configureTecladoBr(context: Context) {
+    if (BuildConfig.BUILD_TYPE != "debugNoMinify") return
     val prefs = context.prefs()
     if (prefs.getBoolean("teclado_br_defaults_v1", false)) return
     val subtype = SettingsSubtype(Locale.forLanguageTag("pt-BR"), "")
