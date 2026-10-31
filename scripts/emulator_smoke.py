@@ -21,6 +21,9 @@ def wait_for(description, attempts=8):
             if node.get("content-desc") == description:
                 return node
         time.sleep(1)
+    screenshot("failure.png")
+    (OUT / "failure-ui.xml").write_bytes(adb("shell", "cat", "/sdcard/window.xml"))
+    (OUT / "logcat.txt").write_bytes(adb("logcat", "-d", "-t", "1500"))
     raise AssertionError(f"Missing control: {description}")
 
 def tap(description):
@@ -32,9 +35,16 @@ def tap(description):
 def screenshot(name):
     (OUT / name).write_bytes(adb("exec-out", "screencap", "-p"))
 
+adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
 adb("shell", "ime", "enable", "br.com.tecladobr/.KeyboardService")
 adb("shell", "ime", "set", "br.com.tecladobr/.KeyboardService")
 adb("shell", "am", "start", "-n", "br.com.tecladobr/.PreviewActivity")
+time.sleep(2)
+for node in nodes():
+    if node.get("class") == "android.widget.EditText":
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.get("bounds")))
+        adb("shell", "input", "tap", str((x1+x2)//2), str((y1+y2)//2))
+        break
 wait_for("Mostrar sugestões")
 screenshot("01-atalhos.png")
 tap("E")
