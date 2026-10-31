@@ -35,6 +35,8 @@ fun configureTecladoBr(context: Context) {
         .putBoolean(Settings.PREF_USE_CONTACTS, false)
         .putBoolean(Settings.PREF_USE_APPS, false)
         .putString(Settings.PREF_TOOLBAR_MODE, "EXPANDABLE")
+        .putBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR, true)
+        .putBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR, true)
         .putString(Settings.PREF_TOOLBAR_KEYS, keys.joinToString("|") { "${it.name}:true" })
         .putBoolean("teclado_br_defaults_v2", true)
         .commit()
