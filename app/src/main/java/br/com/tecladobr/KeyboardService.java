@@ -161,25 +161,24 @@ public class KeyboardService extends InputMethodService {
         PopupWindow popup=new PopupWindow(panel,width,dp(68),false);
         popup.setBackgroundDrawable(background(0xff28282c));
         // Keep the original pointer stream on the letter, including movement outside it.
-        popup.setTouchable(false);popup.setFocusable(false);popup.setClippingEnabled(true);
+        popup.setTouchable(true);popup.setFocusable(false);popup.setClippingEnabled(true);
         int[] origin=new int[2];anchor.getLocationOnScreen(origin);
         int left=Math.max(dp(4),Math.min(origin[0]+anchor.getWidth()/2-width/2,getResources().getDisplayMetrics().widthPixels-width-dp(4)));
-        int top=Math.max(dp(4),origin[1]-dp(74));
         List<Button> options=new ArrayList<>();final int[] selected={0};
         for(int i=0;i<choices.length();i++){
             final int index=i;String replacement=choices.substring(i,i+1);
             Button option=key(panel,replacement,1,()->{replaceRecent(previous,replacement,token);popup.dismiss();},false);
             option.setBackground(background(i==0?0xff626276:0xff333335));options.add(option);
         }
-        popup.showAtLocation(root,Gravity.TOP|Gravity.LEFT,left,top);
+        popup.showAsDropDown(anchor,left-origin[0],-anchor.getHeight()-dp(74));
         anchor.holdGesture(new KeyboardKey.HoldGesture(){
             boolean moved;
             @Override public void move(float x,float y){
                 if(Math.abs(x-(origin[0]+anchor.getWidth()/2f))>dp(8)||y<origin[1])moved=true;
                 int next=selected[0];
-                if(y<top-dp(30)||y>origin[1]+anchor.getHeight()+dp(30)||x<left-dp(24)||x>left+width+dp(24))next=-1;
+                int[] position=new int[2];panel.getLocationOnScreen(position);
+                if(y<position[1]-dp(30)||y>origin[1]+anchor.getHeight()+dp(30)||x<position[0]-dp(24)||x>position[0]+panel.getWidth()+dp(24))next=-1;
                 else if(moved){
-                    int[] position=new int[2];panel.getLocationOnScreen(position);
                     float local=x-position[0]-panel.getPaddingLeft();
                     float cell=(panel.getWidth()-panel.getPaddingLeft()-panel.getPaddingRight())/(float)choices.length();
                     next=cell<=0?0:Math.max(0,Math.min(choices.length()-1,(int)(local/cell)));
