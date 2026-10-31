@@ -153,11 +153,49 @@ public class KeyboardService extends InputMethodService {
             showAccents(b,shown,inserted[0],ticket[0]);return true;
         });
     }
-    private void showAccents(View anchor,String choices,String previous,long token){
+    private void showAccents(KeyboardKey anchor,String choices,String previous,long token){
+        // A lone secondary symbol is committed as soon as the hold threshold is reached.
+        if(choices.length()==1){replaceRecent(previous,choices,token);return;}
         LinearLayout panel=new LinearLayout(this);panel.setPadding(dp(4),dp(4),dp(4),dp(4));panel.setBackground(background(0xff28282c));
-        PopupWindow popup=new PopupWindow(panel,dp(choices.length()*45+8),dp(68),true);popup.setBackgroundDrawable(background(0xff28282c));popup.setOutsideTouchable(true);
-        for(char c:choices.toCharArray()){String replacement=String.valueOf(c);key(panel,replacement,1,()->{replaceRecent(previous,replacement,token);popup.dismiss();},false);}
-        popup.showAsDropDown(anchor,0,-dp(120));
+        int width=Math.min(dp(choices.length()*45+8),getResources().getDisplayMetrics().widthPixels-dp(8));
+        PopupWindow popup=new PopupWindow(panel,width,dp(68),false);
+        popup.setBackgroundDrawable(background(0xff28282c));
+        // Keep the original pointer stream on the letter, including movement outside it.
+        popup.setTouchable(false);popup.setFocusable(false);popup.setClippingEnabled(true);
+        int[] origin=new int[2];anchor.getLocationOnScreen(origin);
+        int left=Math.max(dp(4),Math.min(origin[0]+anchor.getWidth()/2-width/2,getResources().getDisplayMetrics().widthPixels-width-dp(4)));
+        int top=Math.max(dp(4),origin[1]-dp(74));
+        List<Button> options=new ArrayList<>();final int[] selected={0};
+        for(int i=0;i<choices.length();i++){
+            final int index=i;String replacement=choices.substring(i,i+1);
+            Button option=key(panel,replacement,1,()->{replaceRecent(previous,replacement,token);popup.dismiss();},false);
+            option.setBackground(background(i==0?0xff626276:0xff333335));options.add(option);
+        }
+        popup.showAtLocation(root,Gravity.TOP|Gravity.LEFT,left,top);
+        anchor.holdGesture(new KeyboardKey.HoldGesture(){
+            boolean moved;
+            @Override public void move(float x,float y){
+                if(Math.abs(x-(origin[0]+anchor.getWidth()/2f))>dp(8)||y<origin[1])moved=true;
+                int next=selected[0];
+                if(y<top-dp(30)||y>origin[1]+anchor.getHeight()+dp(30)||x<left-dp(24)||x>left+width+dp(24))next=-1;
+                else if(moved){
+                    int[] position=new int[2];panel.getLocationOnScreen(position);
+                    float local=x-position[0]-panel.getPaddingLeft();
+                    float cell=(panel.getWidth()-panel.getPaddingLeft()-panel.getPaddingRight())/(float)choices.length();
+                    next=cell<=0?0:Math.max(0,Math.min(choices.length()-1,(int)(local/cell)));
+                }
+                if(next!=selected[0]){
+                    if(selected[0]>=0)options.get(selected[0]).setBackground(background(0xff333335));
+                    selected[0]=next;
+                    if(next>=0){options.get(next).setBackground(background(0xff626276));if(haptic)anchor.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);}
+                }
+            }
+            @Override public void finish(boolean cancelled){
+                popup.dismiss();
+                if(cancelled||selected[0]<0)replaceRecent(previous,"",token);
+                else replaceRecent(previous,choices.substring(selected[0],selected[0]+1),token);
+            }
+        });
     }
     private boolean replaceRecent(String previous,String replacement,long token){
         if(token!=revision)return false;

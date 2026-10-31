@@ -16,7 +16,7 @@ public class SettingsActivity extends Activity {
         root.setPadding(p, p, p, p);
         ScrollView scroll = new ScrollView(this); scroll.setFillViewport(true);
         scroll.addView(root); setContentView(scroll);
-        TextView title = new TextView(this); title.setText("Teclado BR · 0.5.0");
+        TextView title = new TextView(this); title.setText("Teclado BR · 0.5.1");
         title.setTextSize(26); root.addView(title);
         TextView intro = new TextView(this);
         intro.setText("Teclado brasileiro com visual inspirado no Samsung.\n\nIA OFFLINE: NÃO INSTALADA. Os testes de modelos aconteceram fora do aplicativo. A revisão atual é básica local; a lupa ainda está em desenvolvimento.\n\n1. Ative o teclado.\n2. Selecione Teclado BR.\n3. Abra a tela de teste.\n\n");

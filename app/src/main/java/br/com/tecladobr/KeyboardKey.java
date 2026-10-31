@@ -11,6 +11,19 @@ public final class KeyboardKey extends Button {
     private final android.text.TextPaint paint = new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
     private String hint = "", icon = "";
     private boolean quickTouch,repeat;
+    interface HoldGesture {
+        void move(float screenX,float screenY);
+        void finish(boolean cancelled);
+    }
+    private HoldGesture holdGesture;
+    void holdGesture(HoldGesture gesture){
+        endHold(true);holdGesture=gesture;
+        getParent().requestDisallowInterceptTouchEvent(true);
+    }
+    private void endHold(boolean cancelled){
+        HoldGesture gesture=holdGesture;holdGesture=null;
+        if(gesture!=null){gesture.finish(cancelled);if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(false);}
+    }
     private final Runnable held=new Runnable(){public void run(){
         if(!isPressed())return;
         if(repeat){performClick();postDelayed(this,65);}
@@ -22,19 +35,20 @@ public final class KeyboardKey extends Button {
         if(!quickTouch||!isEnabled())return super.onTouchEvent(event);
         int action=event.getActionMasked();
         if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_POINTER_DOWN){
-            removeCallbacks(held);setPressed(true);performClick();
+            endHold(true);removeCallbacks(held);setPressed(true);performClick();
             if(event.getPointerCount()==1)postDelayed(held,repeat?350:ViewConfiguration.getLongPressTimeout());
             return true;
         }
         if(action==MotionEvent.ACTION_MOVE){
+            if(holdGesture!=null){holdGesture.move(event.getRawX(),event.getRawY());return true;}
             if(event.getX()<0||event.getX()>getWidth()||event.getY()<0||event.getY()>getHeight())removeCallbacks(held);
             return true;
         }
-        if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL){removeCallbacks(held);setPressed(false);return true;}
-        if(action==MotionEvent.ACTION_POINTER_UP){removeCallbacks(held);return true;}
+        if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_CANCEL){removeCallbacks(held);setPressed(false);if(holdGesture!=null&&action==MotionEvent.ACTION_UP)holdGesture.move(event.getRawX(),event.getRawY());endHold(action==MotionEvent.ACTION_CANCEL);return true;}
+        if(action==MotionEvent.ACTION_POINTER_UP){removeCallbacks(held);endHold(true);return true;}
         return true;
     }
-    @Override protected void onDetachedFromWindow(){removeCallbacks(held);super.onDetachedFromWindow();}
+    @Override protected void onDetachedFromWindow(){endHold(true);removeCallbacks(held);super.onDetachedFromWindow();}
     public KeyboardKey(Context context) { super(context); }
     public void hint(String value) { hint = value; invalidate(); }
     public void icon(String value) { icon = value; invalidate(); }

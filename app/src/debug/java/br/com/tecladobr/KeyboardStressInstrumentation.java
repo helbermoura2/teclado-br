@@ -61,7 +61,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
     }
     private void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
     private void shot(String name)throws Exception{
-        Bitmap image=ui.takeScreenshot();if(image==null)return;
+        Thread.sleep(500);Bitmap image=ui.takeScreenshot();if(image==null)return;
         try(FileOutputStream out=new FileOutputStream(new File(shots,name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}image.recycle();
     }
     private void openShortcuts()throws Exception{
@@ -109,7 +109,16 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             openShortcuts();click("Colar");expectText(expected.toString());click("Selecionar tudo");click("Recortar seleção");expectText("");click("Colar");expectText(expected.toString());shot("02-edicao-deslizante");
             clearText();ascii("como ");node("você");click("você");expectText("como você ");node("está");click("está");expectText("como você está ");node("bem");shot("03-previsao-frase");
             clearText();ascii("comovov");node("comovov");shot("04-palavra-desconhecida");
-            clearText();long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(650);event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{e});click("é");expectText("é");shot("05-acento-sem-duplicar");
+            clearText();long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);
+            Rect accent=bounds("ê");event(down,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{accent});Thread.sleep(120);shot("05-opcao-deslizada");
+            event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{accent});expectText("ê");shot("05-acento-sem-segundo-toque");
+            clearText();Rect n=bounds("n");down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{n});Thread.sleep(700);
+            expectText("?");shot("05-simbolo-inserido-ainda-segurando");event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{n});expectText("?");
+            clearText();down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);node("é");
+            event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{e});expectText("é");
+            clearText();down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);node("é");
+            Rect outside=new Rect(5,100,15,110);event(down,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{outside});event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{outside});expectText("");
+            ascii("e");expectText("e");shot("05-toque-curto-preservado");
             getTargetContext().getSharedPreferences("keyboard",0).edit().putBoolean("caps",true).putBoolean("correction",true).commit();
             launchEditor();
             expectText("");find(n->"O".contentEquals(n.getContentDescription()==null?"":n.getContentDescription()),5000);
@@ -117,7 +126,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             openShortcuts();AccessibilityNodeInfo scroll=find(n->"android.widget.HorizontalScrollView".contentEquals(n.getClassName()),5000);Rect sb=new Rect();scroll.getBoundsInScreen(sb);
             int oldLeft=bounds("Ferramentas de edição").left;check(scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD),"Shortcut strip did not scroll");Thread.sleep(400);shot("06-todos-atalhos-deslizantes");
             click("Lupa (em desenvolvimento)");click("Assistente · IA offline não instalada");node("IA offline não instalada");shot("07-estado-ia-claro");click("⌨ Teclado");
-            result.putString("result","PASS");result.putString("coverage","200 characters, overlapping fingers with reversed release order, no keyboard rebuild, no main-thread context reads, clipboard, phrase prediction, unknown-word fallback, long-press accent, scroll toolbar, AI status");
+            result.putString("result","PASS");result.putString("coverage","200 characters, overlapping fingers with reversed release order, no keyboard rebuild, no main-thread context reads, clipboard, phrase prediction, unknown-word fallback, long-press slide-to-select accent, immediate secondary symbol before release, default accent on release, cancelled gesture, short tap, scroll toolbar, AI status");
             finish(Activity.RESULT_OK,result);
         }catch(Throwable failure){
             try{shot("failure");}catch(Exception ignored){}
