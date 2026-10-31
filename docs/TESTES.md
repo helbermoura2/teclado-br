@@ -105,3 +105,25 @@ registradas até o fim da sequência. Duração da injeção: 34.453 ms, incluin
 sobrecarga do emulador; não é benchmark de latência nem simulação de velocidade
 máxima. Alguns PNGs capturam transições antes da composição final, portanto
 são evidência visual parcial. O resultado textual compara o editor via acessibilidade.
+
+
+## Subteclas por pressão longa (0.5.1)
+
+1. Manter N pressionado e verificar `?` no texto antes de soltar; soltar não duplica.
+2. Manter E pressionado, deslizar até Ê/ê e soltar no mesmo gesto; não tocar outra vez.
+3. Manter E e soltar sem mover: inserir a primeira opção É/é.
+4. Manter E, arrastar para longe das opções e soltar: cancelar sem letra residual.
+5. Tocar E brevemente: inserir somente E/e.
+6. Repetir com Shift, nas vogais das bordas A/O/U e com dois polegares,
+   verificando que uma pressão antiga não substitui texto digitado depois.
+
+
+Automação 0.5.1: PASS em Android 15 AOSP (540×1170 / 220 dpi), execução
+https://github.com/helbermoura2/teclado-br/actions/runs/41203751306,
+commit `df29b7b349f3df79fc1791fb48e5acadcf8e78ec`.
+Comparações reais do texto confirmaram os cenários 1–5 acima. Capturas confirmam
+painel acima da tecla, opção Ê/ê destacada durante o gesto e somente o acento após
+soltar; a captura do símbolo mostra `?` enquanto N permanece pressionado.
+A regressão de 200 caracteres sobrepostos passou sem reconstruções nem leituras de
+contexto na thread principal. O tempo de injeção de 28.101 ms inclui sobrecarga do
+emulador e não mede a latência no telefone. Cenário 6 permanece para teste manual.
