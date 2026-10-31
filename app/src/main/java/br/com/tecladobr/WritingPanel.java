@@ -97,8 +97,12 @@ final class WritingPanel {
         if(current==null||current.text==null||current.startOffset!=0||!original.contentEquals(current.text)||current.selectionStart!=selectionStart||current.selectionEnd!=selectionEnd){
             notice="O texto ou a seleção mudou. Volte e faça uma nova revisão para não substituir o trecho errado.";service.refreshWritingPanel();return;
         }
-        if(ic.setSelection(start,end)){ic.commitText(draft,1);service.closeWritingPanel();}
-        else{notice="Este aplicativo não permitiu selecionar o trecho. Use Copiar.";service.refreshWritingPanel();}
+        boolean applied=false;
+        ic.beginBatchEdit();
+        try{if(ic.setSelection(start,end))applied=ic.commitText(draft,1);}
+        finally{ic.endBatchEdit();}
+        if(applied)service.closeWritingPanel();
+        else{ic.setSelection(selectionStart,selectionEnd);notice="Este aplicativo não permitiu substituir o trecho. Use Copiar.";service.refreshWritingPanel();}
     }
     void insert(String text){draft+=text;service.refreshWritingPanel();}
     void backspace(){if(!draft.isEmpty())draft=draft.substring(0,draft.offsetByCodePoints(draft.length(),-1));service.refreshWritingPanel();}

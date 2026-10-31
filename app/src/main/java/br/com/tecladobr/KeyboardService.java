@@ -160,7 +160,9 @@ public class KeyboardService extends InputMethodService {
         candidates.setBackgroundColor(Color.rgb(23,23,25));
         candidates.setPadding(dp(6),0,dp(6),0);
         root.addView(candidates, new LinearLayout.LayoutParams(-1,dp(46)));
-        updateSuggestions();
+        if(writingPanel!=null&&writingPanel.isEditing()){
+            TextView editingHint=new TextView(this);editingHint.setText("Editando prévia · Concluir acima");editingHint.setTextColor(Color.LTGRAY);editingHint.setGravity(Gravity.CENTER);candidates.addView(editingHint,new LinearLayout.LayoutParams(-1,-1));
+        }else updateSuggestions();
         if (enabled("numbers") || symbols) {
             LinearLayout numbers = row();
             for (char n : "1234567890".toCharArray()) {
@@ -227,6 +229,7 @@ public class KeyboardService extends InputMethodService {
         menu.show();
     }
     private void pasteClipboard(){
+        if(writingPanel!=null)return;
         if(sensitive){Toast.makeText(this,"Área de transferência oculta em campos de senha.",Toast.LENGTH_SHORT).show();return;}
         ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
         ClipData clip=clipboard.getPrimaryClip();
@@ -271,6 +274,7 @@ public class KeyboardService extends InputMethodService {
         ic.deleteSurroundingText(word.length(), 0); ic.commitText(replacement, 1);
     }
     private void choose(String word) {
+        if(writingPanel!=null&&writingPanel.isEditing()){writingPanel.insert(word+" ");return;}
         InputConnection ic = getCurrentInputConnection(); if (ic == null || word.isEmpty()) return;
         toolbar.onTyping();
         ic.beginBatchEdit(); replaceWord(ic, TextEngine.currentWord(before()), word + " "); ic.endBatchEdit();
