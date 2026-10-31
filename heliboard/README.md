@@ -4,6 +4,10 @@ Base: HeliBorg/HeliBoard v3.6 (SDK 35; a v4.2 exige SDK 37 indisponível no ambi
 Variante experimental 0.6.0-heli3.6, pacote br.com.tecladobr.heli.debug.
 Instala separadamente do Teclado BR anterior e do HeliBoard oficial.
 
+Compilação, 142 testes unitários e interação no Android 15 aprovados.
+Resultados e limites em [VALIDACAO.md](VALIDACAO.md).
+No Nothing, ativar e selecionar **Teclado BR · Heli teste** nas configurações do Android.
+
 Mudanças locais, 31/10/2026 (desenvolvimento assistido por IA):
 - Perfil inicial PT-BR e layout QWERTY com Ç; números, tema escuro e teclas com bordas.
 - Correção, sugestões e maiúsculas do motor original, sem reimplementar digitação.
@@ -28,6 +32,9 @@ nenhuma biblioteca proprietária foi adicionada. Os gestos de subteclas já são
 3. No HeliBoard preparado: `./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify`.
    JDK 17, SDK 35 e NDK 28.0.13004108; Gradle Wrapper do upstream.
 4. O workflow heliboard.yml também testa o APK em Android 15 AOSP.
+
+As fontes entregues em tar.gz já estão preparadas; basta executar o comando Gradle
+do passo 3 dentro da pasta extraída, sem reaplicar prepare.py.
 
 ## Licença e origem
 
