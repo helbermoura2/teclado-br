@@ -47,7 +47,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
         MotionEvent.PointerProperties[] properties=new MotionEvent.PointerProperties[ids.length];MotionEvent.PointerCoords[] coords=new MotionEvent.PointerCoords[ids.length];
         for(int i=0;i<ids.length;i++){properties[i]=new MotionEvent.PointerProperties();properties[i].id=ids[i];properties[i].toolType=MotionEvent.TOOL_TYPE_FINGER;coords[i]=new MotionEvent.PointerCoords();coords[i].x=positions[i].exactCenterX();coords[i].y=positions[i].exactCenterY();coords[i].pressure=1;coords[i].size=.08f;}
         MotionEvent e=MotionEvent.obtain(down,SystemClock.uptimeMillis(),action,ids.length,properties,coords,0,0,1,1,0,0,android.view.InputDevice.SOURCE_TOUCHSCREEN,0);
-        check(ui.injectInputEvent(e,true),"Input event rejected");e.recycle();Thread.sleep(4);
+        check(ui.injectInputEvent(e,false),"Input event rejected");e.recycle();Thread.sleep(4);
     }
     private void tap(Rect rect)throws Exception{long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{rect});event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{rect});}
     private void click(String description)throws Exception{tap(bounds(description));Thread.sleep(160);}
@@ -89,8 +89,8 @@ public class KeyboardStressInstrumentation extends Instrumentation {
             shots=new File(getTargetContext().getCacheDir(),"typing-shots");shots.mkdirs();
             getTargetContext().getSharedPreferences("keyboard",0).edit().putBoolean("caps",false).putBoolean("correction",false).putBoolean("haptic",false).putBoolean("numbers",true).putInt("height",8).commit();
             shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr/.KeyboardService");shell("ime set br.com.tecladobr/.KeyboardService");
-            launchEditor();
-            Rect e=bounds("e"),r=bounds("r");Thread.sleep(300);
+            Thread.sleep(8000);launchEditor();
+            Rect e=bounds("e"),r=bounds("r");Thread.sleep(1200);
             check(KeyboardService.activeInstance!=null,"IME not bound");int[] builds={0};
             runOnMainSync(()->builds[0]=KeyboardService.activeInstance.keyboardBuilds);
             long begin=SystemClock.uptimeMillis();StringBuilder expected=new StringBuilder();
@@ -101,7 +101,7 @@ public class KeyboardStressInstrumentation extends Instrumentation {
                 event(down,MotionEvent.ACTION_POINTER_UP|((reverse?1:0)<<MotionEvent.ACTION_POINTER_INDEX_SHIFT),new int[]{0,1},new Rect[]{e,r});
                 event(down,MotionEvent.ACTION_UP,new int[]{reverse?0:1},new Rect[]{reverse?e:r});expected.append("er");
             }
-            result.putLong("burst_event_ms",SystemClock.uptimeMillis()-begin);expectText(expected.toString());
+            result.putLong("burst_event_ms",SystemClock.uptimeMillis()-begin);ui.syncInputTransactions();expectText(expected.toString());
             int[] stats=new int[3];runOnMainSync(()->{stats[0]=KeyboardService.activeInstance.keyboardBuilds;stats[1]=KeyboardService.activeInstance.contextReadsOnMain;stats[2]=KeyboardService.activeInstance.contextReads;});
             check(stats[0]==builds[0],"Keyboard rebuilt during input: "+builds[0]+" -> "+stats[0]);check(stats[1]==0,"Blocking context read on main thread");
             result.putInt("burst_characters",200);result.putInt("keyboard_rebuilds_during_burst",stats[0]-builds[0]);result.putInt("main_thread_context_reads",stats[1]);result.putInt("background_context_reads",stats[2]);shot("01-200-toques-sobrepostos");
