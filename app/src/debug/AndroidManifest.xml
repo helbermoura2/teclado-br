@@ -1,5 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <application>
-        <activity android:name=".PreviewActivity" android:exported="true" android:label="Teste do teclado" />
+        <activity android:name=".PreviewActivity" android:exported="true" tools:replace="android:exported" android:label="Teste do teclado" />
     </application>
 </manifest>

@@ -8,7 +8,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 
-/** Debug-only screen for testing the IME in a real Android window. */
+/** Isolated editor process: synchronous IME queries must not block its editor. */
 public class PreviewActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
