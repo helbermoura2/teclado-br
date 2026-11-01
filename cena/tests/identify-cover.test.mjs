@@ -8,7 +8,7 @@ const film = { id: 'Q123', labels: { en: { value: 'U.S. Marshals' } }, descripti
 test('punctuation and OCR substitutions are scored without title-specific substitutions', () => {
   assert.equal(normalizeTitle('U.S. Marshals'), 'usmarshals');
   assert.ok(similarity('LSMARSHAIG', 'U.S. Marshals') > similarity('LSMARSHAIG', 'Small Soldiers'));
-  assert.ok(coverQueries(['LSMARSHAIG']).includes('intitle:marsh* film'));
+  assert.ok(coverQueries(['LSMARSHAIG']).includes('intitle:marsh* hastemplate:Infobox_film'));
   assert.ok(coverQueries(['STRANGERTHlNGS']).some(query => query.includes('stran')));
 });
 
