@@ -31,15 +31,15 @@ class AssetsUpgradeTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assertEquals("app.cena.mobile", context.packageName)
         assertEquals("update", File(context.filesDir, "legacy-update-marker.txt").readText().trim())
-        assertEquals("0.4.3", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
+        assertEquals("0.5.0", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val deadline = android.os.SystemClock.uptimeMillis()+15000
             while (!evaluate(scenario, "typeof window.CenaNativeResult").contains("function")) {
                 assertTrue(android.os.SystemClock.uptimeMillis()<deadline)
                 Thread.sleep(200)
             }
-            assertTrue(evaluate(scenario, "location.pathname").contains("/cena-0.4.3/"))
-            assertTrue(evaluate(scenario, "document.querySelector('#app-version').textContent").contains("0.4.3"))
+            assertTrue(evaluate(scenario, "location.pathname").contains("/cena-0.5.0/"))
+            assertTrue(evaluate(scenario, "document.querySelector('#app-version').textContent").contains("0.5.0"))
             evaluate(scenario, "document.querySelector('nav [data-tab=scan]').click(); true")
             assertTrue(evaluate(scenario, "document.querySelector('#pick-image') !== null").contains("true"))
             assertTrue(evaluate(scenario, "document.querySelector('#scan-query').tagName").contains("TEXTAREA"))
