@@ -12,7 +12,10 @@ with ZipFile(apk) as archive:
     app = archive.read('assets/app.js').decode()
     assert 'v0.4.2' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
-    assert 'compareCovers' in app and 'result.phrases' in app
+    identification = archive.read('assets/identify-cover.js').decode()
+    assert 'compareCovers' in app and 'coverInput(result)' in app
+    assert 'result.title' in identification and 'result.phrases' in identification
+    assert '<textarea id="scan-query"' in app
     assert archive.getinfo('assets/models/clip-vision.onnx').file_size > 20_000_000
     assert not any('photo.base64' in name for name in archive.namelist()), 'Private test photos must never ship in the app.'
     model = json.loads(archive.read('assets/models/model-info.json'))
