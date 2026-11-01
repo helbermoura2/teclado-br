@@ -25,7 +25,7 @@ def embedding(image):
     return vector / max(float(np.linalg.norm(vector)), .000001)
 
 reports = []
-for expected, filename in [('tt0120873', 'marshals-photo.base64'), ('tt3915174', 'margaret-photo.base64')]:
+for expected, filename in [('tt0120873', 'marshals-photo.base64'), ('tt9185206', 'margaret-photo.base64')]:
     photo = Image.open(io.BytesIO(base64.b64decode((root / 'tests/fixtures' / filename).read_text())))
     original = embedding(photo)
     assert float(np.dot(original, embedding(photo))) > .999
