@@ -70,7 +70,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.4.3')
+                  expect(page.locator('#app-version')).to_contain_text('0.5.0')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -107,6 +107,41 @@ jobs:
                   Path('qa').mkdir(exist_ok=True)
                   page.screenshot(path='qa/birds-details.png', full_page=True)
                   page.locator('#detail .close').click()
+                  page.locator('#detail').evaluate('(dialog) => dialog.open && dialog.close()')
+                  native_page = browser.new_page(viewport={'width':412,'height':915})
+                  native_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt14846026',type:'movie',name:'Sisu',year:'2022',status:'watchlist'}]));
+                    window.CenaAndroid={appVersion:()=> '0.5.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:()=>{},queueTrakt:()=>{},
+                      configureTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[]}),
+                      connectTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[],userCode:'CENA-CODE',verificationUrl:'https://trakt.tv/activate'}),
+                      saveStory:value=>window.savedStory=value,shareStory:value=>window.sharedStory=value};
+                  """)
+                  native_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  native_page.locator('nav [data-tab="connect"]').click()
+                  native_page.locator('summary').filter(has_text='Configurar integração').click()
+                  native_page.locator('#trakt-client-id').fill('cena-public-test-client-0000000000')
+                  native_page.locator('#trakt-config-form button').click()
+                  native_page.locator('#trakt-connect').click()
+                  expect(native_page.locator('#trakt-user-code')).to_have_text('CENA-CODE')
+                  native_page.evaluate("window.CenaTraktResult({configured:true,connected:true,username:'test-owner',lastSync:1700000000000,pending:[],watchlist:[],watched:[{id:'tt14846026',type:'movie',watchedAt:'2026-11-01T12:00:00Z'}]})")
+                  native_page.locator('nav [data-tab="library"]').click()
+                  native_page.locator('[data-filter="watched"]').click()
+                  expect(native_page.locator('#library-grid')).to_contain_text('✓ Assistido')
+                  native_page.locator('#library-grid .poster-card').first.click()
+                  native_page.locator('#share-title').click()
+                  expect(native_page.locator('#story-caption')).to_have_value('Já assisti ✓')
+                  assert native_page.locator('#story-canvas').get_attribute('width')=='1080'
+                  assert native_page.locator('#story-canvas').get_attribute('height')=='1920'
+                  native_page.locator('#save-story').click()
+                  native_page.wait_for_function('window.savedStory && window.savedStory.length > 100')
+                  import struct
+                  png=base64.b64decode(native_page.evaluate('window.savedStory'))
+                  assert png[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',png[16:24])==(1080,1920)
+                  Path('qa/CENA-Story.png').write_bytes(png)
+                  native_page.locator('#share-story').click()
+                  native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
+                  native_page.close()
                   assert not errors, errors
                   Path('qa').mkdir(exist_ok=True)
                   page.screenshot(path='qa/sisu-saved.png', full_page=True)
