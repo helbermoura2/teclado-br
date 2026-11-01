@@ -2,7 +2,7 @@ name: CENA live mobile browser QA
 on:
   push:
     branches: ['cena/**']
-    paths: ['.github/workflows/cena-browser-qa.yml']
+    paths: ['.github/workflows/cena-browser-qa.yml', '.github/workflows/cena-android.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -55,6 +55,16 @@ jobs:
                   page.locator('#detail .close').click()
                   page.locator('nav [data-tab="library"]').click()
                   expect(page.locator('#library-grid')).to_contain_text(re.compile('sisu', re.I))
+                  page.locator('nav [data-tab="scan"]').click()
+                  expect(page.locator('#pick-image')).to_be_visible()
+                  with page.expect_file_chooser() as chosen:
+                      page.locator('#pick-image').click()
+                  import base64
+                  chosen.value.set_files({'name': 'print.png', 'mimeType': 'image/png', 'buffer': base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWp8AAAAASUVORK5CYII=')})
+                  expect(page.locator('.scan-frame img')).to_be_visible()
+                  page.evaluate("window.CenaNativeResult({lines:['TEXTO DA LEGENDA','SISU']})")
+                  page.locator('[data-line="1"]').click()
+                  expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
                   assert not errors, errors
                   Path('qa').mkdir(exist_ok=True)
                   page.screenshot(path='qa/sisu-saved.png', full_page=True)
