@@ -143,6 +143,7 @@ jobs:
                   native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
                   native_page.close()
                   artwork_page = browser.new_page(viewport={'width':412,'height':915})
+                  artwork_page.on('pageerror',lambda error: errors.append(str(error)))
                   artwork_page.add_init_script("""
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
                     if(!localStorage.getItem('cena.local.items.v1')) localStorage.setItem('cena.local.items.v1',JSON.stringify([
