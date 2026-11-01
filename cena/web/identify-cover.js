@@ -146,4 +146,9 @@ export async function identifyCover(lines, fetcher = fetch) {
   return items;
 }
 
-export const searchTolerantTitles = query => identifyCover([query]);
+export async function searchTolerantTitles(query) {
+  const exact = await searchPublicTitles(query);
+  const key = normalizeTitle(query);
+  if (exact.some(item => [item.name, item.originalName, item.localWikiTitle, ...(item.aliases || [])].filter(Boolean).some(label => normalizeTitle(label).includes(key) || similarity(query, label) > .85))) return exact;
+  return identifyCover([query]);
+}
