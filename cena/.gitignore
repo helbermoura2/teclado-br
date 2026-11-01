@@ -6,3 +6,6 @@ local.properties
 *.apk
 *.aab
 captures/
+
+android/app/src/main/assets/models/
+qa/
