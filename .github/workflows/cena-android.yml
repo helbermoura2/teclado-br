@@ -129,3 +129,4 @@ jobs:
           fi
           gh release upload cena-v0.5.1 entrega/CENA-0.5.1.apk entrega/CENA-0.5.1.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
 
+
