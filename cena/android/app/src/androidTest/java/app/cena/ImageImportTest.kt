@@ -56,7 +56,8 @@ class ImageImportTest {
     }
     private fun eventually(block: () -> Unit) {
         var last: Throwable? = null
-        repeat(60) {
+        val deadline = android.os.SystemClock.uptimeMillis() + 30_000
+        while (android.os.SystemClock.uptimeMillis() < deadline) {
             try { block(); return } catch (error: Throwable) { last = error; Thread.sleep(500) }
         }
         throw AssertionError("Image import did not finish", last)
@@ -66,7 +67,7 @@ class ImageImportTest {
         onView(withText("Ler imagem inteira")).perform(click())
         eventually { assertTrue(evaluate(scenario, "document.querySelector('#scan-query')?.value || ''").contains("SISU", ignoreCase = true)) }
     }
-    @Test fun sharedPngOpensCropAndReadsTitleOnColdStart() {
+    @Test(timeout = 90_000) fun sharedPngOpensCropAndReadsTitleOnColdStart() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val intent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_SEND; type = "image/png"
@@ -75,7 +76,7 @@ class ImageImportTest {
         }
         ActivityScenario.launch<MainActivity>(intent).use { scenario -> readEntireImage(scenario) }
     }
-    @Test fun galleryButtonAcceptsPngAndReadsTitle() {
+    @Test(timeout = 90_000) fun galleryButtonAcceptsPngAndReadsTitle() {
         Intents.init()
         try {
             intending(hasAction(Intent.ACTION_GET_CONTENT)).respondWith(Instrumentation.ActivityResult(Activity.RESULT_OK, Intent().setData(screenshot())))
