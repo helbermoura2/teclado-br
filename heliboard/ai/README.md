@@ -1,7 +1,9 @@
-# Assistente offline — primeira integração Android (0.7.0)
+# Assistente offline — painel no teclado (0.7.1)
 
-Botão de brilho na barra do HeliBoard, abrindo um espaço de revisão e composição
-em processo separado :writing. Não é a lupa por cima de outros aplicativos.
+Botão de brilho na barra do HeliBoard abre um painel na própria janela do teclado.
+O aplicativo e seu texto continuam visíveis acima. Só a inferência usa o processo
+:writing, por serviço privado. A engrenagem abre o gerenciamento do modelo.
+O caminho privado offline-ai/model.gguf é o mesmo da 0.7.0. Não é a lupa por cima de outros aplicativos.
 Tarefas: revisão, prompt livre, cinco estilos, resumo e tradução de texto para PT.
 Prévia editável; copiar ou substituir explicitamente. A substituição exige que
 o campo original e seu texto ainda coincidam com o snapshot capturado.
@@ -36,10 +38,11 @@ A página de download também oferece Gemma 4 E2B Q4_0 oficial (~2,84 GB), com
 revisão fixada. Essa quantização difere da Q4_K_M requantizada usada na rodada 2;
 sua qualidade e seu uso de memória no Android precisam ser medidos separadamente.
 Remover modelo apaga somente os pesos, preservando dicionário e pins.
-Se a substituição for recusada, a resposta é reaberta para copiar, sem alterar o campo.
+Se a substituição for recusada, a resposta permanece no painel para copiar, sem alterar o campo.
 
 O pacote de fontes exclui somente os binários GGUF de vocabulário usados nos
 testes do upstream; o código necessário para compilar o aplicativo e o motor
 permanece completo. Prompts e respostas não são enviados a logs do runtime.
 
-Validação, respostas reais e limites desta entrega em [VALIDACAO.md](VALIDACAO.md).
+Validação do painel e entrega: [PAINEL-0.7.1.md](PAINEL-0.7.1.md).
+Histórico da primeira integração: [VALIDACAO.md](VALIDACAO.md).

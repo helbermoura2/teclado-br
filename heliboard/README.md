@@ -1,15 +1,19 @@
 # Teclado BR — HeliBoard com assistente offline
 
-Variante 0.7.0-heli3.6, pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
+Variante 0.7.1-heli3.6, pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
 v3.6 fixada em upstream.json. Android mínimo 8 (API 26); Nothing Phone (1) usa arm64-v8a.
-Atualiza as versões 0.6.1–0.6.5 com a mesma assinatura de teste, preservando pins,
+Atualiza as versões 0.6.1–0.7.0 com a mesma assinatura de teste, preservando pins,
 idiomas e dicionário pessoal. O HeliBoard oficial e o aplicativo original 0.1–0.5
 continuam separados.
 
 Mantém PT-BR e en-US, fileira A–L centralizada, Ç ao segurar C, espaço imediato
 após pontuação e sugestões/aprendizado nativos. Idiomas e emoji estão na barra.
-O novo botão de brilho abre o assistente em processo separado, com revisão,
-prompt de Compositor, cinco estilos, resumo e tradução de texto para PT-BR.
+O botão de brilho abre um painel dentro da área das teclas, mantendo o aplicativo
+visível acima: revisão, Compositor com prompt, cinco estilos, resumo, marcadores,
+tabela e tradução de texto. A revisão oferece Editar, Copiar e Substituir.
+O prompt é digitado com as teclas nativas, sem alterar a mensagem original.
+A inferência roda em processo separado; a engrenagem abre somente as configurações
+do modelo. Modelos já importados na 0.7.0 permanecem no mesmo diretório privado.
 O modelo GGUF deve ser baixado pelo navegador e importado uma vez. O APK não
 inclui pesos e não tem permissão INTERNET; a geração ocorre no aparelho.
 Detalhes, modelos e limites em [ai/README.md](ai/README.md).

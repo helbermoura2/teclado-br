@@ -1,18 +1,19 @@
 # Teclado BR
 
-## Versão atual: 0.7.0 com base HeliBoard
+## Versão atual: 0.7.1 com base HeliBoard
 
-A versão atual está em [heliboard/README.md](heliboard/README.md), com assistente
-offline por modelo GGUF importado: revisão, Compositor com prompt, estilos,
-resumo e tradução de texto. O APK não inclui pesos nem permissão INTERNET.
-Links de Qwen3.5 2B e Gemma 4 E2B estão no assistente. A lupa está pendente.
+O botão de brilho abre o assistente dentro da área do teclado, mantendo o
+aplicativo visível acima. Menu em cartões, revisão com Editar/Copiar/Substituir,
+cinco estilos e Compositor com prompt digitado nas teclas nativas. Importação de
+GGUF fica na engrenagem. Modelos importados na 0.7.0 são preservados ao atualizar.
 
-A compilação e os testes de integração Android passaram. Resultados reais e
-limites em [heliboard/ai/VALIDACAO.md](heliboard/ai/VALIDACAO.md).
-Ainda falta medir os modelos maiores no Nothing Phone (1).
+Compilação, 142 testes unitários e interação por toques no Android aprovados no
+[run 41348374690](https://github.com/helbermoura2/teclado-br/actions/runs/41348374690).
+Detalhes, hashes e limites em [PAINEL-0.7.1.md](heliboard/ai/PAINEL-0.7.1.md).
+O APK não inclui pesos nem permissão INTERNET. A lupa flutuante está pendente;
+a qualidade e velocidade da Gemma 4 no Nothing Phone (1) ainda não foram medidas.
 
 A documentação abaixo preserva o histórico do aplicativo original 0.1–0.5.
-
 
 A avaliação de uma base HeliBoard está em [heliboard/README.md](heliboard/README.md).
 É uma variante separada sob GPLv3, com código do upstream; as versões 0.1–0.5
