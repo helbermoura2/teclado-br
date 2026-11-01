@@ -70,7 +70,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.5.0')
+                  expect(page.locator('#app-version')).to_contain_text('0.5.1')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -112,7 +112,7 @@ jobs:
                   native_page.add_init_script("""
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
                     localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt14846026',type:'movie',name:'Sisu',year:'2022',status:'watchlist'}]));
-                    window.CenaAndroid={appVersion:()=> '0.5.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:()=>{},queueTrakt:()=>{},
+                    window.CenaAndroid={appVersion:()=> '0.5.1',ready:()=>{},traktInventory:()=>{},queueTraktBatch:()=>{},queueTrakt:()=>{},
                       configureTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[]}),
                       connectTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[],userCode:'CENA-CODE',verificationUrl:'https://trakt.tv/activate'}),
                       saveStory:value=>window.savedStory=value,shareStory:value=>window.sharedStory=value};
@@ -142,6 +142,40 @@ jobs:
                   native_page.locator('#share-story').click()
                   native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
                   native_page.close()
+                  artwork_page = browser.new_page(viewport={'width':412,'height':915})
+                  artwork_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    if(!localStorage.getItem('cena.local.items.v1')) localStorage.setItem('cena.local.items.v1',JSON.stringify([
+                      {id:'tt2015381',type:'movie',name:'Guardians of the Galaxy',year:'2014',status:'watchlist',poster:''},
+                      {id:'tt0087469',type:'movie',name:'Indiana Jones and the Temple of Doom',year:'1984',status:'watchlist',poster:''},
+                      {id:'tt0097576',type:'movie',name:'Indiana Jones and the Last Crusade',year:'1989',status:'watchlist',poster:''},
+                      {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',status:'watched',watchedSource:'Trakt',poster:''},
+                      {id:'tt0167260',type:'movie',name:'The Lord of the Rings: The Return of the King',year:'2003',status:'watchlist',poster:''},
+                      {id:'tt0367882',type:'movie',name:'Indiana Jones and the Kingdom of the Crystal Skull',year:'2008',status:'watchlist',poster:''},
+                      {id:'tt0253474',type:'movie',name:'The Pianist',year:'2002',status:'watchlist',poster:''}
+                    ]));
+                  """)
+                  artwork_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  artwork_page.locator('nav [data-tab="library"]').click()
+                  artwork_page.locator('[data-filter="all"]').click()
+                  cards=artwork_page.locator('#library-grid .poster-card')
+                  expect(cards).to_have_count(7)
+                  for index in range(7):
+                      image=cards.nth(index).locator('.poster-art img')
+                      cards.nth(index).scroll_into_view_if_needed()
+                      expect(image).to_be_visible(timeout=60000)
+                      expect(image).to_have_js_property('complete',True)
+                      assert image.evaluate('(image)=>image.naturalWidth')>0
+                  before=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert len(before)==7 and all(item.get('poster','').startswith('https://') for item in before)
+                  assert next(item for item in before if item['id']=='tt0172495')['status']=='watched'
+                  artwork_page.screenshot(path='qa/repaired-posters.png',full_page=True)
+                  artwork_page.reload(wait_until='networkidle')
+                  after=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert len(after)==7 and all(item.get('poster') for item in after)
+                  assert next(item for item in after if item['id']=='tt0172495')['watchedSource']=='Trakt'
+                  print('Seven real user-reported posters loaded, and persisted without changing saved watched status.')
+                  artwork_page.close()
                   assert not errors, errors
                   Path('qa').mkdir(exist_ok=True)
                   page.screenshot(path='qa/sisu-saved.png', full_page=True)
@@ -156,4 +190,3 @@ jobs:
           name: CENA-SISU-browser-QA
           path: cena/qa/*
           if-no-files-found: error
-
