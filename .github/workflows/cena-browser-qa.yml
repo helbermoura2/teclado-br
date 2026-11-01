@@ -168,7 +168,7 @@ jobs:
                       expect(image).to_have_js_property('complete',True)
                       assert image.evaluate('(image)=>image.naturalWidth')>0
                   before=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
-                  assert len(before)==7 and all(item.get('poster','').startswith('https://') for item in before)
+                  assert len(before)==7 and all(item.get('poster','').startswith('https://') for item in before), [(item['id'],bool(item.get('poster'))) for item in before]
                   assert next(item for item in before if item['id']=='tt0172495')['status']=='watched'
                   artwork_page.screenshot(path='qa/repaired-posters.png',full_page=True)
                   artwork_page.reload(wait_until='networkidle')
