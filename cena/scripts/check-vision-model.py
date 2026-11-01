@@ -34,7 +34,7 @@ for expected, filename in [('tt0120873', 'marshals-photo.base64'), ('tt9185206',
     ambiguous = any(item.get('ambiguousTitle') for item in candidates)
     visual_weight = .55 if ambiguous else .25
     for item in candidates[:4]:
-        if not item.get('poster', '').startswith('https://upload.wikimedia.org/'):
+        if not item.get('poster', '').startswith(('https://upload.wikimedia.org/', 'https://images.metahub.space/')):
             continue
         try:
             request = urllib.request.Request(item['poster'], headers={'User-Agent': 'CENA/0.4.1 (https://github.com/helbermoura2/teclado-br)'})
