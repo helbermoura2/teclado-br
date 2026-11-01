@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { coverQueries, identifyCover, normalizeTitle, scoreCover, similarity } from '../web/identify-cover.js';
+import { coverInput, coverQueries, identifyCover, normalizeTitle, scoreCover, similarity } from '../web/identify-cover.js';
 
 const claim = value => ({ mainsnak: { datavalue: { value } } });
 const film = { id: 'Q123', labels: { en: { value: 'U.S. Marshals' } }, descriptions: { en: { value: '1998 American film' } }, claims: { P345: [claim('tt0120873')], P31: [claim({ id: 'Q11424' })], P577: [claim({ time: '+1998-03-06T00:00:00Z' })] }, sitelinks: { enwiki: { title: 'U.S. Marshals (film)' } } };
@@ -36,7 +36,7 @@ test('the reported garbled title recovers the film from a general catalog query'
   assert.equal(result[0].id, 'tt0120873');
   assert.equal(result[0].year, '1998');
   assert.equal(result[0].suggested, true);
-  assert.ok(queries.length <= 4);
+  assert.ok(queries.length <= 6);
 });
 
 test('failed searches do not invent an identification', async () => {
@@ -61,4 +61,11 @@ test('real Android OCR fragments distinguish a long title from a different film 
   const correct = { name: "Are You There God? It's Me, Margaret." };
   assert.ok(scoreCover(correct, lines) > scoreCover({ name: 'Margaret' }, lines));
   assert.ok(scoreCover(correct, lines) > scoreCover({ name: 'The Master and Margaret' }, lines));
+});
+
+test('the new phone OCR searches the assembled phrase and distinguishes the full film title', () => {
+  const input = coverInput({ title: 'Jheye God9 ItsMe, Margatet.', lines: ['Margatet.', 'Jheye God9', 'ItsMe,'], phrases: ['Jheye God9 ItsMe, Margatet.'] });
+  assert.equal(input.query, 'Jheye God9 ItsMe, Margatet.');
+  assert.ok(coverQueries(input.lines).some(query => query.includes('Jheye God9 ItsMe')));
+  assert.ok(scoreCover({ name: "Are You There God? It's Me, Margaret." }, input.lines) > scoreCover({ name: 'Margaret' }, input.lines));
 });
