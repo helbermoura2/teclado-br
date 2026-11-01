@@ -5,3 +5,5 @@
 .brand-group{display:flex;align-items:center;gap:12px}.version-tag{font-size:11px;color:#ba9be0;border:1px solid #453552;padding:3px 6px;border-radius:6px}
 
 #scan-search{align-items:start}#scan-query{min-width:0;width:100%;resize:vertical;min-height:100px;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:inherit;line-height:1.45}#scan-search button{min-height:48px}
+
+#scan-search ~ #search-results .poster-card strong{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
