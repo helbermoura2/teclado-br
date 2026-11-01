@@ -149,7 +149,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         clear();type("brzaplexia");Thread.sleep(1200);
         Rect savedWord=new Rect();runOnMainSync(()->{View v=findView(KeyboardSwitcher.getInstance().getStripContainer(),n->n instanceof TextView&&"brzaplexia".contentEquals(((TextView)n).getText())&&n.isShown());check(v!=null,"Typed word missing from suggestions");int[] xy=new int[2];v.getLocationOnScreen(xy);savedWord.set(xy[0],xy[1],xy[0]+v.getWidth(),xy[1]+v.getHeight());});
         long wordDown=SystemClock.uptimeMillis();event(wordDown,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{savedWord});Thread.sleep(850);event(wordDown,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{savedWord});Thread.sleep(500);
-        AccessibilityNodeInfo add=find(n->"Adicionar ao dicionário".contentEquals(n.getText()));check(add!=null,"No add-to-dictionary menu");Rect addRect=new Rect();add.getBoundsInScreen(addRect);tap(addRect);Thread.sleep(800);
+        AccessibilityNodeInfo add=find(n->n.getText()!=null&&"Adicionar ao dicionário".contentEquals(n.getText()));check(add!=null,"No add-to-dictionary menu");Rect addRect=new Rect();add.getBoundsInScreen(addRect);tap(addRect);Thread.sleep(800);
         try(android.database.Cursor cursor=getTargetContext().getContentResolver().query(android.provider.UserDictionary.Words.CONTENT_URI,new String[]{android.provider.UserDictionary.Words.WORD},"word = ?",new String[]{"brzaplexia"},null)){check(cursor!=null&&cursor.moveToFirst(),"Personal dictionary did not save word");}
         shot("04-palavra-adicionada");
         clear();type("voce");long deadline=SystemClock.uptimeMillis()+10000;List<String> words;
