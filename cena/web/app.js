@@ -44,7 +44,7 @@ async function hydrateArtwork(element) {
       if(poster.dataset.artworkKey!==element.dataset.artworkKey || poster.querySelector('img'))continue;
       const image=new Image();image.alt='';image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';image.src=url;
       image.onerror=()=>{ image.remove();artworkResolver.failures.set(artworkResolver.key(item),Date.now()); };
-      poster.append(image);
+      poster.insertBefore(image,poster.querySelector('.badge'));
     }
   } finally {artworkLoading.delete(element);}
 }
