@@ -114,13 +114,13 @@ window.CenaNativeResult = result => {
   if (result.error) { toast(result.error); return; }
   if ($('#detail').open) $('#detail').close();
   setTab('scan');
+  const input = coverInput(result);
   const lines = (result.lines || []).filter(line => typeof line === 'string' && line.trim().length > 2);
   detectedLines = [...new Set(lines)].slice(0, 6);
-  if (detectedLines.length > 1) {
+  if (detectedLines.length > 1 && input.query === lines[0]) {
     $('#detected-lines').innerHTML = `<p class="muted">O título está em outra linha? Toque para buscar:</p><div class="chips">${detectedLines.map((line, index) => `<button class="chip" data-line="${index}">${escape(line)}</button>`).join('')}</div>`;
     document.querySelectorAll('[data-line]').forEach(button => button.onclick = () => { $('#scan-query').value = detectedLines[Number(button.dataset.line)].slice(0, 150); runSearch($('#scan-query').value); });
   }
-  const input = coverInput(result);
   $('#scan-query').value = input.query;
   if (input.query) { toast('Buscando o título completo e as pistas da capa…'); runSearch(input.query, input.lines); }
   else toast('Não encontrei texto. Digite o título para buscar.');
