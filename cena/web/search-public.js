@@ -126,7 +126,7 @@ export async function getTitleDetails(item, fetcher = fetch) {
   const replies = await Promise.allSettled(requests);
   const meta = replies[0].status === 'fulfilled' ? cinemetaItem(replies[0].value.meta) : null;
   const page = replies[1]?.status === 'fulfilled' ? Object.values(replies[1].value.query?.pages || {}).find(page => page.extract) : null;
-  const result = { ...item, ...(meta ? {runtime:meta.runtime,rating:meta.rating,cast:meta.cast,directors:meta.directors,genres:meta.genres,genre:meta.genre || item.genre} : {}),
+  const result = { ...item, poster: item.poster || (meta?.id===item.id ? meta.poster : '') || '', ...(meta ? {runtime:meta.runtime,rating:meta.rating,cast:meta.cast,directors:meta.directors,genres:meta.genres,genre:meta.genre || item.genre} : {}),
     description: page?.extract || meta?.description || item.description || '',
     detailsAvailable: Boolean(meta || page), detailError: replies.every(reply => reply.status === 'rejected') ? 'Não consegui carregar mais informações. Confira a conexão e tente novamente.' : '' };
   if (fetcher === fetch && result.detailsAvailable) { if(detailCache.size>100) detailCache.clear(); detailCache.set(item.id,structuredClone(result)); }
