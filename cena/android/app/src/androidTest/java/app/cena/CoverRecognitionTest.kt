@@ -23,7 +23,7 @@ class CoverRecognitionTest {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         val reports = JSONArray()
         try {
-            for ((name, expected) in listOf("marshals-photo.base64" to "tt0120873", "margaret-photo.base64" to "tt3915174")) {
+            for ((name, expected) in listOf("marshals-photo.base64" to "tt0120873", "margaret-photo.base64" to "tt9185206")) {
                 val encoded = instrumentation.context.assets.open(name).bufferedReader().use { it.readText() }
                 val bytes = Base64.decode(encoded, Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
