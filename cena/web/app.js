@@ -1,5 +1,6 @@
 import { createLocalApi } from './local-api.js';
-import { searchPublicTitles } from './search-public.js';
+import { identifyCover, searchTolerantTitles } from './identify-cover.js';
+import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
 const storageKey = 'cena.connection.v1';
@@ -7,7 +8,7 @@ let connection = null;
 let stored = null;
 try { stored = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {}
 let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
-const localApi = createLocalApi(localStorage, { search: searchPublicTitles });
+const localApi = createLocalApi(localStorage, { search: searchTolerantTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
@@ -69,7 +70,7 @@ function library() {
   if ($('#empty-search')) $('#empty-search').onclick = () => $('#query').focus();
   wireCards(rows);
 }
-async function runSearch(query) {
+async function runSearch(query, coverLines = null) {
   const target = $('#search-results');
   if (!target) return;
   query = query.trim();
@@ -77,16 +78,21 @@ async function runSearch(query) {
   const generation = ++searchGeneration;
   target.innerHTML = '<div class="loading" role="status">Procurando sua próxima história…</div>';
   try {
-    const response = await api(`/api/search?q=${encodeURIComponent(query)}`);
+    const response = coverLines && apiBase === 'local' ? { items: await identifyCover(coverLines), mode: 'assisted' } : await api(`/api/search?q=${encodeURIComponent(query)}`);
     if (generation !== searchGeneration || !target.isConnected) return;
     searchResults = response.items;
-    target.innerHTML = `<div class="section-heading"><h2>Resultados</h2><span class="count">${searchResults.length} títulos</span></div>${searchResults.length ? grid(searchResults) : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
+    const assisted = searchResults.some(item => item.suggested) || response.mode === 'assisted';
+    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} títulos</span></div>${assisted && searchResults.length ? '<p class="muted">Conferi variações do texto e pistas da capa. Confira a imagem e o ano antes de adicionar.</p>' : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
     target.querySelectorAll('[data-id]').forEach(button => button.onclick = () => showDetail(searchResults.find(i => i.id === button.dataset.id)));
     wireImages();
+    if (native && coverLines && searchResults.some(item => item.poster) && typeof window.CenaAndroid.compareCovers === 'function') {
+      target.insertAdjacentHTML('beforeend', '<div id="vision-status" class="notice" role="status">Comparando as capas com IA no aparelho…</div>');
+      window.CenaAndroid.compareCovers(String(generation), JSON.stringify(searchResults.filter(item => item.poster).slice(0,4).map(item => ({ id: item.id, poster: item.poster }))));
+    }
   } catch (error) { if (generation === searchGeneration && target.isConnected) target.innerHTML = `<div class="error" role="alert">${escape(error.message)}</div>`; }
 }
 function scan() {
-  main.innerHTML = `<div class="eyebrow">ENCONTROU UMA BOA HISTÓRIA?</div><h1>Capturar título</h1><p class="muted">Use uma foto de capa ou um print da sua galeria.</p><div class="scan-frame">${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">▣ &nbsp; ${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button><button class="secondary wide" id="pick-image">Escolher imagem ou print</button></div><div class="notice">${native ? 'Você pode fotografar, escolher um print ou usar Compartilhar → CENA em outro aplicativo. Recorte o título e confirme o filme encontrado. A imagem não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</div><form id="scan-search" class="search-row"><input id="scan-query" type="search" placeholder="Título da capa" aria-label="Título identificado na imagem" minlength="2" maxlength="150" required><button class="primary">Buscar</button></form><div id="detected-lines"></div><div id="search-results"></div>`;
+  main.innerHTML = `<div class="eyebrow">ENCONTROU UMA BOA HISTÓRIA?</div><h1>Capturar título</h1><p class="muted">Use uma foto de capa ou um print da sua galeria.</p><div class="scan-frame">${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">▣ &nbsp; ${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button><button class="secondary wide" id="pick-image">Escolher imagem ou print</button></div><div class="notice">${native ? 'Fotografe, escolha um print ou use Compartilhar → CENA. Inclua o título e a imagem da capa no recorte. A leitura e a comparação visual com IA acontecem no aparelho; sua imagem não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</div><form id="scan-search" class="search-row"><input id="scan-query" type="search" placeholder="Título da capa" aria-label="Título identificado na imagem" minlength="2" maxlength="150" required><button class="primary">Buscar</button></form><div id="detected-lines"></div><div id="search-results"></div>`;
   $('#take-photo').onclick = () => { if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
   $('#pick-image').onclick = () => { if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
   $('#scan-search').onsubmit = event => { event.preventDefault(); runSearch($('#scan-query').value); };
@@ -111,9 +117,27 @@ window.CenaNativeResult = result => {
     document.querySelectorAll('[data-line]').forEach(button => button.onclick = () => { $('#scan-query').value = detectedLines[Number(button.dataset.line)].slice(0, 150); runSearch($('#scan-query').value); });
   }
   $('#scan-query').value = lines[0]?.slice(0, 150) || '';
-  if (lines.length) { toast('Texto lido. Buscando títulos para você confirmar.'); runSearch($('#scan-query').value); }
+  if (lines.length) { toast('Conferindo o título e outras pistas da capa…'); const context = [...new Set([...lines, ...String(result.fullText || '').split('\n')])].slice(0, 24); runSearch($('#scan-query').value, context); }
   else toast('Não encontrei texto. Digite o título para buscar.');
 };
+window.CenaVisualResult = result => {
+  if (String(result.requestId) !== String(searchGeneration)) return;
+  const status = $('#vision-status');
+  if (!status) return;
+  if (result.status === 'ok' && Array.isArray(result.scores) && result.scores.length) {
+    searchResults = rankWithVision(searchResults, result.scores);
+    const area = $('#result-grid');
+    if (area) {
+      area.innerHTML = grid(searchResults);
+      area.querySelectorAll('[data-id]').forEach(button => button.onclick = () => showDetail(searchResults.find(item => item.id === button.dataset.id)));
+      wireImages();
+    }
+    status.textContent = 'IA visual local: comparei sua imagem com as capas encontradas. Confirme o título e o ano antes de adicionar.';
+  } else {
+    status.textContent = result.status === 'no-references' ? 'Não encontrei capas disponíveis para comparar. Confira as sugestões pelo texto.' : 'A comparação visual não ficou disponível neste aparelho. As sugestões pelo texto continuam disponíveis.';
+  }
+};
+
 async function save(item, status = 'watchlist') {
   if (busy) return;
   busy = true;
@@ -192,7 +216,7 @@ async function refresh() {
 }
 
 function localConnection() {
-  main.innerHTML = `<div class="eyebrow">PRONTO PARA USAR NO CELULAR</div><h1>Seu CENA</h1><div class="panel"><h2>Lista neste aparelho</h2><p>Experimente a câmera, a leitura do texto da capa, sua lista e os cards para Stories. A busca consulta filmes e séries online, sem limitar aos títulos de demonstração.</p></div><div class="notice">Stremio e Nuvio precisam de um catálogo hospedado para acessar sua lista. O modo local ainda não sincroniza com esses players.</div><div class="panel"><h2>Conectar catálogo remoto</h2><p>Quando o servidor CENA estiver disponível, informe o endereço HTTPS. Os títulos locais são preservados, sem transferência automática.</p><form id="local-server-form"><label for="local-server-url">Endereço do servidor</label><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><div class="actions"><button class="primary" type="submit">Conectar</button></div></form></div><div class="panel"><h2>Experimentar agora</h2><p>Busque pelo nome de qualquer filme ou série. Por exemplo: SISU.</p><button class="secondary" id="local-search">Abrir catálogo</button></div>`;
+  main.innerHTML = `<div class="eyebrow">PRONTO PARA USAR NO CELULAR</div><h1>Seu CENA</h1><div class="panel"><h2>Lista neste aparelho</h2><p>Experimente a câmera, a leitura do texto da capa, sua lista e os cards para Stories. A busca combina pistas do texto com comparação visual de capas no aparelho, sem cobrança por imagem. O catálogo online requer internet.</p></div><div class="notice">Stremio e Nuvio precisam de um catálogo hospedado para acessar sua lista. O modo local ainda não sincroniza com esses players.</div><div class="panel"><h2>Conectar catálogo remoto</h2><p>Quando o servidor CENA estiver disponível, informe o endereço HTTPS. Os títulos locais são preservados, sem transferência automática.</p><form id="local-server-form"><label for="local-server-url">Endereço do servidor</label><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><div class="actions"><button class="primary" type="submit">Conectar</button></div></form></div><div class="panel"><h2>Experimentar agora</h2><p>Busque pelo nome de qualquer filme ou série. Por exemplo: SISU.</p><button class="secondary" id="local-search">Abrir catálogo</button></div>`;
   $('#local-search').onclick = () => setTab('library');
   $('#local-server-form').onsubmit = async event => {
     event.preventDefault();
