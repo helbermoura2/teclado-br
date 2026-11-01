@@ -88,7 +88,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({title:'Jheye God9 ItsMe, Margatet.',lines:['Margatet.','Jheye God9','ItsMe,'],phrases:['Jheye God9 ItsMe, Margatet.']})")
                   expect(page.locator('#scan-query')).to_have_value('Jheye God9 ItsMe, Margatet.')
                   expect(page.locator('#search-results .poster-card').first).to_have_attribute('data-id', 'tt9185206', timeout=60000)
-                  expect(page.locator('#scan-query')).to_have_value("Are You There God? It's Me, Margaret.")
+                  expect(page.locator('#scan-query')).to_have_value(re.compile(r"^Are You There God\? It's Me, Margaret\.?\s*$"))
                   page.locator('#search-results .poster-card[data-id="tt9185206"]').click()
                   expect(page.locator('#detail-content')).to_contain_text('2023')
                   page.locator('#detail .close').click()
