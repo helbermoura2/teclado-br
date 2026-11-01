@@ -165,10 +165,10 @@ export async function createApp(options = {}) {
         if (catalog) return json(200, { metas: library.items.filter(i => i.type === catalog[1] && i.status === 'watchlist').map(i => ({ id: i.id, type: i.type, name: i.name, poster: i.poster || undefined, releaseInfo: i.year, description: i.description })), cacheMaxAge: 0, staleRevalidate: 0, staleError: 0 });
         throw fail(404, 'Recurso não encontrado.');
       }
-      const files = { '/local-api.js': ['local-api.js', 'text/javascript'], '/offline-catalog.js': ['offline-catalog.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/styles.css': ['styles.css', 'text/css'], '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'], '/icon.svg': ['icon.svg', 'image/svg+xml'] };
+      const files = { '/search-public.js': ['search-public.js', 'text/javascript'], '/local-api.js': ['local-api.js', 'text/javascript'], '/offline-catalog.js': ['offline-catalog.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/styles.css': ['styles.css', 'text/css'], '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'], '/icon.svg': ['icon.svg', 'image/svg+xml'] };
       if (req.method === 'GET' && files[p]) {
         const [name, mime] = files[p];
-        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://image.tmdb.org; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://upload.wikimedia.org; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
         res.writeHead(200, { 'Content-Type': mime + '; charset=utf-8' });
         res.end(await readFile(path.join(webRoot, name)));
         return;
