@@ -38,7 +38,7 @@ async function hydrateArtwork(element) {
   try {
     const url=await artworkResolver.resolve(item);
     if(!url)return;
-    item.poster=url;persistArtwork(item,url);
+    persistArtwork(item,url);item.poster=url;
     artworkObserver?.unobserve(element);
     for(const poster of document.querySelectorAll('.poster-art[data-artwork-key]')) {
       if(poster.dataset.artworkKey!==element.dataset.artworkKey || poster.querySelector('img'))continue;
