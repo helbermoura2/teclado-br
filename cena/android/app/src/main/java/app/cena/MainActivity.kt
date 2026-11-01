@@ -2,6 +2,8 @@ package app.cena
 
 import android.content.ClipData
 import android.content.Intent
+import android.app.Activity
+import android.os.Build
 import android.net.Uri
 import android.os.Bundle
 import android.util.Base64
@@ -33,25 +35,95 @@ class MainActivity : ComponentActivity() {
     private var photoFile: File? = null
     private var scanning = false
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private var pageReady = false
+    private var pendingImage: Uri? = null
+    private var croppedFile: File? = null
     private val camera = registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        val uri = photoUri
-        if (!success || uri == null) { scanning = false; cleanPhoto(); return@registerForActivityResult }
+        if (success && photoUri != null) openCrop(photoUri!!)
+        else { scanning = false; cleanPhoto() }
+    }
+    private val gallery = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) importImage(uri)
+    }
+    private val crop = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data
+        result.data?.getStringExtra("error")?.let { sendError(it) }
+        if (result.resultCode != Activity.RESULT_OK || uri == null) {
+            scanning = false; cleanPhoto(); consumePending(); return@registerForActivityResult
+        }
+        val name = result.data?.getStringExtra("cropFile")
+        if (name != null && !name.contains('/') && name.startsWith("crop-") && name.endsWith(".jpg")) {
+            croppedFile = File(File(cacheDir, "captures"), name)
+        }
+        recognize(uri)
+    }
+
+    private fun openCrop(uri: Uri) {
+        try { crop.launch(Intent(this, CropActivity::class.java).setData(uri)) }
+        catch (_: Exception) { scanning = false; cleanPhoto(); sendError("Não consegui abrir a imagem. Tente outra foto ou print.") }
+    }
+    private fun recognize(uri: Uri) {
         try {
+            require(uri.authority == "$packageName.files")
             val image = InputImage.fromFilePath(this, uri)
             recognizer.process(image)
                 .addOnSuccessListener { result ->
-                    // Largest text lines usually contain the title. Recognition is not an identity match.
                     val lines = result.textBlocks.flatMap { it.lines }
                         .sortedByDescending { it.boundingBox?.height() ?: 0 }
                         .map { it.text }.distinct().take(12)
                     sendResult(JSONObject().put("lines", JSONArray(lines)))
                 }
-                .addOnFailureListener { sendError("Não consegui ler a capa. Você pode digitar o título.") }
-                .addOnCompleteListener { scanning = false; cleanPhoto() }
+                .addOnFailureListener { sendError("Não consegui ler a imagem. Você pode digitar o título.") }
+                .addOnCompleteListener { scanning = false; cleanPhoto(); consumePending() }
         } catch (_: Exception) {
-            scanning = false; cleanPhoto(); sendError("Não consegui abrir a foto. Tente novamente.")
+            scanning = false; cleanPhoto(); sendError("Não consegui ler essa imagem. Tente outro print.")
         }
     }
+    private fun importImage(uri: Uri) {
+        if (scanning) { pendingImage = uri; return }
+        scanning = true
+        Thread {
+            try {
+                require(uri.scheme == "content")
+                require(contentResolver.getType(uri)?.startsWith("image/") != false)
+                val file = File.createTempFile("import-", ".image", File(cacheDir, "captures").apply { mkdirs() })
+                photoFile = file
+                contentResolver.openInputStream(uri).use { input ->
+                    requireNotNull(input)
+                    file.outputStream().use { output ->
+                        val buffer = ByteArray(8192); var total = 0
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            require(total <= 20 * 1024 * 1024) { "Imagem muito grande" }
+                            output.write(buffer, 0, count)
+                        }
+                        require(total > 0)
+                    }
+                }
+                val copiedUri = FileProvider.getUriForFile(this, "$packageName.files", file)
+                runOnUiThread { openCrop(copiedUri) }
+            } catch (_: Exception) {
+                runOnUiThread { scanning = false; cleanPhoto(); sendError("Não consegui abrir a imagem. Escolha um JPG ou PNG de até 20 MB.") }
+            }
+        }.start()
+    }
+    private fun receiveImage(incoming: Intent?) {
+        if (incoming?.action != Intent.ACTION_SEND || incoming.type?.startsWith("image/") != true) return
+        val uri = if (Build.VERSION.SDK_INT >= 33) incoming.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+            else @Suppress("DEPRECATION") (incoming.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+        pendingImage = uri ?: incoming.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+        incoming.action = null
+        consumePending()
+    }
+    private fun consumePending() {
+        if (!pageReady || scanning) return
+        val uri = pendingImage ?: return
+        pendingImage = null
+        importImage(uri)
+    }
+    override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); receiveImage(intent) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -72,6 +144,7 @@ class MainActivity : ComponentActivity() {
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
+            cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
             allowFileAccess = false
             allowContentAccess = false
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -99,9 +172,17 @@ class MainActivity : ComponentActivity() {
             }
         })
         web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+        receiveImage(intent)
     }
 
     inner class Bridge {
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending() }
+        @JavascriptInterface fun pickImage() = runOnUiThread {
+            if (scanning) return@runOnUiThread
+            try { gallery.launch("image/*") }
+            catch (_: Exception) { sendError("Não consegui abrir a galeria. Use Compartilhar → CENA no aplicativo Fotos.") }
+        }
+
         @JavascriptInterface fun scanCover() = runOnUiThread {
             if (scanning) return@runOnUiThread
             scanning = true
@@ -145,7 +226,7 @@ class MainActivity : ComponentActivity() {
     private fun sendResult(result: JSONObject) {
         web.evaluateJavascript("window.CenaNativeResult(${result})", null)
     }
-    private fun cleanPhoto() { photoFile?.delete(); photoFile = null; photoUri = null }
+    private fun cleanPhoto() { photoFile?.delete(); croppedFile?.delete(); photoFile = null; croppedFile = null; photoUri = null }
     override fun onDestroy() {
         super.onDestroy()
         cleanPhoto()
