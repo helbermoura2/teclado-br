@@ -1,34 +1,32 @@
-# CENA · Seu próximo play
+# CENA IA · Seu próximo play
 
-Primeira base do aplicativo Android para fotografar capas, montar uma lista de filmes e séries e consultar essa lista como um catálogo no Stremio/Nuvio. Tema escuro com roxo, conforme o conceito visual da conversa.
+Protótipo Android para fotografar capas ou importar prints, identificar filmes e séries, montar uma lista e gerar cards para Stories. Tema escuro com roxo.
 
-## Compilação na nuvem, sem computador
+## Instalar pelo celular
 
-O fluxo `.github/workflows/cena-android.yml` instala as ferramentas no GitHub Actions, executa os testes e compila `CENA-preview.apk`. Ele aceita o projeto na raiz do repositório ou dentro da pasta `cena/` e roda em pushes para `main` ou `cena/**`.
+A versão 0.4.1 é distribuída como **CENA IA**, identificador `app.cena.mobile`. Ela instala ao lado do antigo CENA (`app.cena`): a assinatura das versões anteriores não foi preservada corretamente. Não desinstale o antigo se precisar dos dados dele. A lista antiga não é transferida automaticamente.
 
-Pelo celular, abra a execução em **Actions**, aguarde o sucesso e baixe **CENA-Android-APK** na seção Artifacts. Extraia o ZIP no gerenciador de arquivos e abra `CENA-preview.apk`. O Android pode solicitar que você autorize a instalação pelo aplicativo que abriu o arquivo. O APK é de teste, assinado com a chave de debug da execução; não é uma publicação na Play Store. A chave é mantida no cache do Actions, mas, se esse cache expirar, uma versão posterior pode exigir desinstalar a anterior, perdendo os dados locais.
+Depois de todos os testes passarem, o GitHub Actions publica `CENA-0.4.1.apk` na prévia privada **cena-v0.4.1**. Baixe o APK diretamente pela área Releases do repositório, usando sua conta GitHub, e instale no Android 8 ou superior. Não exige PC nem extrair ZIP. Confira **v0.4.1** ao lado do logo ao abrir. O arquivo inclui o modelo visual e tem aproximadamente 120 MB.
 
-O aplicativo agora inicia em **modo local**, sem exigir servidor. A lista fica salva no aparelho; câmera/OCR e geração de cards estão preparados no código nativo. A busca inicial tem seis títulos de amostra. A conexão a um servidor HTTPS é opcional, pela aba Conectar; ela cria uma lista remota separada, preservando a lista local. A sincronização com Stremio/Nuvio ainda requer hospedar esse servidor e validar nos players.
+A identidade de assinatura desta nova distribuição é persistida em um asset de release **privada e em rascunho** (`cena-internal-signing`), utilizada tanto na compilação quanto nos testes Android. Não publique nem exclua esse rascunho: atualizações futuras dependem da mesma chave. Trata-se de assinatura de protótipo, sem publicação na Play Store.
 
 ## O que esta versão entrega
 
-- Interface responsiva: início, catálogo, captura, detalhes e conexão.
-- Busca de filmes e séries: seis títulos de amostra por padrão; busca no TMDB ao configurar um token no servidor.
-- Lista persistente no servidor, sem duplicatas, com estados “Quero assistir” e “Assistido”.
-- Complemento de **catálogo** no formato Stremio, com listas separadas para filmes e séries e IDs IMDb. Adições e remoções aparecem na próxima consulta ao servidor. O player pode manter seu próprio cache.
-- Projeto Android em Kotlin que inclui a interface localmente, abre a câmera do sistema e lê texto da capa com ML Kit no aparelho. O usuário confirma o título por meio da busca. As fotos são temporárias e não são enviadas ao servidor.
-- Gerador local de imagem vertical 9:16 para Stories. No Android, entrega um PNG ao compartilhamento do sistema. A publicação é concluída no Instagram pelo usuário.
-- Código privado de recuperação para conectar outro aparelho à mesma lista. O link do catálogo só dá acesso de leitura.
+- Início, catálogo, captura, detalhes e conexão.
+- Câmera, galeria, prints recebidos por compartilhamento e recorte da imagem.
+- OCR ML Kit no aparelho, reconstrução de títulos em várias linhas e busca tolerante a erros no catálogo público Wikipedia/Wikidata, sem token de API.
+- IA visual CLIP quantizada e ONNX Runtime no aparelho para comparar sua imagem com capas candidatas. As fotos não são enviadas a um serviço de IA. As consultas de texto e o download das capas exigem internet.
+- Lista local persistente, com “Quero assistir” e “Assistido”; você confirma o título antes de adicionar.
+- Card vertical 9:16 compartilhado como PNG. O usuário conclui a publicação no Instagram.
+- Servidor opcional com lista remota, recuperação por credencial privada e complemento de catálogo compatível com Stremio.
 
-## Estado real da entrega
+## Validação e limites
 
-**Servidor, catálogo e lista local: sete testes automatizados passaram.** Os testes usam o manipulador HTTP real em memória porque este ambiente proibiu abrir portas, inclusive localhost.
+Os testes incluem 20 verificações de lógica, buscas reais dos textos incorretos relatados, comparação visual das duas fotos fornecidas, validação do APK empacotado, navegação no navegador e testes Android 15 da interface, OCR e modelo visual. A publicação do APK depende da validação do OCR Android contra o catálogo. As fotos de regressão ficam somente nos testes do repositório privado; não entram no APK.
 
-**Android: código-fonte preparado, ainda não compilado nem executado em aparelho.** Não há APK nesta entrega. O ambiente não disponibilizou Android SDK/Gradle nem acesso funcional ao registro de dependências. O Chromium também não iniciou neste sandbox; a interface ainda precisa de teste visual e de interação em navegador/aparelho.
+A comparação visual depende de candidatos encontrados pelo texto. Não é identificação universal de qualquer imagem: pode falhar e requer conferência do título e do ano.
 
-**Stremio e Nuvio: o protocolo de catálogo está implementado e testado no servidor; a instalação e a leitura nos aplicativos ainda precisam de teste real.** Não há sincronização da biblioteca interna deles, nem atualização de assistidos do player para o CENA. Não há Trakt nesta versão.
-
-O reconhecimento é **leitura de texto da capa**, não identificação visual completa por IA. Uma capa sem título legível pode exigir busca manual. A prévia web permite escolher/fotografar uma imagem e digitar o título; o OCR está apenas no projeto Android.
+**Stremio/Nuvio: a sincronização não está ativa no modo local.** O protocolo de catálogo está implementado no servidor, que ainda precisa ser hospedado e validado nos players. Não há sincronização da biblioteca interna dos players, retorno de assistidos ou integração Trakt nesta versão.
 
 ## Rodar a prévia no computador
 
