@@ -37,7 +37,8 @@ class MainActivity : ComponentActivity() {
     private var photoUri: Uri? = null
     private var photoFile: File? = null
     private var scanning = false
-    private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val recognizerDelegate = lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val recognizer by recognizerDelegate
     private val visionExecutor = Executors.newSingleThreadExecutor()
     private var visualMatcher: VisualMatcher? = null
     @Volatile private var visionInput: FloatArray? = null
@@ -256,7 +257,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
         visionExecutor.shutdown()
-        recognizer.close()
+        if (recognizerDelegate.isInitialized()) recognizer.close()
         web.removeJavascriptInterface("CenaAndroid")
         web.destroy()
     }
