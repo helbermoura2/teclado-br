@@ -1,13 +1,14 @@
 import { offlineCatalog } from './offline-catalog.js';
 
-export function createLocalApi(storage) {
+export function createLocalApi(storage, settings = {}) {
   const key = 'cena.local.items.v1';
   const load = () => JSON.parse(storage.getItem(key) || '[]');
   const persist = items => storage.setItem(key, JSON.stringify(items));
   return async (route, options = {}) => {
-    if (route === '/api/config') return { searchMode: 'sample', publicConfigured: false, local: true };
+    if (route === '/api/config') return { searchMode: settings.search ? 'public' : 'sample', publicConfigured: false, local: true };
     if (route.startsWith('/api/search?')) {
       const query = new URL('https://local.invalid' + route).searchParams.get('q') || '';
+      if (settings.search) return { mode: 'public', items: await settings.search(query) };
       const norm = text => text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
       return { mode: 'sample', items: offlineCatalog.filter(item => norm(item.name + ' ' + item.originalName).includes(norm(query))) };
     }
