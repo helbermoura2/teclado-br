@@ -2,7 +2,7 @@ name: CENA live mobile browser QA
 on:
   push:
     branches: ['cena/**']
-    paths: ['.github/workflows/cena-browser-qa.yml', '.github/workflows/cena-android.yml']
+    paths: ['.github/workflows/cena-browser-qa.yml', '.github/workflows/cena-android.yml', 'cena/web/app.js']
   workflow_dispatch:
 permissions:
   contents: read
@@ -64,6 +64,11 @@ jobs:
                   expect(page.locator('.scan-frame img')).to_be_visible()
                   page.evaluate("window.CenaNativeResult({lines:['TEXTO DA LEGENDA','SISU']})")
                   page.locator('[data-line="1"]').click()
+                  expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
+                  page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first.click()
+                  expect(page.locator('#detail')).to_be_visible()
+                  page.evaluate("window.CenaNativeResult({lines:['SISU']})")
+                  expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
                   assert not errors, errors
                   Path('qa').mkdir(exist_ok=True)
