@@ -10,8 +10,9 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
+      - uses: actions/checkout@v4
       - name: Download the exact delivered artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -33,3 +34,27 @@ jobs:
               output = subprocess.check_output([str(tools[-1]),'dump','badging',str(apk)], text=True)
               print(output.splitlines()[0])
           PY
+      - name: Compare the exact old and new APK signing certificates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41274230017 --repo "$GITHUB_REPOSITORY" --name CENA-Android-0.4.1 --dir /tmp/new-cena
+          python3 - <<'PY'
+          import os, subprocess, json
+          from pathlib import Path
+          signer = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/apksigner'))[-1]
+          for directory in ['/tmp/delivered-cena','/tmp/new-cena']:
+              apk = next(Path(directory).glob('*.apk'))
+              text = subprocess.check_output([str(signer),'verify','--print-certs',str(apk)],text=True)
+              print(directory, '\\n'.join(line for line in text.splitlines() if 'SHA-256' in line))
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Identify the actual debug signing location
+        working-directory: cena/android
+        run: gradle --no-daemon signingReport
