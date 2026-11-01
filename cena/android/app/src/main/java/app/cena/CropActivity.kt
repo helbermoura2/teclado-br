@@ -58,7 +58,7 @@ class CropActivity : ComponentActivity() {
             bitmap = image
             val root = LinearLayout(this).apply { this.orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(16,16,23)) }
             val heading = TextView(this).apply { text = "Recortar imagem"; textSize = 24f; setTextColor(Color.WHITE); setPadding(24,24,24,12) }
-            val instruction = TextView(this).apply { text = "Arraste sobre o título para selecionar. Você também pode ler a imagem inteira."; setTextColor(Color.LTGRAY); setPadding(24,0,24,16) }
+            val instruction = TextView(this).apply { text = "Selecione a capa, incluindo o título e a imagem. Isso ajuda a leitura e a comparação visual. Você também pode usar a imagem inteira."; setTextColor(Color.LTGRAY); setPadding(24,0,24,16) }
             val preview = CropView(image)
             root.addView(heading); root.addView(instruction)
             root.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
