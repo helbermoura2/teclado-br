@@ -5,6 +5,7 @@
 #include "chat.h"
 #include "log.h"
 #include <atomic>
+#include <cstdint>
 #include <algorithm>
 #include <mutex>
 #include <memory>
@@ -12,7 +13,7 @@
 #include <string>
 #include <vector>
 
-static std::atomic_bool cancelled{false};
+static std::atomic<std::uint64_t> cancel_epoch{0};
 static std::mutex inference_mutex;
 static std::once_flag backend_once;
 static std::string bytes(JNIEnv* env, jbyteArray value) {
@@ -27,15 +28,17 @@ static jbyteArray array(JNIEnv* env, const std::string& value) {
     return out;
 }
 extern "C" JNIEXPORT void JNICALL
-Java_helium314_keyboard_latin_ai_OfflineNative_cancel(JNIEnv*, jclass) { cancelled.store(true); }
+Java_helium314_keyboard_latin_ai_OfflineNative_cancel(JNIEnv*, jclass) { cancel_epoch.fetch_add(1); }
 
 extern "C" JNIEXPORT void JNICALL
-Java_helium314_keyboard_latin_ai_OfflineNative_reset(JNIEnv*, jclass) { cancelled.store(false); }
+Java_helium314_keyboard_latin_ai_OfflineNative_reset(JNIEnv*, jclass) { /* Class initialization only; never undo cancellation of another request. */ }
 
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jbyteArray pathBytes,
         jbyteArray userBytes, jobject progress, jint maximum) {
+    std::uint64_t ticket=cancel_epoch.load();
     std::unique_lock<std::mutex> lock(inference_mutex);
+    auto cancelled=[&] { return cancel_epoch.load()!=ticket; };
     try {
         std::call_once(backend_once, [] {
             // Never log prompts, model output, or native debug data to Android logcat.
@@ -44,11 +47,13 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
             common_log_set_jsonl(false);
             llama_backend_init();
         });
+        if(cancelled()) throw std::runtime_error("Cancelado");
         const auto path=bytes(env,pathBytes), user=bytes(env,userBytes);
         auto mp=llama_model_default_params(); mp.n_gpu_layers=0;
-        mp.progress_callback=[](float,void*) { return !cancelled.load(); };
+        mp.progress_callback=[](float,void* ticket) { return cancel_epoch.load()==*static_cast<std::uint64_t*>(ticket); };
+        mp.progress_callback_user_data=&ticket;
         std::unique_ptr<llama_model,decltype(&llama_model_free)> model(llama_model_load_from_file(path.c_str(),mp),llama_model_free);
-        if(cancelled.load()) throw std::runtime_error("Cancelado");
+        if(cancelled()) throw std::runtime_error("Cancelado");
         if(!model) throw std::runtime_error("Nao foi possivel abrir o GGUF. Confira o arquivo e a memoria disponivel.");
         const auto* vocab=llama_model_get_vocab(model.get());
         auto templates=common_chat_templates_init(model.get(),"");
@@ -68,7 +73,8 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
         if(tokens.empty() || tokens.size()+max_tokens>2048) throw std::runtime_error("Texto longo demais. Selecione um trecho menor e tente novamente.");
         auto cp=llama_context_default_params(); cp.n_ctx=2048; cp.n_batch=128; cp.n_ubatch=128;
         cp.n_threads=4; cp.n_threads_batch=4;
-        cp.abort_callback=[](void*) { return cancelled.load(); };
+        cp.abort_callback=[](void* ticket) { return cancel_epoch.load()!=*static_cast<std::uint64_t*>(ticket); };
+        cp.abort_callback_data=&ticket;
         std::unique_ptr<llama_context,decltype(&llama_free)> ctx(llama_init_from_model(model.get(),cp),llama_free);
         if(!ctx) throw std::runtime_error("Memoria insuficiente para iniciar a IA. Experimente um modelo menor.");
         std::unique_ptr<llama_batch_ext,decltype(&llama_batch_ext_free)> batch(llama_batch_ext_init(ctx.get()),llama_batch_ext_free);
@@ -80,8 +86,8 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
                 llama_pos pos=position+i; llama_batch_ext_set_pos(batch.get(),idx,&pos);
             }
             if(last) llama_batch_ext_set_output_logits(batch.get(),count-1,true);
-            if(cancelled.load()) throw std::runtime_error("Cancelado");
-            if(llama_process(ctx.get(),LLAMA_PROCESS_TYPE_DECODE,batch.get())!=0) throw std::runtime_error(cancelled.load()?"Cancelado":"Falha ao processar o modelo.");
+            if(cancelled()) throw std::runtime_error("Cancelado");
+            if(llama_process(ctx.get(),LLAMA_PROCESS_TYPE_DECODE,batch.get())!=0) throw std::runtime_error(cancelled()?"Cancelado":"Falha ao processar o modelo.");
         };
         for(size_t i=0;i<tokens.size();i+=128) decode(tokens.data()+i,std::min<size_t>(128,tokens.size()-i),i,i+128>=tokens.size());
         std::unique_ptr<llama_sampler,decltype(&llama_sampler_free)> sampler(llama_sampler_init_greedy(),llama_sampler_free);
@@ -91,7 +97,7 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
         common_chat_input terminal;
         int position=tokens.size();
         for(int i=0;i<max_tokens;i++) {
-            if(cancelled.load()) throw std::runtime_error("Cancelado");
+            if(cancelled()) throw std::runtime_error("Cancelado");
             llama_token token=llama_sampler_sample(sampler.get(),ctx.get(),-1);
             if(llama_vocab_is_eog(vocab,token)) { terminal.append(common_token_to_piece(vocab,token,true),token); ended=true; break; }
             common_chat_input piece; piece.append(common_token_to_piece(vocab,token,true),token);
@@ -102,7 +108,7 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
             }
             if(i+1<max_tokens) decode(&token,1,position++,true);
         }
-        if(cancelled.load()) throw std::runtime_error("Cancelado");
+        if(cancelled()) throw std::runtime_error("Cancelado");
         const auto& result=ended?session.finish(terminal):session.msg();
         if(result.content.empty()) throw std::runtime_error("O modelo nao retornou texto final. Tente um pedido menor ou outro modelo.");
         // First byte indicates whether generation hit the token limit. UTF-8 follows.
