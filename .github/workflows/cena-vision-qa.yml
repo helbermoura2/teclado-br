@@ -1,0 +1,54 @@
+name: CENA local visual AI on Android
+on:
+  push:
+    branches: ['cena/**']
+    paths: ['.github/workflows/cena-android.yml', '.github/workflows/cena-vision-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Free runner disk
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/lib/android/sdk/ndk
+      - name: Prepare bundled free visual model
+        working-directory: cena
+        run: python3 scripts/prepare-vision-model.py
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Compile the APK and focused model test
+        working-directory: cena/android
+        run: gradle --no-daemon assembleDebug assembleDebugAndroidTest
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          emulator-boot-timeout: 180
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048 -partition-size 2048
+          disable-animations: true
+          working-directory: cena/android
+          script: timeout 240s gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.cena.VisualModelTest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: CENA-local-visual-model-report
+          path: cena/android/app/build/reports/androidTests/connected/**
