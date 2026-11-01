@@ -156,7 +156,13 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         do{words=suggestions();if(words.stream().anyMatch(s->s.equalsIgnoreCase("você")))break;Thread.sleep(200);}while(SystemClock.uptimeMillis()<deadline);
         check(words.stream().anyMatch(s->s.equalsIgnoreCase("você")),"PT-BR dictionary did not suggest você: "+words);result.putString("ptbr_suggestions",words.toString());shot("04-dicionario-portugues");
         clear();long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);Rect accent=bounds('ê',true);event(d,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{accent});shot("05-deslizando-subtecla");event(d,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{accent});expect("ê");shot("06-acento-soltar");
-        options(true,true);launch();shot("07-inicio-maiusculas");type("bom.dia ");expect("Bom. Dia ");shot("07-maiusculas");
+        clear();type("brxnovissima.");expect("brxnovissima. ");
+        options(true,true);launch();shot("07-inicio-maiusculas");type("bom.");expect("Bom. ");shot("07-espaco-imediato");
+        type(" ");expect("Bom. ");type("dia ");expect("Bom. Dia ");
+        clear();type("bom...");expect("Bom... ");
+        clear();type("3.14 ");expect("3.14 ");
+        clear();type("bom,dia ");expect("Bom, dia ");
+        clear();type("bom.dia ");expect("Bom. Dia ");shot("07-maiusculas");
         clear();type("voce ");expect("Você ");shot("08-autocorrecao");
         options(false,false);launch();language("pt");toolbar(ToolbarKey.LANGUAGE);language("en");clear();type("hello ");expect("hello ");shot("09-ingles-globo");
         toolbar(ToolbarKey.LANGUAGE);language("pt");check(bounds('a',false).left>bounds('q',false).left,"Centered Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);

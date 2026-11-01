@@ -17,9 +17,9 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6040')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6050')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.4-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.5-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -117,6 +117,58 @@ text = text[:start] + '''    private fun onLongClickSuggestion(wordView: TextVie
 
 ''' + text[end:]
 strip.write_text(text)
+
+# Materialize punctuation spacing immediately, rather than upstream phantom spacing.
+logic = root/'app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java'
+text = logic.read_text()
+assert text.count('    public void startInput(final String combiningSpec, final SettingsValues settingsValues) {') == 1
+text = text.replace('    public void startInput(final String combiningSpec, final SettingsValues settingsValues) {',
+    '    private int mTecladoBrAutoSpacePosition = -1;\n\n    public void startInput(final String combiningSpec, final SettingsValues settingsValues) {\n        mTecladoBrAutoSpacePosition = -1;')
+text = text.replace('        final Event processedEvent = mWordComposer.processEvent(event);',
+    '        prepareTecladoBrAutoSpace(event);\n        final Event processedEvent = mWordComposer.processEvent(event);')
+old = '            mConnection.commitCodePoint(codePoint);\n\n            if (isInlineEmojiSearchAction()) {'
+assert text.count(old) == 1
+text = text.replace(old, '            mConnection.commitCodePoint(codePoint);\n            insertTecladoBrPunctuationSpace(codePoint, settingsValues);\n\n            if (isInlineEmojiSearchAction()) {')
+methods = '''    // Track only the space inserted by this feature, never arbitrary user whitespace.
+    private void prepareTecladoBrAutoSpace(final Event event) {
+        if (mTecladoBrAutoSpacePosition >= 0
+                && mConnection.getExpectedSelectionStart() == mTecladoBrAutoSpacePosition
+                && mConnection.getExpectedSelectionEnd() == mTecladoBrAutoSpacePosition
+                && mConnection.getCodePointBeforeCursor() == Constants.CODE_SPACE) {
+            final int cp = event.getCodePoint();
+            if (cp == Constants.CODE_SPACE || cp == Constants.CODE_ENTER
+                    || (cp >= 0 && ".,!?;:)]}\\\"".indexOf(cp) >= 0)) {
+                mConnection.beginBatchEdit();
+                mConnection.deleteTextBeforeCursor(1);
+                mConnection.endBatchEdit();
+            }
+        }
+        mTecladoBrAutoSpacePosition = -1;
+    }
+
+    private void insertTecladoBrPunctuationSpace(final int cp, final SettingsValues settings) {
+        if (!helium314.keyboard.latin.BuildConfig.BUILD_TYPE.equals("debugNoMinify")
+                || !settings.mAutospaceAfterPunctuation
+                || !settings.mInputAttributes.mShouldInsertSpacesAutomatically
+                || settings.mInputAttributes.mIsPasswordField
+                || cp < 0 || ".,!?;:".indexOf(cp) < 0) return;
+        final CharSequence before = mConnection.getTextBeforeCursor(96, 0);
+        if (before == null || before.length() < 2) return;
+        final char previous = before.charAt(before.length() - 2);
+        if (!Character.isLetter(previous) && ".,!?;:".indexOf(previous) < 0) return;
+        final String token = before.toString().substring(0, before.length() - 1);
+        final int boundary = Math.max(token.lastIndexOf(' '), token.lastIndexOf('\\n'));
+        final String current = token.substring(boundary + 1);
+        if (current.indexOf('@') >= 0 || current.indexOf('/') >= 0 || current.contains("://")) return;
+        mConnection.commitCodePoint(Constants.CODE_SPACE);
+        mSpaceState = SpaceState.NONE;
+        mTecladoBrAutoSpacePosition = mConnection.getExpectedSelectionStart();
+    }
+
+'''
+text = text.replace('    private void handleSeparatorEvent(final Event event, final InputTransaction inputTransaction,',
+    methods + '    private void handleSeparatorEvent(final Event event, final InputTransaction inputTransaction,')
+logic.write_text(text)
 
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True)
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
