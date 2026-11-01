@@ -4,9 +4,9 @@ Protótipo Android para fotografar capas ou importar prints, identificar filmes 
 
 ## Instalar pelo celular
 
-A versão 0.4.1 é distribuída como **CENA IA**, identificador `app.cena.mobile`. Ela instala ao lado do antigo CENA (`app.cena`): a assinatura das versões anteriores não foi preservada corretamente. Não desinstale o antigo se precisar dos dados dele. A lista antiga não é transferida automaticamente.
+A versão 0.4.2 é distribuída como **CENA IA**, identificador `app.cena.mobile`. Ela instala ao lado do antigo CENA (`app.cena`): a assinatura das versões anteriores não foi preservada corretamente. Não desinstale o antigo se precisar dos dados dele. A lista antiga não é transferida automaticamente.
 
-Depois de todos os testes passarem, o GitHub Actions publica `CENA-0.4.1.apk` na prévia privada **cena-v0.4.1**. Baixe o APK diretamente pela área Releases do repositório, usando sua conta GitHub, e instale no Android 8 ou superior. Não exige PC nem extrair ZIP. Confira **v0.4.1** ao lado do logo ao abrir. O arquivo inclui o modelo visual e tem aproximadamente 193 MB.
+Depois de todos os testes passarem, o GitHub Actions publica `CENA-0.4.2.apk` na prévia privada **cena-v0.4.2**. Baixe o APK diretamente pela área Releases do repositório, usando sua conta GitHub, e instale no Android 8 ou superior. Não exige PC nem extrair ZIP. Confira **v0.4.2** ao lado do logo ao abrir. O arquivo inclui o modelo visual e tem aproximadamente 193 MB.
 
 A identidade de assinatura desta nova distribuição é persistida em um asset de release **privada e em rascunho** (`cena-internal-signing`), utilizada tanto na compilação quanto nos testes Android. Não publique nem exclua esse rascunho: atualizações futuras dependem da mesma chave. Trata-se de assinatura de protótipo, sem publicação na Play Store.
 
