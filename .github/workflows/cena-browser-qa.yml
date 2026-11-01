@@ -1,0 +1,71 @@
+name: CENA live mobile browser QA
+on:
+  push:
+    branches: ['cena/**']
+    paths: ['.github/workflows/cena-browser-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-search:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare browser driver
+        run: |
+          python3 -m venv /tmp/cena-browser
+          /tmp/cena-browser/bin/pip install playwright
+      - name: Search SISU online and save to the local watchlist
+        working-directory: cena
+        run: |
+          /tmp/cena-browser/bin/python - <<'PY'
+          import os, re, shutil, subprocess, tempfile, time, urllib.request
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright, expect
+          env = dict(os.environ, DATA_DIR=tempfile.mkdtemp(prefix='cena-browser-'))
+          server = subprocess.Popen(['node', 'server/index.mjs'], env=env)
+          try:
+              for attempt in range(50):
+                  try:
+                      urllib.request.urlopen('http://127.0.0.1:3000/api/config', timeout=1)
+                      break
+                  except Exception:
+                      time.sleep(.2)
+              with sync_playwright() as p:
+                  executable = shutil.which('google-chrome') or shutil.which('chromium')
+                  assert executable, 'A preinstalled Chrome browser is required.'
+                  browser = p.chromium.launch(executable_path=executable, args=['--no-sandbox'])
+                  page = browser.new_page(viewport={'width': 412, 'height': 915}, device_scale_factor=1)
+                  errors = []
+                  page.on('pageerror', lambda error: errors.append(str(error)))
+                  page.add_init_script("localStorage.setItem('cena.connection.v1', JSON.stringify({apiBase:'local'}))")
+                  page.goto('http://127.0.0.1:3000', wait_until='networkidle')
+                  page.locator('nav [data-tab="library"]').click()
+                  page.locator('#query').fill('SISU')
+                  page.locator('#search-form button').click()
+                  card = page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first
+                  expect(card).to_be_visible(timeout=60000)
+                  card.click()
+                  page.locator('#add-title').click()
+                  expect(page.locator('.status-label')).to_contain_text('Quero assistir', timeout=10000)
+                  page.locator('#detail .close').click()
+                  page.locator('nav [data-tab="library"]').click()
+                  expect(page.locator('#library-grid')).to_contain_text(re.compile('sisu', re.I))
+                  assert not errors, errors
+                  Path('qa').mkdir(exist_ok=True)
+                  page.screenshot(path='qa/sisu-saved.png', full_page=True)
+                  print('Live browser check passed: SISU was found and saved to the local watchlist.')
+                  browser.close()
+          finally:
+              server.terminate()
+              server.wait(timeout=10)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CENA-SISU-browser-QA
+          path: cena/qa/*
+          if-no-files-found: error
