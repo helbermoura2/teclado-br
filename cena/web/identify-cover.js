@@ -54,12 +54,16 @@ export function scoreCover(item, lines, extract = '') {
   const labels = [item.name, item.originalName, item.wikiTitle?.replace(/\([^)]*\)/g, '')].filter(Boolean);
   const primary = lines[0] || '';
   const titleScore = Math.max(0, ...labels.map(label => similarity(primary, label)));
-  const secondaryTitle = Math.max(0, ...lines.slice(1, 6).flatMap(line => labels.map(label => similarity(line, label))));
+  const secondaryTitle = Math.max(0, ...lines.slice(1, 10).flatMap(line => labels.map(label => similarity(line, label) * (normalizeTitle(line).length > normalizeTitle(primary).length + 6 ? .98 : .9))));
+  const words = labels.flatMap(label => label.replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/)).filter(word => normalizeTitle(word).length >= 5);
+  const fragment = normalizeTitle(primary).length >= 5 && primary.trim().split(/\s+/).length === 1 ? Math.max(0, ...words.map(word => similarity(primary, word))) * .65 : 0;
+  const labelClues = lines.slice(1).filter(line => { const part = normalizeTitle(line); return part.length >= 4 && part.length <= 60 && labels.some(label => normalizeTitle(label).includes(part)); }).length;
+  const labelBonus = labelClues >= 2 ? Math.min(.24, labelClues * .08) : 0;
   const description = normalizeTitle(extract + ' ' + item.description);
   const clues = lines.slice(1).filter(line => line.split(/\s+/).length >= 2 && normalizeTitle(line).length >= 7);
   const hits = clues.filter(line => description.includes(normalizeTitle(line))).length;
   // Two cast-name clues can rescue a badly read title, without claiming certainty.
-  return Math.min(1, Math.max(titleScore, secondaryTitle * .9) * .85 + Math.min(hits, 3) * .12);
+  return Math.min(1, Math.max(titleScore * .85, secondaryTitle * .85, fragment) + Math.min(hits, 3) * .12 + labelBonus);
 }
 
 export async function identifyCover(lines, fetcher = fetch) {
@@ -70,7 +74,7 @@ export async function identifyCover(lines, fetcher = fetch) {
   if (fetcher === fetch && cache.get(key)?.until > Date.now()) return structuredClone(cache.get(key).items);
   let exact = [];
   try { exact = await searchPublicTitles(primary, fetcher); } catch { /* The independent wiki search can still succeed. */ }
-  if (exact.some(item => Math.max(similarity(primary, item.name), similarity(primary, item.originalName)) > .93)) return exact;
+  if (lines.length === 1 && primary.trim().split(/\s+/).length > 1 && exact.some(item => Math.max(similarity(primary, item.name), similarity(primary, item.originalName)) > .93)) return exact;
   const queries = coverQueries(lines);
   const replies = await Promise.allSettled(queries.map(query => json(fetcher, 'https://en.wikipedia.org/w/api.php', {
     action: 'query', generator: 'search', gsrsearch: query, gsrnamespace: '0', gsrlimit: '50',
@@ -96,7 +100,8 @@ export async function identifyCover(lines, fetcher = fetch) {
       const poster = page.thumbnail?.source;
       if (typeof poster === 'string' && poster.startsWith('https://upload.wikimedia.org/')) item.poster = poster;
       if (page.extract) item.description = page.extract.slice(0, 1800);
-      suggestions.push({ ...item, matchScore: score, suggested: true });
+      const partialTitle = normalizeTitle(item.originalName).length > normalizeTitle(primary).length + 6 && item.originalName.split(/\s+/).some(word => similarity(primary, word) > .7);
+      suggestions.push({ ...item, matchScore: score, suggested: true, partialTitle });
     }
   }
   const merged = new Map();
@@ -104,6 +109,7 @@ export async function identifyCover(lines, fetcher = fetch) {
     if (!merged.has(item.id) || merged.get(item.id).matchScore < item.matchScore) merged.set(item.id, item);
   }
   const items = [...merged.values()].sort((a, b) => b.matchScore - a.matchScore).slice(0, 8);
+  if (items.some(item => item.partialTitle)) for (const item of items) item.ambiguousTitle = true;
   if (cache.size > 80) cache.clear();
   if (fetcher === fetch) cache.set(key, { items: structuredClone(items), until: Date.now() + 300000 });
   return items;
