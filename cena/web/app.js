@@ -1,3 +1,4 @@
+import { applyTraktState, traktItemLabel } from './trakt-state.js';
 import { getTitleDetails } from './search-public.js';
 import { createLocalApi } from './local-api.js';
 import { coverInput, identifyCover, searchTolerantTitles } from './identify-cover.js';
@@ -11,8 +12,34 @@ try { stored = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {
 let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
 const localApi = createLocalApi(localStorage, { search: searchTolerantTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
+let traktState = { connected:false, configured:false, pending:[] };
+let traktWasConnected = false;
+let traktInitialUploadRequested = false;
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
+function sendTraktInventory() {
+  if (native && typeof window.CenaAndroid.traktInventory === 'function') window.CenaAndroid.traktInventory(JSON.stringify(items.map(({id,type})=>({id,type}))));
+}
+function sendTraktList() {
+  if(native && traktState.connected && typeof window.CenaAndroid.queueTraktBatch==='function') window.CenaAndroid.queueTraktBatch(JSON.stringify(items.filter(item=>item.status==='watchlist').map(({id,type})=>({id,type,action:'add'}))));
+}
+function queueTrakt(item, action) {
+  if (apiBase === 'local' && native && traktState.connected && typeof window.CenaAndroid.queueTrakt === 'function') window.CenaAndroid.queueTrakt(JSON.stringify({id:item.id,type:item.type,action}));
+}
+window.CenaTraktResult = state => {
+  if(JSON.stringify(state)===JSON.stringify(traktState)) return;
+  const becameConnected = state.connected && !traktWasConnected;
+  if(!state.connected) traktInitialUploadRequested=false;
+  traktWasConnected = Boolean(state.connected); traktState = state;
+  if(apiBase !== 'local') return;
+  const merged = applyTraktState(items,state);
+  if(JSON.stringify(merged)!==JSON.stringify(items)) { items=merged; localStorage.setItem('cena.local.items.v1',JSON.stringify(items)); }
+  if(becameConnected) sendTraktInventory();
+  if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
+  if(tab==='connect' && !document.querySelector('#trakt-client-id:focus')) localConnection();
+  else if(!$('#detail').open && (tab==='home'||tab==='library')) setTab(tab);
+  const label=$('#trakt-item-state'); if(label && detailItem) label.textContent=traktItemLabel(detailItem,state);
+};
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
   if (card) showDetail([...searchResults, ...items].find(item => item.id === card.dataset.id));
@@ -36,13 +63,13 @@ async function ensureConnection() {
   persist();
 }
 function notice() {
-  if (apiBase === 'local') return '<div class="notice">Busca online de filmes e séries · sua lista fica salva neste aparelho. A sincronização com o player ainda não está ativa.</div>';
+  if (apiBase === 'local') return `<div class="notice">${traktState.connected ? `Trakt conectado${traktState.pending?.length ? ` · ${traktState.pending.length} envio(s) pendente(s)` : ' · consulta de assistidos ativada'}` : 'Sua lista está salva neste aparelho. Conecte o Trakt para sincronizar com o Nuvio.'}</div>`;
   return config?.searchMode === 'sample' ? '<div class="notice">Prévia com 6 títulos de amostra. Busca completa disponível ao configurar o TMDB no servidor.</div>' : '';
 }
 function poster(item, badge = '') {
   return `<div class="poster-art"><span class="fallback">${escape(item.name)}</span>${item.poster ? `<img src="${escape(item.poster)}" alt="" loading="lazy" crossorigin="anonymous">` : ''}${badge ? `<span class="badge">${escape(badge)}</span>` : ''}</div>`;
 }
-function grid(rows) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? 'Assistido' : '')}<strong>${escape(item.name)}</strong><small>${escape(item.year)} · ${titleType(item)}</small></button>`).join('')}</div>`; }
+function grid(rows) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? '✓ Assistido' : item.watchedEpisodes ? `${item.watchedEpisodes} episódios vistos` : '')}<strong>${escape(item.name)}</strong><small>${escape(item.year)} · ${titleType(item)}</small></button>`).join('')}</div>`; }
 function wireImages() { document.querySelectorAll('img').forEach(img => { img.addEventListener('error', () => img.remove(), { once: true }); }); }
 function wireCards(rows) {
 
@@ -155,6 +182,7 @@ async function save(item, status = 'watchlist') {
     await ensureConnection();
     const result = await api(`/api/libraries/${connection.id}/items`, { method: 'PUT', body: JSON.stringify({ ...item, status }) });
     items = result.items;
+    sendTraktInventory(); queueTrakt(item, status === 'watchlist' ? 'add' : 'remove');
     toast(status === 'watched' ? 'Marcado como assistido.' : apiBase === 'local' ? 'Adicionado à lista neste aparelho.' : 'Adicionado! Sua lista no servidor foi atualizada.');
     showDetail(item); setTab(tab);
   } catch (error) { toast(error.message); }
@@ -165,7 +193,7 @@ async function remove(item) {
   busy = true;
   try {
     const result = await api(`/api/libraries/${connection.id}/items/${item.id}`, { method: 'DELETE' });
-    items = result.items; $('#detail').close(); setTab(tab); toast('Título removido da lista.');
+    items = result.items; queueTrakt(item,'remove'); sendTraktInventory(); $('#detail').close(); setTab(tab); toast('Título removido da lista.');
   } catch (error) { toast(error.message); }
   finally { busy = false; }
 }
@@ -173,7 +201,7 @@ function showDetail(item, enriched = false) {
   if (!item) return;
   detailItem = item;
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
   if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
@@ -181,7 +209,10 @@ function showDetail(item, enriched = false) {
   wireImages();
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
   if (!enriched) getTitleDetails(item).then(details => {
-    if ($('#detail').open && detailItem?.id === item.id) showDetail(details, true);
+    if ($('#detail').open && detailItem?.id === item.id) {
+      if($('#story-canvas')) { const status=$('#detail-loading'); if(status) status.textContent=''; }
+      else showDetail(details, true);
+    }
   }).catch(() => { const status = $('#detail-loading'); if (status && detailItem?.id === item.id) status.textContent = 'Não consegui carregar a ficha. Tente abrir o filme novamente.'; });
 }
 async function copy(text) {
@@ -229,25 +260,38 @@ async function refresh() {
 }
 
 function localConnection() {
-  main.innerHTML = `<div class="eyebrow">PRONTO PARA USAR NO CELULAR</div><h1>Seu CENA</h1><div class="panel"><h2>Lista neste aparelho</h2><p>Experimente a câmera, a leitura do texto da capa, sua lista e os cards para Stories. A busca combina pistas do texto com comparação visual de capas no aparelho, sem cobrança por imagem. O catálogo online requer internet.</p></div><div class="notice">Stremio e Nuvio precisam de um catálogo hospedado para acessar sua lista. O modo local ainda não sincroniza com esses players.</div><div class="panel"><h2>Conectar catálogo remoto</h2><p>Quando o servidor CENA estiver disponível, informe o endereço HTTPS. Os títulos locais são preservados, sem transferência automática.</p><form id="local-server-form"><label for="local-server-url">Endereço do servidor</label><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><div class="actions"><button class="primary" type="submit">Conectar</button></div></form></div><div class="panel"><h2>Experimentar agora</h2><p>Busque pelo nome de qualquer filme ou série. Por exemplo: SISU.</p><button class="secondary" id="local-search">Abrir catálogo</button></div>`;
-  $('#local-search').onclick = () => setTab('library');
+  const supported = native && typeof window.CenaAndroid.connectTrakt === 'function';
+  const pending = traktState.pending?.length || 0;
+  main.innerHTML = `<div class="eyebrow">SUA LISTA, EM MAIS TELAS</div><h1>Conectar ao Nuvio</h1>
+    <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
+    <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
+    <div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
+    ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
+    ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
+    <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">O Android pode adiar tarefas em segundo plano. Ao abrir o CENA, a consulta é retomada.</p></div>
+    <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
+    <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
+  if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
+  if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
+  if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
+  if($('#trakt-authorize')) $('#trakt-authorize').onclick=()=>window.CenaAndroid.openTraktVerification();
+  if($('#trakt-sync')) $('#trakt-sync').onclick=()=>{ sendTraktInventory(); window.CenaAndroid.syncTrakt(); };
+  if($('#trakt-send-list')) $('#trakt-send-list').onclick=()=>{ sendTraktInventory(); sendTraktList(); toast('Envio solicitado. Confira os itens pendentes.'); };
+  if($('#trakt-disconnect')) $('#trakt-disconnect').onclick=()=>window.CenaAndroid.disconnectTrakt();
   $('#local-server-form').onsubmit = async event => {
-    event.preventDefault();
-    const previous = { apiBase, connection, config, items };
-    try {
-      apiBase = validBase($('#local-server-url').value.trim()); connection = null;
-      config = await api('/api/config'); await ensureConnection(); items = []; connect();
-      toast('Servidor conectado. Sua lista local foi preservada.');
-    } catch (error) { ({ apiBase, connection, config, items } = previous); toast(error.message); }
+    event.preventDefault(); const previous={apiBase,connection,config,items};
+    try { apiBase=validBase($('#local-server-url').value.trim()); connection=null; config=await api('/api/config'); await ensureConnection(); items=[]; connect(); toast('Servidor conectado. Sua lista local foi preservada.'); }
+    catch(error) { ({apiBase,connection,config,items}=previous); toast(error.message); }
   };
 }
 
 // Render a 9:16 PNG locally. Photo captures never leave the device.
 async function story(item) {
-  $('#story-editor').innerHTML = '<div class="story"><canvas id="story-canvas" width="720" height="1280" aria-label="Prévia do Story"></canvas><label for="story-caption">Sua frase</label><input id="story-caption" value="Assistindo hoje 🍿" maxlength="70"><button class="primary wide" id="share-story">Compartilhar imagem</button><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>';
+  $('#story-editor').innerHTML = `<div class="story"><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-caption">Sua frase</label><input id="story-caption" value="${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}" maxlength="70"><button class="primary wide" id="share-story">Compartilhar imagem</button><button class="secondary wide" id="save-story">Salvar imagem PNG</button><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
   const canvas = $('#story-canvas'); const ctx = canvas.getContext('2d');
   let image = null;
   const draw = () => {
+    ctx.setTransform(1.5,0,0,1.5,0,0);
     const gradient = ctx.createLinearGradient(0, 0, 720, 1280); gradient.addColorStop(0, '#492570'); gradient.addColorStop(.5, '#191323'); gradient.addColorStop(1, '#613d76');
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, 720, 1280);
     ctx.fillStyle = '#221c2e'; ctx.fillRect(110, 120, 500, 750);
@@ -256,11 +300,12 @@ async function story(item) {
       ctx.save(); ctx.beginPath(); ctx.rect(110, 120, 500, 750); ctx.clip(); ctx.drawImage(image, 110 + (500 - w) / 2, 120 + (750 - h) / 2, w, h); ctx.restore();
     } else { ctx.fillStyle = '#b790e8'; ctx.font = '120px Georgia'; ctx.textAlign = 'center'; ctx.fillText('▲', 360, 540); }
     ctx.textAlign = 'center'; ctx.fillStyle = 'white'; ctx.font = 'bold 38px Georgia';
-    const words = item.name.split(' '); let line = '', y = 950;
-    for (const word of words) { if (ctx.measureText(line + word).width > 600 && line) { ctx.fillText(line.trim(), 360, y); y += 48; line = ''; } line += word + ' '; }
+    ctx.font = `bold ${item.name.length > 100 ? 24 : 32}px Georgia`;
+    const words = item.name.split(' '); let line = '', y = 925;
+    for (const word of words) { if (ctx.measureText(line + word).width > 600 && line) { ctx.fillText(line.trim(), 360, y); y += 38; line = ''; } line += word + ' '; }
     ctx.fillText(line.trim(), 360, y);
-    ctx.font = '25px sans-serif'; ctx.fillStyle = '#ded0ec'; ctx.fillText($('#story-caption').value, 360, 1110, 620);
-    ctx.font = 'bold 35px sans-serif'; ctx.fillStyle = 'white'; ctx.fillText('CENA', 360, 1200);
+    ctx.font = '22px sans-serif'; ctx.fillStyle = '#ded0ec'; ctx.fillText($('#story-caption').value, 360, 1110, 620);
+    ctx.font = 'bold 35px sans-serif'; ctx.fillStyle = 'white'; ctx.fillText('CEN', 345, 1200); ctx.fillStyle='#9959ff'; ctx.fillText('▲', 410, 1200);
   };
   draw(); $('#story-caption').oninput = draw;
   if (item.poster) {
@@ -269,6 +314,11 @@ async function story(item) {
     img.onerror = () => { if (canvas.isConnected) toast('Pôster indisponível. O card será gerado com o título.'); };
     img.src = item.poster;
   }
+  $('#save-story').onclick = () => {
+    try { if(native && typeof window.CenaAndroid.saveStory==='function') window.CenaAndroid.saveStory(canvas.toDataURL('image/png').split(',')[1]);
+      else { const link=document.createElement('a'); link.href=canvas.toDataURL('image/png'); link.download='CENA-Story.png'; link.click(); }
+    } catch { toast('Não consegui salvar o card. Tente outra imagem.'); }
+  };
   $('#share-story').onclick = async () => {
     try {
       if (native) { window.CenaAndroid.shareStory(canvas.toDataURL('image/png').split(',')[1]); return; }
@@ -288,7 +338,7 @@ $('#detail .close').onclick = () => $('#detail').close();
 $('#detail').onclick = event => { if (event.target === $('#detail')) { const r = $('#detail').getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) $('#detail').close(); } };
 if (stored?.id && stored?.writeToken) connection = { id: stored.id, writeToken: stored.writeToken, manifestUrl: stored.manifestUrl };
 home();
-if (apiBase) refresh().then(() => setTab(tab)).catch(error => toast(error.message));
+if (apiBase) refresh().then(() => { setTab(tab); sendTraktInventory(); }).catch(error => toast(error.message));
 else setTab('connect');
 
 if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready(); }
