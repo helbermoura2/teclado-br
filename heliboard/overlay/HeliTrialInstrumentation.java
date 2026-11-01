@@ -128,10 +128,10 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     }
     AccessibilityNodeInfo aiNode(String description)throws Exception {
         long until=SystemClock.uptimeMillis()+10000;
-        do {AccessibilityNodeInfo n=find(v->description.contentEquals(v.getContentDescription()==null?"":v.getContentDescription()));if(n!=null)return n;Thread.sleep(100);}while(SystemClock.uptimeMillis()<until);
+        do {AccessibilityNodeInfo n=find(v->description.contentEquals(v.getContentDescription()==null?"":v.getContentDescription()));if(n!=null&&n.isVisibleToUser())return n;Thread.sleep(100);}while(SystemClock.uptimeMillis()<until);
         throw new AssertionError("AI control missing: "+description);
     }
-    void aiClick(String description)throws Exception {AccessibilityNodeInfo n=aiNode(description);check(n.performAction(AccessibilityNodeInfo.ACTION_CLICK),"AI action rejected: "+description);Thread.sleep(300);}
+    void aiClick(String description)throws Exception {AccessibilityNodeInfo n=aiNode(description);Rect bounds=new Rect();n.getBoundsInScreen(bounds);check(!bounds.isEmpty(),"AI control has no touch area: "+description);check(bounds.bottom<=getTargetContext().getResources().getDisplayMetrics().heightPixels,"AI control clipped: "+description);tap(bounds);Thread.sleep(600);}
     void aiSet(String description,String value)throws Exception {Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);check(aiNode(description).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"AI edit rejected");}
     String aiText(String description)throws Exception {CharSequence t=aiNode(description).getText();return t==null?"":t.toString();}
     AccessibilityNodeInfo aiOption(String label)throws Exception {
