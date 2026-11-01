@@ -212,7 +212,7 @@ replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
     '    public int getCurrentRecapitalizeState() {\n        if (helium314.keyboard.latin.ai.WritingPanel.isEditing()) return 0;')
 replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
     '        super.onComputeInsets(outInsets);',
-    '        super.onComputeInsets(outInsets);\n        if (mInputView != null && helium314.keyboard.latin.ai.WritingPanel.insets(outInsets, mInputView)) return;')
+    '        super.onComputeInsets(outInsets);\n        if (mInputView != null && helium314.keyboard.latin.ai.WritingPanel.insets(outInsets, mInputView)) { if (mInsetsUpdater != null) mInsetsUpdater.setInsets(outInsets); return; }')
 replace('app/src/main/java/helium314/keyboard/latin/InputView.java',
     '    public boolean onInterceptTouchEvent(final MotionEvent me) {',
     '    public boolean onInterceptTouchEvent(final MotionEvent me) {\n        if (helium314.keyboard.latin.ai.WritingPanel.isActive()) { mActiveForwarder = null; return false; }')
