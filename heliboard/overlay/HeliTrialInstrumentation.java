@@ -133,6 +133,20 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void aiClick(String description)throws Exception {AccessibilityNodeInfo n=aiNode(description);check(n.performAction(AccessibilityNodeInfo.ACTION_CLICK),"AI action rejected: "+description);Thread.sleep(300);}
     void aiSet(String description,String value)throws Exception {Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);check(aiNode(description).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"AI edit rejected");}
     String aiText(String description)throws Exception {CharSequence t=aiNode(description).getText();return t==null?"":t.toString();}
+    AccessibilityNodeInfo aiOption(String label)throws Exception {
+        long until=SystemClock.uptimeMillis()+10000;
+        do {AccessibilityNodeInfo n=find(v->v.getText()!=null&&label.contentEquals(v.getText())&&v.isVisibleToUser());if(n!=null)return n;Thread.sleep(100);}while(SystemClock.uptimeMillis()<until);
+        throw new AssertionError("AI menu option missing: "+label);
+    }
+    String aiComplete()throws Exception {
+        long until=SystemClock.uptimeMillis()+240000;
+        while(!aiNode("ai_generate").isEnabled()&&SystemClock.uptimeMillis()<until)Thread.sleep(300);
+        String state=aiText("ai_status"),response=aiText("ai_output");
+        check(state.startsWith("Pronto.")||state.startsWith("Limite de geração"),"Native generation did not finish: "+state);
+        check(!response.trim().isEmpty(),"Native inference produced no final output: "+state);
+        check(!response.contains("<think>")&&!response.contains("</think>")&&!response.contains("[channel]")&&!response.contains("<|im_end|>"),"Reasoning/control tokens leaked");
+        return response;
+    }
     void writing(boolean withModel)throws Exception {
         String[] permissions=getTargetContext().getPackageManager().getPackageInfo(getTargetContext().getPackageName(),android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions;
         if(permissions!=null)for(String permission:permissions)check(!permission.equals("android.permission.INTERNET"),"Offline app unexpectedly has network permission");
@@ -141,20 +155,30 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         check(aiText("ai_source").equals("texto original"),"AI did not capture source");
         if(!withModel){result.putString("model_path",new File(getTargetContext().getNoBackupFilesDir(),"offline-ai/model.gguf").getAbsolutePath());check(!aiNode("ai_generate").isEnabled(),"Missing model must disable generation");shot("13-ia-sem-modelo");aiClick("ai_back");expect("texto original");return;}
         check(aiNode("ai_generate").isEnabled(),"Native model not ready");
-        aiClick("ai_task");AccessibilityNodeInfo compositor=find(v->v.getText()!=null&&"Compositor".contentEquals(v.getText()));check(compositor!=null,"Compositor option missing");Rect menu=new Rect();compositor.getBoundsInScreen(menu);tap(menu);Thread.sleep(200);
+        aiClick("ai_task");AccessibilityNodeInfo compositor=aiOption("Compositor");Rect menu=new Rect();compositor.getBoundsInScreen(menu);tap(menu);
+        long until=SystemClock.uptimeMillis()+5000;while(!aiNode("ai_prompt").isVisibleToUser()&&SystemClock.uptimeMillis()<until)Thread.sleep(100);
+        check(aiNode("ai_prompt").isVisibleToUser(),"Compositor prompt did not open");
         aiSet("ai_prompt","Escreva uma saudação curta em português, sem nomes.");shot("14-ia-compositor");
-        aiClick("ai_generate");
-        long until=SystemClock.uptimeMillis()+240000;
-        do {String state=aiText("ai_status");if(state.startsWith("Pronto.")||state.startsWith("Limite de geração"))break;Thread.sleep(300);}while(SystemClock.uptimeMillis()<until);
-        String response=aiText("ai_output");check(!response.trim().isEmpty(),"Native inference produced no output: "+aiText("ai_status"));
+        aiClick("ai_generate");String response=aiComplete();
         check(aiNode("ai_replace").isEnabled(),"Replace did not become available");
-        check(!response.contains("<think>")&&!response.contains("[channel]"),"Reasoning/control tokens leaked");
         result.putString("offline_model_output",response);shot("15-ia-resposta-offline");
         aiSet("ai_output","Texto revisado no aparelho.");aiClick("ai_replace");expect("Texto revisado no aparelho.");shot("16-ia-substituido");
-        toolbar(ToolbarKey.AI);aiClick("ai_generate");Thread.sleep(100);aiClick("ai_cancel");
+        // A completed review exercises the default task, independently of the compositor.
+        toolbar(ToolbarKey.AI);aiSet("ai_source","Eu nao sei oque fazer.");aiClick("ai_generate");String reviewed=aiComplete();
+        result.putString("offline_review_output",reviewed);shot("17-ia-revisao-offline");
+        // Edit the original app while the completed AI workspace remains in its own task.
+        launch();type("texto alterado");expect("texto alterado");
+        getTargetContext().startActivity(new Intent(getTargetContext(),helium314.keyboard.latin.ai.WritingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_REORDER_TO_FRONT|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        aiNode("ai_replace");check(aiText("ai_output").equals(reviewed),"Workspace did not retain its result");aiClick("ai_replace");
+        until=SystemClock.uptimeMillis()+15000;
+        while(!aiText("ai_status").startsWith("Substituição não aplicada")&&SystemClock.uptimeMillis()<until)Thread.sleep(200);
+        check(aiText("ai_status").startsWith("Substituição não aplicada"),"Changed source was not rejected");
+        check(aiText("ai_output").equals(reviewed),"Rejected replacement lost the result");
+        check(!aiNode("ai_replace").isEnabled(),"Stale result must not offer replacement");shot("18-ia-texto-alterado-protegido");aiClick("ai_back");expect("texto alterado");
+        toolbar(ToolbarKey.AI);check(aiNode("ai_generate").performAction(AccessibilityNodeInfo.ACTION_CLICK),"Could not start cancellation test");Thread.sleep(100);aiClick("ai_cancel");
         until=SystemClock.uptimeMillis()+30000;
         while(!aiText("ai_status").startsWith("Cancelado")&&SystemClock.uptimeMillis()<until)Thread.sleep(200);
-        check(aiText("ai_status").startsWith("Cancelado"),"Native cancellation timed out");shot("17-ia-cancelada");aiClick("ai_back");expect("Texto revisado no aparelho.");
+        check(aiText("ai_status").startsWith("Cancelado"),"Native cancellation timed out");shot("19-ia-cancelada");aiClick("ai_back");expect("texto alterado");
     }
     @Override public void onStart(){try{
         ui=getUiAutomation();AccessibilityServiceInfo info=ui.getServiceInfo();info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;ui.setServiceInfo(info);
