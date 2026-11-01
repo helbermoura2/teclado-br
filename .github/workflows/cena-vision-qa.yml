@@ -40,10 +40,10 @@ jobs:
         env:
           CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
         run: gradle --no-daemon assembleDebug assembleDebugAndroidTest
-      - name: Download the legacy app for coexistence testing
+      - name: Download CENA IA 0.4.1 for a real signed update test
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 41257919458 --repo "$GITHUB_REPOSITORY" --name CENA-Android-APK --dir /tmp/cena-legacy
+        run: gh release download cena-v0.4.1 --repo "$GITHUB_REPOSITORY" --pattern CENA-0.4.1.apk --dir /tmp/cena-previous
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -59,16 +59,14 @@ jobs:
           disable-animations: true
           working-directory: cena/android
           script: |
-            adb install -r /tmp/cena-legacy/CENA-preview.apk
-            adb shell am start -n app.cena/.MainActivity
-            sleep 3
-            adb shell run-as app.cena mkdir -p files
-            adb shell "run-as app.cena sh -c 'echo legacy > files/legacy-update-marker.txt'"
+            adb install -r /tmp/cena-previous/CENA-0.4.1.apk
+            adb shell run-as app.cena.mobile mkdir -p files
+            adb shell "run-as app.cena.mobile sh -c 'echo update > files/legacy-update-marker.txt'"
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            timeout 240s adb shell am instrument -w -r -e class app.cena.VisualModelTest,app.cena.CoverRecognitionTest,app.cena.AssetsUpgradeTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
+            timeout 240s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
             grep -F 'OK (3 tests)' /tmp/cena-instrumentation.txt
-            adb shell run-as app.cena cat files/legacy-update-marker.txt | grep -x legacy
+            adb shell run-as app.cena.mobile cat files/legacy-update-marker.txt | grep -x update
             mkdir -p ../qa
             adb exec-out run-as app.cena.mobile cat files/native-ocr.json > ../qa/native-ocr.json
       - uses: actions/setup-node@v4
@@ -81,4 +79,6 @@ jobs:
         if: always()
         with:
           name: CENA-local-visual-model-report
-          path: cena/android/app/build/reports/androidTests/connected/**
+          path: |
+            cena/qa/native-ocr.json
+            cena/android/app/build/reports/androidTests/connected/**
