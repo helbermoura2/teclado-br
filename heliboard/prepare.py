@@ -84,6 +84,10 @@ for style, drawable in [('holo', 'sym_keyboard_language_switch'), ('lxx', 'sym_k
         f'                    ToolbarKey.LANGUAGE -> R.drawable.{drawable}\n                    ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_{style}')
 strings = root/'app/src/main/res/values/strings.xml'
 strings.write_text(strings.read_text().replace('</resources>', '<string name="language">Idiomas</string>\n</resources>'))
+# Keep the typed word visible so an unknown word can be saved explicitly.
+replace('app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripLayoutHelper.java',
+    'settingsValues.mGestureFloatingPreviewTextEnabled, true);',
+    'settingsValues.mGestureFloatingPreviewTextEnabled, suggestedWords.mInputStyle != SuggestedWords.INPUT_STYLE_TYPING);')
 # Explicit, user-triggered personal dictionary entry from a suggested word.
 strip = root/'app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt'
 text = strip.read_text()
