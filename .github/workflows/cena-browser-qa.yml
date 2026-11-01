@@ -156,3 +156,4 @@ jobs:
           name: CENA-SISU-browser-QA
           path: cena/qa/*
           if-no-files-found: error
+
