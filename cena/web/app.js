@@ -102,6 +102,7 @@ $('#photo-input').onchange = event => {
 };
 window.CenaNativeResult = result => {
   if (result.error) { toast(result.error); return; }
+  if ($('#detail').open) $('#detail').close();
   setTab('scan');
   const lines = (result.lines || []).filter(line => typeof line === 'string' && line.trim().length > 2);
   detectedLines = [...new Set(lines)].slice(0, 6);
