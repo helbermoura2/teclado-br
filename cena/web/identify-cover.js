@@ -50,6 +50,31 @@ async function json(fetcher, base, params) {
   return value;
 }
 
+// Recover short supporting words even when OCR joins words or misreads a letter.
+// Require two distinct clues outside the primary word to avoid one-word matches.
+function supportingClues(labels, lines) {
+  const context = normalizeTitle(lines.slice(1).join(' ')).slice(0, 1800);
+  const primary = lines[0] || '';
+  if (!context || lines.length < 2) return 0;
+  const common = new Set(['the', 'and', 'for', 'with', 'from', 'you', 'are', 'its', 'that', 'this', 'her', 'his']);
+  const words = [...new Set(labels.flatMap(label => label.toLowerCase().match(/[a-z]+/g) || []))]
+    .filter(word => word.length >= 3 && !common.has(word) && similarity(word, primary) < .7);
+  let hits = 0;
+  for (const word of words) {
+    let match = context.includes(word);
+    if (!match && word.length >= 4) for (let i = 0; i <= context.length - word.length; i++) {
+      let differences = 0;
+      const allowed = Math.floor(word.length * .22);
+      for (let j = 0; j < word.length; j++) {
+        if (word[j] !== context[i + j] && ++differences > allowed) break;
+      }
+      if (differences <= allowed) { match = true; break; }
+    }
+    if (match) hits++;
+  }
+  return hits >= 2 ? Math.min(.24, hits * .12) : 0;
+}
+
 export function scoreCover(item, lines, extract = '') {
   const labels = [item.name, item.originalName, item.wikiTitle?.replace(/\([^)]*\)/g, '')].filter(Boolean);
   const primary = lines[0] || '';
@@ -58,7 +83,7 @@ export function scoreCover(item, lines, extract = '') {
   const words = labels.flatMap(label => label.replace(/[^\p{L}\p{N} ]/gu, ' ').split(/\s+/)).filter(word => normalizeTitle(word).length >= 5);
   const fragment = normalizeTitle(primary).length >= 5 && primary.trim().split(/\s+/).length === 1 ? Math.max(0, ...words.map(word => similarity(primary, word))) * .65 : 0;
   const labelClues = lines.slice(1).filter(line => { const part = normalizeTitle(line); return part.length >= 4 && part.length <= 60 && labels.some(label => normalizeTitle(label).includes(part)); }).length;
-  const labelBonus = labelClues >= 2 ? Math.min(.24, labelClues * .08) : 0;
+  const labelBonus = Math.max(labelClues >= 2 ? Math.min(.24, labelClues * .08) : 0, supportingClues(labels, lines));
   const description = normalizeTitle(extract + ' ' + item.description);
   const clues = lines.slice(1).filter(line => line.split(/\s+/).length >= 2 && normalizeTitle(line).length >= 7);
   const hits = clues.filter(line => description.includes(normalizeTitle(line))).length;
@@ -90,7 +115,9 @@ export async function identifyCover(lines, fetcher = fetch) {
   }
   let suggestions = [];
   if (pages.size) {
-    const relevant = [...pages.entries()].sort((a,b) => similarity(primary, b[1].title.replace(/\([^)]*\)/g, '')) - similarity(primary, a[1].title.replace(/\([^)]*\)/g, ''))).slice(0,40);
+    const relevant = [...pages.entries()].map(([id, page]) => ({ id, page,
+      score: scoreCover({ name: page.title.replace(/\([^)]*\)/g, '') }, lines, page.extract || '')
+    })).sort((a, b) => b.score - a.score).slice(0, 40).map(({ id, page }) => [id, page]);
     const data = await json(fetcher, 'https://www.wikidata.org/w/api.php', { action: 'wbgetentities', ids: relevant.map(([id]) => id).join('|'), props: 'claims|labels|descriptions|sitelinks', languages: 'pt|en', sitefilter: 'enwiki' });
     for (const [id, page] of relevant) {
       const item = titleFromEntity(data.entities?.[id] || {});
