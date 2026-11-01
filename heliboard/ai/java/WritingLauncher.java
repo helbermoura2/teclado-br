@@ -8,10 +8,15 @@ import android.text.InputType;
 import helium314.keyboard.latin.LatinIME;
 import java.util.Objects;
 public final class WritingLauncher {
+    private static void recover(LatinIME ime,String source,String result){
+        ime.startActivity(new Intent(ime,WritingActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra("source",source).putExtra("result",result).putExtra("replace",false));
+    }
     private static long request;
     public static boolean syntheticTest;
     public static void open(LatinIME ime) {
         EditorInfo editor=ime.getCurrentInputEditorInfo();InputConnection connection=ime.getCurrentInputConnection();
+        if(editor!=null&&editor.privateImeOptions!=null&&editor.privateImeOptions.contains("teclado-br.no-assistant")){Toast.makeText(ime,"Você já está no assistente de escrita.",Toast.LENGTH_SHORT).show();return;}
         if(editor==null||connection==null)return;
         int variation=editor.inputType&InputType.TYPE_MASK_VARIATION;
         if((editor.inputType&InputType.TYPE_MASK_CLASS)!=InputType.TYPE_CLASS_TEXT
@@ -38,17 +43,17 @@ public final class WritingLauncher {
                     @Override public void run(){
                         if(id!=request)return;
                         EditorInfo now=ime.getCurrentInputEditorInfo();InputConnection ic=ime.getCurrentInputConnection();
-                        if(now==null||ic==null||!Objects.equals(now.packageName,application)||now.fieldId!=field||!ime.isInputViewShown()){
-                            if(++attempts<35)handler.postDelayed(this,150);else Toast.makeText(ime,"Volte ao campo original. O resultado continua disponível para copiar.",Toast.LENGTH_LONG).show();return;
+                        if(now==null||ic==null||!Objects.equals(now.packageName,application)||now.fieldId!=field||(now.privateImeOptions!=null&&now.privateImeOptions.contains("teclado-br.no-assistant"))||!ime.isInputViewShown()){
+                            if(++attempts<35)handler.postDelayed(this,150);else recover(ime,source,replacement);return;
                         }
                         ExtractedText current=ic.getExtractedText(new ExtractedTextRequest(),0);
                         if(current==null||current.text==null||current.startOffset!=0||!original.contentEquals(current.text)){
-                            Toast.makeText(ime,"O texto mudou. Use Copiar para preservar suas alterações.",Toast.LENGTH_LONG).show();return;
+                            recover(ime,source,replacement);return;
                         }
                         ic.beginBatchEdit();boolean committed=false;
                         try {if(ic.setSelection(replaceStart,replaceEnd))committed=ic.commitText(replacement,1);}
                         finally{ic.endBatchEdit();}
-                        if(!committed)Toast.makeText(ime,"Não foi possível substituir. Use Copiar.",Toast.LENGTH_LONG).show();
+                        if(!committed)recover(ime,source,replacement);
                     }
                 };handler.postDelayed(apply,350);
             }

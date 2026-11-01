@@ -30,7 +30,10 @@ if ok:
     import os
     model=pathlib.Path(os.environ.get('AI_SMOKE_MODEL','/tmp/qwen-smoke.gguf'))
     if not model.is_file(): raise SystemExit('Offline model fixture is required')
-    destination='/data/user/0/'+package+'/no_backup/offline-ai'
+    import re
+    path_match=re.search(r'INSTRUMENTATION_RESULT: model_path=([^\r\n]+)',third)
+    if not path_match: raise SystemExit('Instrumentation did not report private model path')
+    destination=str(pathlib.PurePosixPath(path_match.group(1)).parent)
     subprocess.run(['adb','shell','run-as',package,'mkdir','-p',destination],check=True)
     with model.open('rb') as incoming:
         subprocess.run(['adb','exec-in','run-as',package,'dd','of='+destination+'/model.gguf','bs=1048576'],stdin=incoming,stdout=subprocess.DEVNULL,check=True)

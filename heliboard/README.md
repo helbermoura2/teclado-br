@@ -1,50 +1,47 @@
-# Teclado BR — teste com base HeliBoard
+# Teclado BR — HeliBoard com assistente offline
 
-Base: HeliBorg/HeliBoard v3.6 (SDK 35; a v4.2 exige SDK 37 indisponível no ambiente), fixada no commit de upstream.json.
-Variante experimental 0.6.1-heli3.6, pacote br.com.tecladobr.heli.debug.
-Instala separadamente do Teclado BR anterior e do HeliBoard oficial.
+Variante 0.7.0-heli3.6, pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
+v3.6 fixada em upstream.json. Android mínimo 8 (API 26); Nothing Phone (1) usa arm64-v8a.
+Atualiza as versões 0.6.1–0.6.5 com a mesma assinatura de teste, preservando pins,
+idiomas e dicionário pessoal. O HeliBoard oficial e o aplicativo original 0.1–0.5
+continuam separados.
 
-A base 0.6.0 passou em compilação, 142 testes unitários e interação no Android 15.
-A 0.6.1 passou nos testes de idiomas, pins e persistência em emulador.
-As mudanças 0.6.1 estão descritas em [IDIOMAS-E-PINS.md](IDIOMAS-E-PINS.md).
-Resultados e limites em [VALIDACAO.md](VALIDACAO.md).
-No Nothing, ativar e selecionar **Teclado BR · Heli teste** nas configurações do Android.
+Mantém PT-BR e en-US, fileira A–L centralizada, Ç ao segurar C, espaço imediato
+após pontuação e sugestões/aprendizado nativos. Idiomas e emoji estão na barra.
+O novo botão de brilho abre o assistente em processo separado, com revisão,
+prompt de Compositor, cinco estilos, resumo e tradução de texto para PT-BR.
+O modelo GGUF deve ser baixado pelo navegador e importado uma vez. O APK não
+inclui pesos e não tem permissão INTERNET; a geração ocorre no aparelho.
+Detalhes, modelos e limites em [ai/README.md](ai/README.md).
 
-Mudanças locais, 31/10/2026 (desenvolvimento assistido por IA):
-- Perfil inicial PT-BR e layout QWERTY com Ç; números, tema escuro e teclas com bordas.
-- Correção, sugestões e maiúsculas do motor original, sem reimplementar digitação.
-- Barra expansível do HeliBoard com seleção, copiar, recortar, colar, cursores e desfazer/refazer.
-- Dicionários PT-BR e en-US incluídos; outros podem ser importados nas configurações.
-- Contatos e nomes de apps desligados no perfil inicial.
-- Somente ABIs arm64-v8a (Nothing Phone 1) e x86_64 (emulador).
-- Editor e instrumentação de teste adicionados somente à variante debugNoMinify.
-
-Esta etapa avalia a base de digitação. Ainda NÃO contém IA generativa, prompt,
-revisão gramatical por IA ou lupa tradutora. A Gemma 4 E2B permanece obrigatória
-na avaliação final de IA offline no Nothing Phone (1). Avaliar memória, tempo de
-resposta, qualidade em PT-BR e impacto na digitação antes de adotá-la.
-O assistente e a lupa da versão antiga precisarão ser portados para esta base.
-Digitação por deslizar entre letras depende de biblioteca opcional do upstream;
-nenhuma biblioteca proprietária foi adicionada. Os gestos de subteclas já são nativos.
+A lupa sobre frases em outros aplicativos ainda não foi integrada. A Gemma 4
+E2B permanece no comparativo final de qualidade e desempenho no Nothing Phone (1).
+A execução Android com modelo pequeno valida o caminho de inferência; não mede
+qualidade geral em português nem desempenho do modelo maior no telefone real.
 
 ## Compilar
 
-1. Baixar o commit exato de upstream.json para uma pasta limpa.
-2. Executar `python3 heliboard/prepare.py /caminho/HeliBoard` a partir do repositório Teclado BR.
-3. No HeliBoard preparado: `./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify`.
-   JDK 17, SDK 35 e NDK 28.0.13004108; Gradle Wrapper do upstream.
-4. O workflow heliboard.yml também testa o APK em Android 15 AOSP.
+JDK 17, SDK 35, NDK 28.0.13004108, CMake 3.22+ e Ninja.
 
-As fontes entregues em tar.gz já estão preparadas; basta executar o comando Gradle
-do passo 3 dentro da pasta extraída, sem reaplicar prepare.py.
+1. Baixar o commit HeliBoard de upstream.json em uma pasta limpa.
+2. Baixar ggml-org/llama.cpp no commit 0ec4027a2a0183de87c007069adddc06e665f7de
+   para `HeliBoard/ai-native/llama.cpp`.
+3. Executar `python3 heliboard/prepare.py /caminho/HeliBoard` no repositório Teclado BR.
+4. Executar `bash heliboard/ai/build-native.sh /caminho/HeliBoard` para as duas ABIs.
+5. Na pasta HeliBoard preparada: `./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify`.
 
-## Licença e origem
+O arquivo de fontes entregue já contém as árvores preparadas de HeliBoard e
+llama.cpp. Dentro da pasta extraída, basta executar
+`bash teclado-br-overlay/ai/build-native.sh .` e depois o comando Gradle do passo 5,
+sem executar prepare.py outra vez. Pesos externos não são necessários para compilar.
+O workflow heliboard.yml inclui assinatura estável, testes unitários, interação
+Android 15, modelo sintético com SHA-256 fixado e inferência sem rede no emulador.
 
-Variante derivada do HeliBoard/OpenBoard/AOSP, distribuída sob GPL-3.0-only.
-Preservar LICENSE, LICENSE-Apache-2.0, LICENSE-CC-BY-SA-4.0 e os avisos originais.
-O ícone do upstream permanece sob CC BY-SA 4.0 e seus autores estão no README
-original. O nome distingue esta variante do HeliBoard oficial.
-O código-fonte completo correspondente é entregue no mesmo conjunto de artefatos
-do APK (teclado-br-heli-fontes.tar.gz). O repositório privado não altera os direitos
-concedidos aos destinatários pela GPL. Não há contribuição ou mensagem enviada
-aos mantenedores do upstream.
+## Licenças
+
+Derivado HeliBoard/OpenBoard/AOSP sob GPL-3.0-only, com avisos originais preservados.
+Preservar LICENSE, LICENSE-Apache-2.0, LICENSE-CC-BY-SA-4.0 e créditos do upstream.
+llama.cpp tem licença MIT, incluída na árvore de fontes e nos assets do APK.
+O arquivo completo de fontes correspondente acompanha o APK nos artefatos da
+execução. O repositório permanece privado. Modelos têm licenças próprias, consultáveis
+na página escolhida pelo usuário, e não são redistribuídos dentro do APK.

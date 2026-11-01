@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import org.json.JSONObject;
 final class ModelStore {
     interface Progress { boolean update(long copied, long total); }
-    static File directory(Context c) { File f=new File(c.createCredentialProtectedStorageContext().getNoBackupFilesDir(),"offline-ai");f.mkdirs();return f; }
+    static File directory(Context c) { File f=new File(c.getNoBackupFilesDir(),"offline-ai");f.mkdirs();return f; }
     static File model(Context c) { return new File(directory(c),"model.gguf"); }
     static File metadata(Context c) { return new File(directory(c),"model.json"); }
     static String description(Context c) {

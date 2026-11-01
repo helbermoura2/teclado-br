@@ -134,10 +134,12 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void aiSet(String description,String value)throws Exception {Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);check(aiNode(description).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"AI edit rejected");}
     String aiText(String description)throws Exception {CharSequence t=aiNode(description).getText();return t==null?"":t.toString();}
     void writing(boolean withModel)throws Exception {
+        String[] permissions=getTargetContext().getPackageManager().getPackageInfo(getTargetContext().getPackageName(),android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions;
+        if(permissions!=null)for(String permission:permissions)check(!permission.equals("android.permission.INTERNET"),"Offline app unexpectedly has network permission");
         helium314.keyboard.latin.ai.WritingLauncher.syntheticTest=true;
         clear();type("texto original");toolbar(ToolbarKey.AI);aiNode("ai_source");
         check(aiText("ai_source").equals("texto original"),"AI did not capture source");
-        if(!withModel){check(!aiNode("ai_generate").isEnabled(),"Missing model must disable generation");shot("13-ia-sem-modelo");aiClick("ai_back");expect("texto original");return;}
+        if(!withModel){result.putString("model_path",new File(getTargetContext().getNoBackupFilesDir(),"offline-ai/model.gguf").getAbsolutePath());check(!aiNode("ai_generate").isEnabled(),"Missing model must disable generation");shot("13-ia-sem-modelo");aiClick("ai_back");expect("texto original");return;}
         check(aiNode("ai_generate").isEnabled(),"Native model not ready");
         aiClick("ai_task");AccessibilityNodeInfo compositor=find(v->v.getText()!=null&&"Compositor".contentEquals(v.getText()));check(compositor!=null,"Compositor option missing");Rect menu=new Rect();compositor.getBoundsInScreen(menu);tap(menu);Thread.sleep(200);
         aiSet("ai_prompt","Escreva uma saudação curta em português, sem nomes.");shot("14-ia-compositor");

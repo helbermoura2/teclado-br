@@ -175,6 +175,7 @@ replace('app/build.gradle.kts', 'minSdk = 21', 'minSdk = 26')
 ai_java = root/'app/src/main/java/helium314/keyboard/latin/ai'
 shutil.copytree(here/'ai/java', ai_java, dirs_exist_ok=True)
 shutil.copytree(here/'ai/native', root/'ai-native', dirs_exist_ok=True)
+shutil.copyfile(root/'ai-native/llama.cpp/LICENSE', root/'app/src/main/assets/TECLADO-BR-LLAMA-LICENSE.txt')
 replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',
     '    LANGUAGE -> KeyCode.LANGUAGE_SWITCH', '    AI -> -11050\n    LANGUAGE -> KeyCode.LANGUAGE_SWITCH')
 replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',

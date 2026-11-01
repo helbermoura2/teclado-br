@@ -31,3 +31,9 @@ por revisão baseada em regras nem apresentar resultados simulados como IA.
 A fixture Qwen3 0.6B Q8_0 do teste Android é pequena para validar a integração;
 não é a escolha de qualidade recomendada para revisão PT-BR.
 O teste não usa mensagens pessoais: somente texto sintético.
+
+A página de download também oferece Gemma 4 E2B Q4_0 oficial (~2,84 GB), com
+revisão fixada. Essa quantização difere da Q4_K_M requantizada usada na rodada 2;
+sua qualidade e seu uso de memória no Android precisam ser medidos separadamente.
+Remover modelo apaga somente os pesos, preservando dicionário e pins.
+Se a substituição for recusada, a resposta é reaberta para copiar, sem alterar o campo.

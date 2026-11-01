@@ -17,8 +17,8 @@ public final class WritingActivity extends Activity {
     private volatile boolean stopped;
     private boolean busy,nativeReady;
     private EditText source,prompt,output;
-    private TextView model,status;
-    private Button generate,cancel,replace,copy,importButton;
+    private TextView model,status,promptLabel;
+    private Button generate,cancel,replace,copy,importButton,removeModel;
     private Spinner task,style;
     private ResultReceiver receiver;
     private final String[] tasks={"Ortografia e gramática","Compositor","Estilo de escrita","Resumir","Traduzir para português"};
@@ -26,7 +26,7 @@ public final class WritingActivity extends Activity {
     private LinearLayout root;
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+.5f);}
     private TextView text(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(Color.WHITE);t.setPadding(0,dp(8),0,dp(6));root.addView(t);return t;}
-    private EditText edit(String hint,String tag,int lines){EditText e=new EditText(this);e.setHint(hint);e.setContentDescription(tag);e.setTextColor(Color.WHITE);e.setHintTextColor(Color.LTGRAY);e.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);e.setMinLines(lines);e.setMaxLines(8);e.setTextSize(16);root.addView(e,new LinearLayout.LayoutParams(-1,-2));return e;}
+    private EditText edit(String hint,String tag,int lines){EditText e=new EditText(this);e.setHint(hint);e.setContentDescription(tag);e.setTextColor(Color.WHITE);e.setHintTextColor(Color.LTGRAY);e.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_FLAG_MULTI_LINE|InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);e.setPrivateImeOptions("teclado-br.no-assistant");e.setMinLines(lines);e.setMaxLines(8);e.setTextSize(16);root.addView(e,new LinearLayout.LayoutParams(-1,-2));return e;}
     private Button button(String title,String tag,Runnable action){Button b=new Button(this);b.setText(title);b.setContentDescription(tag);b.setAllCaps(false);b.setOnClickListener(v->action.run());root.addView(b,new LinearLayout.LayoutParams(-1,-2));return b;}
     @Override public void onCreate(Bundle saved){super.onCreate(saved);
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -37,10 +37,11 @@ public final class WritingActivity extends Activity {
         model=text(ModelStore.description(this),14);model.setContentDescription("ai_model");
         importButton=button("Importar modelo GGUF","ai_import",()->{if(!busy){Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(pick,41);}});
         button("Onde baixar os modelos","ai_models",this::modelLinks);
+        removeModel=button("Remover modelo do aparelho","ai_remove_model",()->new AlertDialog.Builder(this).setTitle("Remover modelo?").setMessage("O arquivo da IA será removido. Seu dicionário e seus pins serão mantidos.").setPositiveButton("Remover",(d,w)->{ModelStore.model(this).delete();ModelStore.metadata(this).delete();model.setText(ModelStore.description(this));status.setText("Modelo removido.");controls(false,false);}).setNegativeButton("Cancelar",null).show());
         task=new Spinner(this);task.setContentDescription("ai_task");task.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,tasks));root.addView(task);
         text("Texto para revisar ou transformar",16);source=edit("O texto selecionado aparece aqui","ai_source",2);
         source.setText(saved==null?getIntent().getStringExtra("source"):saved.getString("source",""));
-        text("Pedido para o Compositor",16);prompt=edit("Ex.: redija uma cobrança educada de R$ 180, sem inventar dados","ai_prompt",2);
+        promptLabel=text("Pedido para o Compositor",16);prompt=edit("Ex.: redija uma cobrança educada de R$ 180, sem inventar dados","ai_prompt",2);
         style=new Spinner(this);style.setContentDescription("ai_style");style.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,styles));root.addView(style);
         status=text("Importe um modelo para começar.",14);status.setContentDescription("ai_status");
         generate=button("Gerar no aparelho","ai_generate",this::generate);
@@ -50,18 +51,24 @@ public final class WritingActivity extends Activity {
         replace=button("Substituir no campo original","ai_replace",()->{if(receiver!=null){Bundle data=new Bundle();data.putString("text",output.getText().toString());receiver.send(1,data);finishAndRemoveTask();}});
         button("Voltar ao teclado","ai_back",this::finishAndRemoveTask);
         receiver=getIntent().getParcelableExtra("receiver");
+        task.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
+            @Override public void onItemSelected(AdapterView<?> a,View v,int position,long id){promptLabel.setVisibility(position==1?View.VISIBLE:View.GONE);prompt.setVisibility(position==1?View.VISIBLE:View.GONE);style.setVisibility(position==2?View.VISIBLE:View.GONE);}
+            @Override public void onNothingSelected(AdapterView<?> a){}
+        });
+        if(getIntent().hasExtra("result")){output.setText(getIntent().getStringExtra("result"));status.setText("O campo original mudou ou não aceitou a substituição. Seu resultado foi preservado; use Copiar.");}
         if(saved!=null){prompt.setText(saved.getString("prompt",""));output.setText(saved.getString("output",""));task.setSelection(saved.getInt("task",0));style.setSelection(saved.getInt("style",0));}
         try {OfflineNative.reset();nativeReady=true;status.setText(ModelStore.model(this).isFile()?"Modelo pronto. Escolha a tarefa e toque em Gerar.":"Importe um modelo para começar.");}
         catch(LinkageError e){status.setText("Motor indisponível nesta arquitetura. Instale o APK compatível com seu aparelho.");}
+        if(getIntent().hasExtra("result"))status.setText("Substituição não aplicada. Seu resultado foi preservado; use Copiar.");
         controls(false,false);
     }
     private void modelLinks(){new AlertDialog.Builder(this).setTitle("Modelos offline")
-        .setMessage("Baixe pelo navegador e depois use Importar modelo GGUF. Qwen3.5 2B Q4_K_M ocupa cerca de 1,4 GB. Gemma 4 E2B permanece no comparativo final; versões quantizadas podem exigir mais de 3 GB de armazenamento e bastante RAM. A velocidade no Nothing Phone (1) ainda precisa ser medida.")
+        .setMessage("Baixe pelo navegador e depois use Importar modelo GGUF. Qwen3.5 2B Q4_K_M ocupa cerca de 1,4 GB. Gemma 4 E2B Q4_0 ocupa cerca de 2,84 GB e precisa de mais RAM. É uma quantização diferente da Q4_K_M usada no comparativo anterior. A velocidade no Nothing Phone (1) ainda precisa ser medida.")
         .setPositiveButton("Qwen3.5 2B",(d,w)->open("https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF/blob/7d26695454df6de5fbcce2e58681e62dae06ce43/Qwen_Qwen3.5-2B-Q4_K_M.gguf"))
-        .setNeutralButton("Gemma 4 E2B",(d,w)->open("https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF"))
+        .setNeutralButton("Gemma 4 E2B",(d,w)->open("https://huggingface.co/ggml-org/gemma-4-E2B-it-GGUF/blob/6938c58e698502037401a5f19f6905f2fb2f7dee/gemma-4-E2B-it-Q4_0.gguf"))
         .setNegativeButton("Fechar",null).show();}
     private void open(String link){try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(link)));}catch(ActivityNotFoundException e){Toast.makeText(this,"Nenhum navegador disponível",Toast.LENGTH_SHORT).show();}}
-    private void controls(boolean working,boolean completed){busy=working;generate.setEnabled(!working&&nativeReady&&ModelStore.model(this).isFile());importButton.setEnabled(!working);cancel.setEnabled(working);task.setEnabled(!working);style.setEnabled(!working);source.setEnabled(!working);prompt.setEnabled(!working);output.setEnabled(!working);copy.setEnabled(!working&&(completed||output.length()>0));replace.setEnabled(!working&&(completed||output.length()>0)&&getIntent().getBooleanExtra("replace",false)&&receiver!=null);}
+    private void controls(boolean working,boolean completed){busy=working;generate.setEnabled(!working&&nativeReady&&ModelStore.model(this).isFile());importButton.setEnabled(!working);removeModel.setEnabled(!working&&ModelStore.model(this).isFile());cancel.setEnabled(working);task.setEnabled(!working);style.setEnabled(!working);source.setEnabled(!working);prompt.setEnabled(!working);output.setEnabled(!working);copy.setEnabled(!working&&(completed||output.length()>0));replace.setEnabled(!working&&(completed||output.length()>0)&&getIntent().getBooleanExtra("replace",false)&&receiver!=null);}
     private void cancel(){stopped=true;if(nativeReady)OfflineNative.cancel();cancel.setEnabled(false);status.setText("Cancelando…");}
     @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request!=41||result!=RESULT_OK||data==null)return;Uri uri=data.getData();if(uri==null)return;
         stopped=false;controls(true,false);status.setText("Importando modelo. Aguarde…");

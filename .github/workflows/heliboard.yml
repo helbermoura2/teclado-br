@@ -54,8 +54,21 @@ jobs:
           python3 heliboard/prepare.py heli-source
           mkdir -p heli-artifacts
           tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build -czf heli-artifacts/teclado-br-heli-fontes.tar.gz -C heli-source .
+      - name: Recuperar motor offline compilado
+        uses: actions/cache/restore@v4
+        id: native-cache
+        with:
+          path: heli-source/app/src/main/jniLibs/
+          key: tecladoai-ndk28-b12020-${{ hashFiles('heliboard/ai/native/**', 'heliboard/ai/build-native.sh') }}
       - name: Compilar motor offline para Android
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: bash heliboard/ai/build-native.sh heli-source
+      - name: Guardar motor offline compilado
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: heli-source/app/src/main/jniLibs/
+          key: tecladoai-ndk28-b12020-${{ hashFiles('heliboard/ai/native/**', 'heliboard/ai/build-native.sh') }}
       - name: Testar e compilar a base
         working-directory: heli-source
         run: |
