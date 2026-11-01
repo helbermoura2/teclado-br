@@ -95,12 +95,11 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
         const auto callback=env->GetMethodID(env->GetObjectClass(progress),"onProgress","([B)V");
         if(!callback) return nullptr;
         bool ended=false;
-        common_chat_input terminal;
         int position=tokens.size();
         for(int i=0;i<max_tokens;i++) {
             if(cancelled()) throw std::runtime_error("Cancelado");
             llama_token token=llama_sampler_sample(sampler.get(),ctx.get(),-1);
-            if(llama_vocab_is_eog(vocab,token)) { terminal.append(common_token_to_piece(vocab,token,true),token); ended=true; break; }
+            if(llama_vocab_is_eog(vocab,token)) { ended=true; break; }
             common_chat_input piece; piece.append(common_token_to_piece(vocab,token,true),token);
             const auto& msg=session.feed(piece);
             if(i%8==0 && !msg.content.empty()) {
@@ -110,7 +109,7 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
             if(i+1<max_tokens) decode(&token,1,position++,true);
         }
         if(cancelled()) throw std::runtime_error("Cancelado");
-        const auto& result=ended?session.finish(terminal):session.msg();
+        const auto& result=ended?session.finish():session.msg();
         if(result.content.empty()) throw std::runtime_error("O modelo nao retornou texto final. Tente um pedido menor ou outro modelo.");
         // First byte indicates whether generation hit the token limit. UTF-8 follows.
         return array(env,std::string(ended?"S\n":"T\n")+result.content);
