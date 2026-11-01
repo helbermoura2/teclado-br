@@ -17,9 +17,9 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6030')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6040')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.3-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.4-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -71,5 +71,48 @@ manifest.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/r
 # The complete source archive accompanies every APK; no model is bundled or simulated.
 shutil.copyfile(here/'README.md', root/'TECLADO-BR.md')
 shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
+
+# Native toolbar language switch, including all three icon styles.
+replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',
+    '    EMOJI -> KeyCode.EMOJI', '    LANGUAGE -> KeyCode.LANGUAGE_SWITCH\n    EMOJI -> KeyCode.EMOJI')
+replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',
+    '    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END\n}',
+    '    PAGE_UP, PAGE_DOWN, FULL_LEFT, FULL_RIGHT, PAGE_START, PAGE_END, LANGUAGE\n}')
+for style, drawable in [('holo', 'sym_keyboard_language_switch'), ('lxx', 'sym_keyboard_language_switch_lxx'), ('rounded', 'sym_keyboard_language_switch_lxx')]:
+    replace('app/src/main/java/helium314/keyboard/keyboard/internal/KeyboardIconsSet.kt',
+        f'                    ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_{style}',
+        f'                    ToolbarKey.LANGUAGE -> R.drawable.{drawable}\n                    ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_{style}')
+strings = root/'app/src/main/res/values/strings.xml'
+strings.write_text(strings.read_text().replace('</resources>', '<string name="language">Idiomas</string>\n</resources>'))
+# Explicit, user-triggered personal dictionary entry from a suggested word.
+strip = root/'app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt'
+text = strip.read_text()
+start = text.index('    private fun onLongClickSuggestion(wordView: TextView): Boolean {')
+end = text.index('    private fun showMoreSuggestions(): Boolean {', start)
+text = text[:start] + '''    private fun onLongClickSuggestion(wordView: TextView): Boolean {
+        val word = wordView.text.toString().trim()
+        if (word.isEmpty()) return false
+        android.widget.PopupMenu(context, wordView).apply {
+            menu.add("Adicionar ao dicionário").setOnMenuItemClickListener {
+                try {
+                    android.provider.UserDictionary.Words.addWord(context, word, 250, null, Settings.getValues().mLocale)
+                    android.widget.Toast.makeText(context, "Palavra adicionada: $word", android.widget.Toast.LENGTH_SHORT).show()
+                } catch (e: SecurityException) {
+                    android.widget.Toast.makeText(context, "Abra Configurações > Correção de texto > Dicionário pessoal", android.widget.Toast.LENGTH_LONG).show()
+                }
+                true
+            }
+            menu.add("Mais sugestões").setOnMenuItemClickListener { showMoreSuggestions(); true }
+            val index = wordView.tag as? Int
+            if (index != null && index < suggestedWords.size() && suggestedWords.getInfo(index).mSourceDict != Dictionary.DICTIONARY_USER_TYPED)
+                menu.add("Remover sugestão").setOnMenuItemClickListener { removeSuggestion(wordView); true }
+            show()
+        }
+        return true
+    }
+
+''' + text[end:]
+strip.write_text(text)
+
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True)
 print('Prepared', lock['trial_version'], 'from', lock['commit'])

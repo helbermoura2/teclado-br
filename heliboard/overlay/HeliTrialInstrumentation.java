@@ -132,7 +132,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         Thread.sleep(10000);options(false,false);launch();
         if(phase.equals("verify_pins")){check(storedPinned(),"Stored pin lost after process restart");pinnedEntry(true);result.putString("result","PASS");result.putString("coverage","Pinned clipboard text survives app restart and reinstall with same certificate, and can be pasted");finish(Activity.RESULT_OK,result);return;}
         check(bounds('a',false).left>bounds('q',false).left,"A-L row must be centered");
-        check(keyBounds(KeyCode.EMOJI,false).centerX()>keyBounds(KeyCode.SYMBOL_ALPHA,false).centerX(),"Emoji must follow 123");
+        runOnMainSync(()->{for(Key key:main().getKeyboard().getSortedKeys())check(key.getCode()!=KeyCode.EMOJI&&key.getCode()!=KeyCode.LANGUAGE_SWITCH,"Bottom row contains emoji or globe");});
         shot("01-base-ptbr");
         long cedillaDown=SystemClock.uptimeMillis();Rect c=bounds('c',false);
         event(cedillaDown,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{c});Thread.sleep(700);
@@ -146,14 +146,20 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         toolbar(ToolbarKey.COPY);ClipboardManager clipboard=(ClipboardManager)getTargetContext().getSystemService(Context.CLIPBOARD_SERVICE);
         ClipData copied=clipboard.getPrimaryClip();check(copied!=null&&copied.getItemCount()>0&&expected.toString().contentEquals(copied.getItemAt(0).getText()),"COPY did not preserve the text");
         clear();toolbar(ToolbarKey.PASTE);expect(expected.toString());shot("03-edicao");
+        clear();type("brzaplexia");Thread.sleep(1200);
+        Rect savedWord=new Rect();runOnMainSync(()->{View v=findView(KeyboardSwitcher.getInstance().getStripContainer(),n->n instanceof TextView&&"brzaplexia".contentEquals(((TextView)n).getText())&&n.isShown());check(v!=null,"Typed word missing from suggestions");int[] xy=new int[2];v.getLocationOnScreen(xy);savedWord.set(xy[0],xy[1],xy[0]+v.getWidth(),xy[1]+v.getHeight());});
+        long wordDown=SystemClock.uptimeMillis();event(wordDown,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{savedWord});Thread.sleep(850);event(wordDown,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{savedWord});Thread.sleep(500);
+        AccessibilityNodeInfo add=find(n->"Adicionar ao dicionário".contentEquals(n.getText()));check(add!=null,"No add-to-dictionary menu");Rect addRect=new Rect();add.getBoundsInScreen(addRect);tap(addRect);Thread.sleep(800);
+        try(android.database.Cursor cursor=getTargetContext().getContentResolver().query(android.provider.UserDictionary.Words.CONTENT_URI,new String[]{android.provider.UserDictionary.Words.WORD},"word = ?",new String[]{"brzaplexia"},null)){check(cursor!=null&&cursor.moveToFirst(),"Personal dictionary did not save word");}
+        shot("04-palavra-adicionada");
         clear();type("voce");long deadline=SystemClock.uptimeMillis()+10000;List<String> words;
         do{words=suggestions();if(words.stream().anyMatch(s->s.equalsIgnoreCase("você")))break;Thread.sleep(200);}while(SystemClock.uptimeMillis()<deadline);
         check(words.stream().anyMatch(s->s.equalsIgnoreCase("você")),"PT-BR dictionary did not suggest você: "+words);result.putString("ptbr_suggestions",words.toString());shot("04-dicionario-portugues");
         clear();long d=SystemClock.uptimeMillis();event(d,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{e});Thread.sleep(700);Rect accent=bounds('ê',true);event(d,MotionEvent.ACTION_MOVE,new int[]{0},new Rect[]{accent});shot("05-deslizando-subtecla");event(d,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{accent});expect("ê");shot("06-acento-soltar");
-        options(true,true);launch();shot("07-inicio-maiusculas");type("bom. dia ");expect("Bom. Dia ");shot("07-maiusculas");
+        options(true,true);launch();shot("07-inicio-maiusculas");type("bom.dia ");expect("Bom. Dia ");shot("07-maiusculas");
         clear();type("voce ");expect("Você ");shot("08-autocorrecao");
-        options(false,false);launch();language("pt");tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("en");clear();type("hello ");expect("hello ");shot("09-ingles-globo");
-        tap(keyBounds(KeyCode.LANGUAGE_SWITCH,false));language("pt");check(bounds('a',false).left>bounds('q',false).left,"Centered Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);
-        result.putString("result","PASS");result.putString("coverage","Globe PT-BR/English switching, pinned clipboard shortcut, long-press pin, expiration exclusion, PT-BR dictionary, centered A-L layout, C long-press cedilla, emoji key beside 123, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
+        options(false,false);launch();language("pt");toolbar(ToolbarKey.LANGUAGE);language("en");clear();type("hello ");expect("hello ");shot("09-ingles-globo");
+        toolbar(ToolbarKey.LANGUAGE);language("pt");check(bounds('a',false).left>bounds('q',false).left,"Centered Portuguese layout lost after switch");shot("10-portugues-globo");pinnedEntry(false);
+        result.putString("result","PASS");result.putString("coverage","Globe PT-BR/English switching, pinned clipboard shortcut, long-press pin, expiration exclusion, PT-BR dictionary, centered A-L layout, C long-press cedilla, emoji/globe removed from bottom row, toolbar language switch, add-word menu persisted in personal dictionary, autospace after punctuation, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
     }catch(Throwable failure){try{shot("failure");}catch(Exception ignored){}StringWriter trace=new StringWriter();failure.printStackTrace(new PrintWriter(trace));result.putString("failure",trace.toString());result.putString("result","FAIL");finish(Activity.RESULT_CANCELED,result);}}
 }

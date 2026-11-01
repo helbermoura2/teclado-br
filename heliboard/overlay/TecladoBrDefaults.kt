@@ -71,6 +71,20 @@ fun configureTecladoBr(context: Context) {
             .putBoolean("teclado_br_layout_v2", true)
             .commit()
     }
+    if (!prefs.getBoolean("teclado_br_typing_v1", false)) {
+        val keys = prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS)!!
+            .split("|").filterNot { it.startsWith("LANGUAGE:") || it.startsWith("EMOJI:") }
+        prefs.edit()
+            .putBoolean(Settings.PREF_AUTOSPACE_AFTER_PUNCTUATION, true)
+            .putBoolean(Settings.PREF_SHOW_LANGUAGE_SWITCH_KEY, false)
+            .putBoolean(Settings.PREF_SHOW_EMOJI_KEY, false)
+            .putBoolean(Settings.PREF_SPACE_TO_CHANGE_LANG, true)
+            .putBoolean(Settings.PREF_KEY_USE_PERSONALIZED_DICTS, true)
+            .putBoolean(Settings.PREF_ADD_TO_PERSONAL_DICTIONARY, true)
+            .putString(Settings.PREF_TOOLBAR_KEYS, (listOf("LANGUAGE:true", "EMOJI:true") + keys).joinToString("|"))
+            .putBoolean("teclado_br_typing_v1", true)
+            .commit()
+    }
     if (!prefs.getBoolean("teclado_br_visual_v1", false)) {
         val theme = "Teclado BR · escuro"
         val blue = Color.rgb(109, 159, 231)
