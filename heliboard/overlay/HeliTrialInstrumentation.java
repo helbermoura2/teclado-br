@@ -33,7 +33,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void shell(String command)throws Exception{try(InputStream in=new ParcelFileDescriptor.AutoCloseInputStream(ui.executeShellCommand(command))){byte[] b=new byte[4096];while(in.read(b)>=0){}}}
     AccessibilityNodeInfo walk(AccessibilityNodeInfo n,Predicate<AccessibilityNodeInfo> test){if(n==null)return null;if(test.test(n))return n;for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo found=walk(n.getChild(i),test);if(found!=null)return found;}return null;}
     AccessibilityNodeInfo find(Predicate<AccessibilityNodeInfo> test){for(AccessibilityWindowInfo w:ui.getWindows()){AccessibilityNodeInfo n=walk(w.getRoot(),test);if(n!=null)return n;}return null;}
-    AccessibilityNodeInfo field()throws Exception{long deadline=SystemClock.uptimeMillis()+60000;do{AccessibilityNodeInfo n=find(v->"trial_editor".contentEquals(v.getContentDescription()));if(n!=null)return n;Thread.sleep(150);}while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("No editor");}
+    AccessibilityNodeInfo field()throws Exception{long deadline=SystemClock.uptimeMillis()+60000;do{AccessibilityNodeInfo n=find(v->"trial_editor".equals(String.valueOf(v.getContentDescription())));if(n!=null)return n;Thread.sleep(150);}while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("No editor");}
     String text()throws Exception{CharSequence value=field().getText();String s=value==null?"":value.toString();return s.equals("Experimente aqui")?"":s;}
     void expect(String value)throws Exception{long deadline=SystemClock.uptimeMillis()+12000;String actual="";do{actual=text();if(actual.equals(value))return;Thread.sleep(100);}while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("Expected: "+value+"; actual: "+actual);}
     void options(boolean caps,boolean correction){DeviceProtectedUtils.getSharedPreferences(getTargetContext()).edit().putBoolean(Settings.PREF_AUTO_CAP,caps).putBoolean(Settings.PREF_AUTO_CORRECTION,correction).commit();}
@@ -139,7 +139,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         do {AccessibilityNodeInfo n=find(v->v.getText()!=null&&label.contentEquals(v.getText())&&v.isVisibleToUser());if(n!=null)return n;Thread.sleep(100);}while(SystemClock.uptimeMillis()<until);
         throw new AssertionError("AI menu option missing: "+label);
     }
-    AccessibilityNodeInfo panelNode(AccessibilityNodeInfo n){if("ai_panel".contentEquals(n.getContentDescription()))return n;for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo c=n.getChild(i);if(c!=null){AccessibilityNodeInfo found=panelNode(c);if(found!=null)return found;}}return null;}
+    AccessibilityNodeInfo panelNode(AccessibilityNodeInfo n){if("ai_panel".equals(String.valueOf(n.getContentDescription())))return n;for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo c=n.getChild(i);if(c!=null){AccessibilityNodeInfo found=panelNode(c);if(found!=null)return found;}}return null;}
     String aiComplete()throws Exception {
         long until=SystemClock.uptimeMillis()+240000;
         String state;
