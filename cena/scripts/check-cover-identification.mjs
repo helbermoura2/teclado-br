@@ -7,7 +7,8 @@ for (const [lines, expected] of [
   [['LSMARSHAIG'], 'tt0120873'],
   [['SMARSHALS-'], 'tt0120873'],
   [['LSMARSHAIG', 'TOMMY LEE JONES', 'WESLEY SNIPES', 'ROBERT DOWNEY JR.'], 'tt0120873'],
-  [["Margahet.", "Are You There God? It's Me, Margahet.", 'Are You', 'There God?', "It's Me,"], 'tt9185206']
+  [["Margahet.", "Are You There God? It's Me, Margahet.", 'Are You', 'There God?', "It's Me,"], 'tt9185206'],
+  [['Margaiet.', 'AeloGod Jhere Tts Me, Margaiet.', 'AeloGod Margaiet.', 'Jhere Tts Me,', 'AeloGod', 'M', 'Tts Me,', 'Jhere', 'figura-', 'scobrlr', 'lloteca', 'bcurar', 'níclo', 'ddons'], 'tt9185206']
 ]) {
   const items = await identifyCover(lines, fetcher);
   console.log('Cover lookup:', JSON.stringify({ lines, results: items.map(item => ({ name: item.name, id: item.id, year: item.year, score: item.matchScore })) }));
