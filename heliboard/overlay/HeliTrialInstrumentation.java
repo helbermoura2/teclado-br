@@ -43,11 +43,12 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         AccessibilityNodeInfo launcher=find(n->n.getText()!=null&&n.getText().toString().contains("Quickstep")&&n.getText().toString().contains("respond"));
         if(launcher!=null){AccessibilityNodeInfo close=find(n->"Close app".contentEquals(n.getText()==null?"":n.getText()));if(close!=null)close.performAction(AccessibilityNodeInfo.ACTION_CLICK);}
         Rect area=new Rect();field().getBoundsInScreen(area);area.bottom=Math.min(area.bottom,area.top+80);tap(area);
-        Rect previous=null;int stable=0;long keyboardDeadline=SystemClock.uptimeMillis()+15000;
+        Rect previous=null;int stable=0;long keyboardDeadline=SystemClock.uptimeMillis()+30000;long nextFocusTap=SystemClock.uptimeMillis()+1500;
         while(stable<3&&SystemClock.uptimeMillis()<keyboardDeadline){
             Rect key=bounds('e',false);boolean inside=false;
             for(AccessibilityWindowInfo window:ui.getWindows())if(window.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD){Rect ime=new Rect();window.getBoundsInScreen(ime);if(ime.contains(key.centerX(),key.centerY()))inside=true;}
             if(inside&&key.equals(previous))stable++;else stable=0;
+            if(!inside&&SystemClock.uptimeMillis()>=nextFocusTap){Rect target=new Rect();field().getBoundsInScreen(target);target.bottom=Math.min(target.bottom,target.top+80);tap(target);nextFocusTap=SystemClock.uptimeMillis()+1500;}
             previous=key;Thread.sleep(200);
         }
         check(stable>=3,"Keyboard window did not settle after opening");
