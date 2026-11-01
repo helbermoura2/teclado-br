@@ -53,8 +53,9 @@ function cinemetaItem(meta) {
 const catalogUrl = (type, query) => `https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(query)}.json`;
 function relevance(item, query) {
   const key = normalized(query);
+  const significant = key.split(' ').filter(word => !['de','da','do','das','dos','a','o','as','os','the','of','and'].includes(word));
   const labels = [item.name, item.originalName, item.wikiTitle, item.localWikiTitle, ...(item.aliases || [])].map(normalized).filter(Boolean);
-  const lexical = Math.max(0, ...labels.map(label => label === key ? 1 : label.startsWith(key + ' ') ? .95 : label.includes(key) ? .85 : key.split(' ').filter(word => label.split(' ').includes(word)).length / key.split(' ').length * .75));
+  const lexical = Math.max(0, ...labels.map(label => label === key ? 1 : label.startsWith(key + ' ') ? .95 : label.includes(key) ? .85 : significant.filter(word => label.split(' ').includes(word)).length / Math.max(1, significant.length) * .75));
   return lexical + (item.wikiRank === undefined ? 0 : .18 / (item.wikiRank + 1));
 }
 
@@ -66,7 +67,7 @@ export async function searchPublicTitles(query, fetcher = fetch) {
   if (fetcher === fetch && cache.get(key)?.until > Date.now()) return structuredClone(cache.get(key).items);
   const tasks = [
     ...['pt','en'].map(language => getJson(fetcher, endpoint, { action:'wbsearchentities', search:query, language, uselang:'pt', type:'item', limit:'20' })),
-    ...['pt','en'].map(language => getJson(fetcher, `https://${language}.wikipedia.org/w/api.php`, { action:'query', generator:'search', gsrsearch:query, gsrnamespace:'0', gsrlimit:'20', prop:'pageprops|pageimages|extracts', exintro:'1', explaintext:'1', exchars:'2000', exlimit:'max', piprop:'thumbnail', pithumbsize:'500', pilimit:'20', pilicense:'any' })),
+    ...['pt','en'].map(language => getJson(fetcher, `https://${language}.wikipedia.org/w/api.php`, { action:'query', generator:'search', gsrsearch:'"' + query.replaceAll('"','') + '"', gsrnamespace:'0', gsrlimit:'20', prop:'pageprops|pageimages|extracts', exintro:'1', explaintext:'1', exchars:'2000', exlimit:'max', piprop:'thumbnail', pithumbsize:'500', pilimit:'20', pilicense:'any' })),
     ...['movie','series'].map(type => publicJson(fetcher, catalogUrl(type, query)))
   ];
   const replies = await Promise.allSettled(tasks);
@@ -89,7 +90,10 @@ export async function searchPublicTitles(query, fetcher = fetch) {
         if (page) {
           item.wikiRank = page.rank;
           if (page.language === 'pt') item.localWikiTitle = page.title;
-          if (page.extract) item.description = page.extract;
+          if (page.extract) {
+            item.description = page.extract;
+            if (normalized(page.extract).includes(normalized(query))) item.aliases = [...(item.aliases || []), query];
+          }
           if (page.thumbnail?.source?.startsWith('https://upload.wikimedia.org/')) item.poster = page.thumbnail.source;
         }
         const previous = unique.get(item.id);
