@@ -1,0 +1,78 @@
+name: CENA Android APK
+
+on:
+  push:
+    branches: [main, 'cena/**']
+    paths: ['cena/**', 'android/**', 'web/**', 'server/**', 'tests/**', 'package.json', '.github/workflows/cena-android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cena-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find CENA source
+        id: source
+        shell: bash
+        run: |
+          if [ -f cena/android/settings.gradle.kts ]; then
+            echo 'directory=cena' >> "$GITHUB_OUTPUT"
+          elif [ -f android/settings.gradle.kts ]; then
+            echo 'directory=.' >> "$GITHUB_OUTPUT"
+          else
+            echo 'CENA source directory is missing.' >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify server and local storage
+        working-directory: ${{ steps.source.outputs.directory }}
+        run: |
+          npm run check
+          npm test
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Keep preview signing key between builds
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: cena-debug-signing-v1-${{ github.repository_id }}
+      - name: Build installable preview APK
+        working-directory: ${{ steps.source.outputs.directory }}/android
+        run: gradle --no-daemon assembleDebug
+      - name: Name APK and checksum
+        env:
+          SOURCE_DIRECTORY: ${{ steps.source.outputs.directory }}
+        run: |
+          mkdir -p entrega
+          cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-preview.apk
+          cd entrega
+          sha256sum CENA-preview.apk > CENA-preview.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CENA-Android-APK
+          path: entrega/*
+          retention-days: 30
+          if-no-files-found: error
+      - name: Download instructions
+        run: |
+          echo '### CENA Android' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Baixe o artefato CENA-Android-APK ao final desta página, extraia o ZIP no celular e abra CENA-preview.apk.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Esta é uma versão de teste com lista local e seis títulos de amostra. A integração dos players depende de servidor hospedado.' >> "$GITHUB_STEP_SUMMARY"
