@@ -1,15 +1,12 @@
 name: CENA Android image import QA
 on:
-  push:
-    branches: ['cena/**']
-    paths: ['.github/workflows/cena-android.yml', '.github/workflows/cena-native-qa.yml', 'cena/android/app/src/main/java/app/cena/MainActivity.kt']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   image-import:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
