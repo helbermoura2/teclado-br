@@ -24,3 +24,12 @@ test('series progress never checks off the whole series after one episode',()=>{
 test('a disconnected account cannot apply its old remote snapshot',()=>{
   assert.equal(applyTraktState([movie],{...state,connected:false})[0].status,'watchlist');
 });
+
+test('a successful rewatch write is protected from a stale history snapshot until the next pull',()=>{
+  const [item]=applyTraktState([movie],{...state,synced:[{...movie,action:'add',at:state.lastSync+1}]});
+  assert.equal(item.status,'watchlist');
+});
+test('a title re-added to the remote watchlist becomes planned again instead of staying checked',()=>{
+  const [item]=applyTraktState([{...movie,status:'watched',watchedSource:'Trakt'}],{...state,watchlist:[movie]});
+  assert.equal(item.status,'watchlist');assert.equal(item.watchedSource,undefined);
+});
