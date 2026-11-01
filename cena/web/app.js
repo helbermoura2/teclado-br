@@ -117,7 +117,7 @@ window.CenaNativeResult = result => {
     document.querySelectorAll('[data-line]').forEach(button => button.onclick = () => { $('#scan-query').value = detectedLines[Number(button.dataset.line)].slice(0, 150); runSearch($('#scan-query').value); });
   }
   $('#scan-query').value = lines[0]?.slice(0, 150) || '';
-  if (lines.length) { toast('Conferindo o título e outras pistas da capa…'); const context = [...new Set([...lines, ...String(result.fullText || '').split('\n')])].slice(0, 24); runSearch($('#scan-query').value, context); }
+  if (lines.length) { toast('Conferindo o título e outras pistas da capa…'); const context = [...new Set([lines[0], ...(Array.isArray(result.phrases) ? result.phrases : []), ...lines.slice(1), ...String(result.fullText || '').split('\n')])].slice(0, 24); runSearch($('#scan-query').value, context); }
   else toast('Não encontrei texto. Digite o título para buscar.');
 };
 window.CenaVisualResult = result => {
@@ -278,4 +278,4 @@ home();
 if (apiBase) refresh().then(() => setTab(tab)).catch(error => toast(error.message));
 else setTab('connect');
 
-if (native) window.CenaAndroid.ready();
+if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready(); }
