@@ -28,6 +28,7 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
@@ -35,6 +36,9 @@ class MainActivity : ComponentActivity() {
     private var photoFile: File? = null
     private var scanning = false
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val visionExecutor = Executors.newSingleThreadExecutor()
+    private var visualMatcher: VisualMatcher? = null
+    @Volatile private var visionInput: FloatArray? = null
     private var pageReady = false
     private var pendingImage: Uri? = null
     private var croppedFile: File? = null
@@ -65,13 +69,14 @@ class MainActivity : ComponentActivity() {
     private fun recognize(uri: Uri) {
         try {
             require(uri.authority == "$packageName.files")
+            visionInput = try { VisualMatcher.source(this, uri) } catch (_: Exception) { null }
             val image = InputImage.fromFilePath(this, uri)
             recognizer.process(image)
                 .addOnSuccessListener { result ->
                     val lines = result.textBlocks.flatMap { it.lines }
                         .sortedByDescending { it.boundingBox?.height() ?: 0 }
-                        .map { it.text }.distinct().take(12)
-                    sendResult(JSONObject().put("lines", JSONArray(lines)))
+                        .map { it.text }.distinct().take(24)
+                    sendResult(JSONObject().put("lines", JSONArray(lines)).put("fullText", result.text.take(6000)))
                 }
                 .addOnFailureListener { sendError("Não consegui ler a imagem. Você pode digitar o título.") }
                 .addOnCompleteListener { scanning = false; cleanPhoto(); consumePending() }
@@ -175,6 +180,24 @@ class MainActivity : ComponentActivity() {
     }
 
     inner class Bridge {
+        @JavascriptInterface fun compareCovers(requestId: String, raw: String) {
+            if (isDestroyed || raw.length > 16000 || !Regex("[0-9]{1,10}").matches(requestId)) return
+            val source = visionInput
+            val candidates = try { JSONArray(raw) } catch (_: Exception) { return }
+            try {
+                visionExecutor.execute {
+                    val result = JSONObject().put("requestId", requestId)
+                    try {
+                        requireNotNull(source)
+                        val engine = visualMatcher ?: VisualMatcher(applicationContext).also { visualMatcher = it }
+                        val scores = engine.compare(source, candidates)
+                        result.put("scores", scores).put("status", if (scores.length() > 0) "ok" else "no-references")
+                    } catch (_: Throwable) { result.put("status", "unavailable") }
+                    runOnUiThread { if (!isDestroyed) web.evaluateJavascript("window.CenaVisualResult(${result})", null) }
+                }
+            } catch (_: java.util.concurrent.RejectedExecutionException) {}
+        }
+
         @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending() }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
@@ -229,6 +252,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cleanPhoto()
+        visionInput = null
+        visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
+        visionExecutor.shutdown()
         recognizer.close()
         web.removeJavascriptInterface("CenaAndroid")
         web.destroy()
