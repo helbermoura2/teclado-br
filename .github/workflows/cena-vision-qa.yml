@@ -5,7 +5,7 @@ on:
     paths: ['.github/workflows/cena-android.yml', '.github/workflows/cena-vision-qa.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   actions: read
 jobs:
   local-model:
@@ -30,14 +30,17 @@ jobs:
         with:
           gradle-version: '8.11.1'
           cache-read-only: false
-      - uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: cena-debug-signing-v1-${{ github.repository_id }}
+      - name: Restore the same persistent signing identity as delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
+        run: bash cena/scripts/prepare-signing.sh
       - name: Compile the APK and focused model test
         working-directory: cena/android
+        env:
+          CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
         run: gradle --no-daemon assembleDebug assembleDebugAndroidTest
-      - name: Download the previously delivered app for upgrade testing
+      - name: Download the legacy app for coexistence testing
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh run download 41257919458 --repo "$GITHUB_REPOSITORY" --name CENA-Android-APK --dir /tmp/cena-legacy
@@ -62,8 +65,9 @@ jobs:
             adb shell run-as app.cena mkdir -p files
             adb shell "run-as app.cena sh -c 'echo legacy > files/legacy-update-marker.txt'"
             timeout 240s gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.cena.VisualModelTest,app.cena.CoverRecognitionTest,app.cena.AssetsUpgradeTest
+            adb shell run-as app.cena cat files/legacy-update-marker.txt | grep -x legacy
             mkdir -p ../qa
-            adb exec-out run-as app.cena cat files/native-ocr.json > ../qa/native-ocr.json
+            adb exec-out run-as app.cena.mobile cat files/native-ocr.json > ../qa/native-ocr.json
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
