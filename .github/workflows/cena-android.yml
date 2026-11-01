@@ -41,7 +41,7 @@ jobs:
           npm run check
           npm test
           node scripts/check-cover-identification.mjs
-      - name: Verify live SISU movie lookup
+      - name: Verify live public movie lookup
         working-directory: ${{ steps.source.outputs.directory }}
         run: node scripts/check-public-search.mjs
       - name: Bundle and validate free on-device visual model
