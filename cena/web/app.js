@@ -15,10 +15,11 @@ let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config =
 let traktState = { connected:false, configured:false, pending:[] };
 let traktWasConnected = false;
 let traktInitialUploadRequested = false;
+let libraryReady=false, deferredTraktState=null;
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
 function sendTraktInventory() {
-  if (native && typeof window.CenaAndroid.traktInventory === 'function') window.CenaAndroid.traktInventory(JSON.stringify(items.map(({id,type})=>({id,type}))));
+  if (apiBase === 'local' && native && typeof window.CenaAndroid.traktInventory === 'function') window.CenaAndroid.traktInventory(JSON.stringify(items.map(({id,type})=>({id,type}))));
 }
 function sendTraktList() {
   if(native && traktState.connected && typeof window.CenaAndroid.queueTraktBatch==='function') window.CenaAndroid.queueTraktBatch(JSON.stringify(items.filter(item=>item.status==='watchlist').map(({id,type})=>({id,type,action:'add'}))));
@@ -27,6 +28,7 @@ function queueTrakt(item, action) {
   if (apiBase === 'local' && native && traktState.connected && typeof window.CenaAndroid.queueTrakt === 'function') window.CenaAndroid.queueTrakt(JSON.stringify({id:item.id,type:item.type,action}));
 }
 window.CenaTraktResult = state => {
+  if(!libraryReady) { deferredTraktState=state; return; }
   if(JSON.stringify(state)===JSON.stringify(traktState)) return;
   const becameConnected = state.connected && !traktWasConnected;
   if(!state.connected) traktInitialUploadRequested=false;
@@ -180,7 +182,9 @@ async function save(item, status = 'watchlist') {
   busy = true;
   try {
     await ensureConnection();
-    const result = await api(`/api/libraries/${connection.id}/items`, { method: 'PUT', body: JSON.stringify({ ...item, status }) });
+    const payload={...item,status};
+    if(status==='watchlist') { delete payload.watchedSource; delete payload.watchedAt; }
+    const result = await api(`/api/libraries/${connection.id}/items`, { method: 'PUT', body: JSON.stringify(payload) });
     items = result.items;
     sendTraktInventory(); queueTrakt(item, status === 'watchlist' ? 'add' : 'remove');
     toast(status === 'watched' ? 'Marcado como assistido.' : apiBase === 'local' ? 'Adicionado à lista neste aparelho.' : 'Adicionado! Sua lista no servidor foi atualizada.');
@@ -256,6 +260,7 @@ function connect() {
 }
 async function refresh() {
   config = await api('/api/config');
+  if(apiBase==='local' && !connection) { connection=await api('/api/libraries',{method:'POST'}); persist(); }
   if (connection) { const result = await api(`/api/libraries/${connection.id}`); connection = { id: result.id, writeToken: result.writeToken, manifestUrl: result.manifestUrl }; items = result.items; persist(); }
 }
 
@@ -338,7 +343,7 @@ $('#detail .close').onclick = () => $('#detail').close();
 $('#detail').onclick = event => { if (event.target === $('#detail')) { const r = $('#detail').getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) $('#detail').close(); } };
 if (stored?.id && stored?.writeToken) connection = { id: stored.id, writeToken: stored.writeToken, manifestUrl: stored.manifestUrl };
 home();
-if (apiBase) refresh().then(() => { setTab(tab); sendTraktInventory(); }).catch(error => toast(error.message));
+if (apiBase) refresh().then(() => { libraryReady=true; setTab(tab); sendTraktInventory(); if(deferredTraktState) { const state=deferredTraktState; deferredTraktState=null; window.CenaTraktResult(state); } }).catch(error => toast(error.message));
 else setTab('connect');
 
 if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready(); }
