@@ -80,15 +80,21 @@ class VisualMatcher(private val context: Context) : AutoCloseable {
         return scores
     }
 
-    private fun download(address: String): Bitmap {
+    private fun download(address: String, redirects: Int = 0): Bitmap {
         val url = URL(address)
-        require(url.protocol == "https" && url.host in setOf("upload.wikimedia.org", "image.tmdb.org", "images.metahub.space"))
+        require(url.protocol == "https" && url.host in setOf("upload.wikimedia.org", "image.tmdb.org", "images.metahub.space", "m.media-amazon.com"))
         val connection = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 4000; readTimeout = 5000; instanceFollowRedirects = false
             setRequestProperty("User-Agent", "CENA/0.4 (https://github.com/helbermoura2/teclado-br)")
         }
         try {
-            require(connection.responseCode == 200)
+            val status = connection.responseCode
+            if (status in setOf(301, 302, 303, 307, 308)) {
+                require(redirects < 3)
+                val target = URL(url, connection.getHeaderField("Location") ?: error("Missing redirect target"))
+                return download(target.toString(), redirects + 1)
+            }
+            require(status == 200)
             val bytes = ByteArrayOutputStream()
             connection.inputStream.use { input ->
                 val buffer = ByteArray(8192)
