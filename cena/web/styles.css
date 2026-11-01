@@ -7,3 +7,5 @@
 #scan-search{align-items:start}#scan-query{min-width:0;width:100%;resize:vertical;min-height:100px;padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:inherit;line-height:1.45}#scan-search button{min-height:48px}
 
 #scan-search ~ #search-results .poster-card strong{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+
+.auth-code{font-size:28px;font-weight:800;letter-spacing:4px;color:#d3b5ff;user-select:all}#trakt-config-form input{width:100%;padding:12px;margin:10px 0}#save-story{margin-top:10px}
