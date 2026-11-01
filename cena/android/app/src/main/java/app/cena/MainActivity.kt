@@ -42,6 +42,29 @@ class MainActivity : ComponentActivity() {
     private val visionExecutor = Executors.newSingleThreadExecutor()
     private var visualMatcher: VisualMatcher? = null
     @Volatile private var visionInput: FloatArray? = null
+    private val traktExecutor = Executors.newSingleThreadScheduledExecutor()
+    private val trakt by lazy { TraktRepository(applicationContext) }
+    private fun traktTask(task: () -> Unit) {
+        try { traktExecutor.execute {
+            try { task() } catch(e: Exception) { runOnUiThread { if(!isDestroyed) sendError(e.message?.take(200) ?: "Não foi possível conectar o Trakt.") } }
+            emitTrakt()
+        } } catch(_:java.util.concurrent.RejectedExecutionException) {}
+    }
+    private fun emitTrakt() {
+        val state=trakt.status()
+        traktWaitingAuth=state.optString("userCode").isNotBlank()
+        runOnUiThread { if(!isDestroyed && pageReady) web.evaluateJavascript("window.CenaTraktResult && window.CenaTraktResult($state)",null) }
+    }
+    @Volatile private var traktVisible = false
+    @Volatile private var traktWaitingAuth = false
+    private var pendingStory: ByteArray? = null
+    private val saveStoryFile = registerForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
+        val bytes=pendingStory; pendingStory=null
+        if(uri != null && bytes != null) Thread {
+            try { contentResolver.openOutputStream(uri).use { output -> requireNotNull(output); output.write(bytes) }; runOnUiThread { Toast.makeText(this,"Story salvo. Escolha essa imagem na galeria do Instagram.",Toast.LENGTH_LONG).show() } }
+            catch(_:Exception) { runOnUiThread { Toast.makeText(this,"Não consegui salvar a imagem.",Toast.LENGTH_SHORT).show() } }
+        }.start()
+    }
     private var pageReady = false
     private var pendingImage: Uri? = null
     private var croppedFile: File? = null
@@ -178,9 +201,42 @@ class MainActivity : ComponentActivity() {
         })
         web.loadUrl("https://appassets.androidplatform.net${assetPrefix}index.html")
         receiveImage(intent)
+        traktExecutor.scheduleWithFixedDelay({
+            try { if(traktVisible || traktWaitingAuth) { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) trakt.sync(); emitTrakt() } } catch(_:Exception) {}
+        },5,5,java.util.concurrent.TimeUnit.SECONDS)
+    }
+    override fun onResume() {
+        super.onResume()
+        traktVisible=true
+        if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync() }
     }
 
+    override fun onPause() { traktVisible=false; super.onPause() }
+
     inner class Bridge {
+        @JavascriptInterface fun traktState() { traktTask { } }
+        @JavascriptInterface fun configureTrakt(clientId: String) { if(clientId.length<=200) traktTask { trakt.configure(clientId.trim()) } }
+        @JavascriptInterface fun connectTrakt() { traktTask { trakt.beginAuth() } }
+        @JavascriptInterface fun openTraktVerification() { traktTask {
+            val uri=Uri.parse(trakt.status().optString("verificationUrl"))
+            require(uri.scheme=="https" && uri.host in setOf("trakt.tv","app.trakt.tv","auth.trakt.tv","www.trakt.tv"))
+            runOnUiThread { try { startActivity(Intent(Intent.ACTION_VIEW,uri)) } catch(_:Exception) { sendError("Abra o endereço de autorização no navegador.") } }
+        } }
+        @JavascriptInterface fun syncTrakt() { traktTask { trakt.sync(true) } }
+        @JavascriptInterface fun disconnectTrakt() { traktTask { trakt.disconnect(); TraktWorker.cancel(applicationContext) } }
+        @JavascriptInterface fun traktInventory(raw: String) { if(raw.length<=300000) traktTask { trakt.inventory(JSONArray(raw)) } }
+        @JavascriptInterface fun queueTraktBatch(raw: String) { if(raw.length<=300000) traktTask {
+            val values=JSONArray(raw); require(values.length()<=2000)
+            for(i in 0 until values.length()) trakt.enqueue(values.getJSONObject(i))
+            trakt.initialUploadComplete(); TraktWorker.schedule(applicationContext); trakt.sync()
+        } }
+        @JavascriptInterface fun queueTrakt(raw: String) { if(raw.length<=2000) traktTask { trakt.enqueue(JSONObject(raw)); TraktWorker.schedule(applicationContext); trakt.sync() } }
+        @JavascriptInterface fun saveStory(encoded: String) {
+            if(encoded.length>12_000_000) return
+            val bytes=try { Base64.decode(encoded,Base64.DEFAULT) } catch(_:Exception) { return }
+            if(bytes.size<8 || bytes[0]!=0x89.toByte() || bytes[1]!=0x50.toByte() || bytes[2]!=0x4e.toByte() || bytes[3]!=0x47.toByte()) return
+            runOnUiThread { pendingStory=bytes; try { saveStoryFile.launch("CENA-Story.png") } catch(_:Exception) { pendingStory=null; sendError("Não consegui abrir o local para salvar.") } }
+        }
         @JavascriptInterface fun appVersion(): String = installedVersion
         @JavascriptInterface fun compareCovers(requestId: String, raw: String) {
             if (isDestroyed || raw.length > 16000 || !Regex("[0-9]{1,10}").matches(requestId)) return
@@ -200,7 +256,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending() }
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { } }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -255,6 +311,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         cleanPhoto()
         visionInput = null
+        traktExecutor.shutdownNow()
         visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
         visionExecutor.shutdown()
         if (recognizerDelegate.isInitialized()) recognizer.close()
