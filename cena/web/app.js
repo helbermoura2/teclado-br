@@ -1,4 +1,5 @@
 import { createLocalApi } from './local-api.js';
+import { searchPublicTitles } from './search-public.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
 const storageKey = 'cena.connection.v1';
@@ -6,7 +7,7 @@ let connection = null;
 let stored = null;
 try { stored = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {}
 let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
-const localApi = createLocalApi(localStorage);
+const localApi = createLocalApi(localStorage, { search: searchPublicTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
 let scanPhoto = '', detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
@@ -29,7 +30,7 @@ async function ensureConnection() {
   persist();
 }
 function notice() {
-  if (apiBase === 'local') return '<div class="notice">Modo local · 6 títulos de amostra. Lista salva neste aparelho, sem sincronização com o player.</div>';
+  if (apiBase === 'local') return '<div class="notice">Busca online de filmes e séries · sua lista fica salva neste aparelho. A sincronização com o player ainda não está ativa.</div>';
   return config?.searchMode === 'sample' ? '<div class="notice">Prévia com 6 títulos de amostra. Busca completa disponível ao configurar o TMDB no servidor.</div>' : '';
 }
 function poster(item, badge = '') {
@@ -103,7 +104,7 @@ window.CenaNativeResult = result => {
   setTab('scan');
   const lines = (result.lines || []).filter(line => line.trim().length > 2);
   $('#scan-query').value = lines[0]?.slice(0, 150) || '';
-  if (lines.length) toast('Texto lido. Confira ou ajuste o título e toque em Buscar.');
+  if (lines.length) { toast('Texto lido. Buscando títulos para você confirmar.'); runSearch($('#scan-query').value); }
   else toast('Não encontrei texto. Digite o título para buscar.');
 };
 async function save(item, status = 'watchlist') {
@@ -131,7 +132,7 @@ function showDetail(item) {
   if (!item) return;
   detailItem = item;
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><p>${escape(item.description || 'Sem sinopse disponível.')}</p>${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">A lista é atualizada no servidor. O player pode precisar atualizar o catálogo.</p><div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><p>${escape(item.description || 'Sem sinopse disponível.')}</p>${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">Wikidata / Wikipédia</a></p>` : ''}<div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
   if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
@@ -184,7 +185,7 @@ async function refresh() {
 }
 
 function localConnection() {
-  main.innerHTML = `<div class="eyebrow">PRONTO PARA USAR NO CELULAR</div><h1>Seu CENA</h1><div class="panel"><h2>Lista neste aparelho</h2><p>Experimente a câmera, a leitura do texto da capa, sua lista e os cards para Stories. A busca local contém seis títulos de amostra.</p></div><div class="notice">Stremio e Nuvio precisam de um catálogo hospedado para acessar sua lista. O modo local ainda não sincroniza com esses players.</div><div class="panel"><h2>Conectar catálogo remoto</h2><p>Quando o servidor CENA estiver disponível, informe o endereço HTTPS. Os títulos locais são preservados, sem transferência automática.</p><form id="local-server-form"><label for="local-server-url">Endereço do servidor</label><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><div class="actions"><button class="primary" type="submit">Conectar</button></div></form></div><div class="panel"><h2>Experimentar agora</h2><p>Busque Duna, Interestelar, Matrix, Stranger Things, Breaking Bad ou Game of Thrones.</p><button class="secondary" id="local-search">Abrir catálogo</button></div>`;
+  main.innerHTML = `<div class="eyebrow">PRONTO PARA USAR NO CELULAR</div><h1>Seu CENA</h1><div class="panel"><h2>Lista neste aparelho</h2><p>Experimente a câmera, a leitura do texto da capa, sua lista e os cards para Stories. A busca consulta filmes e séries online, sem limitar aos títulos de demonstração.</p></div><div class="notice">Stremio e Nuvio precisam de um catálogo hospedado para acessar sua lista. O modo local ainda não sincroniza com esses players.</div><div class="panel"><h2>Conectar catálogo remoto</h2><p>Quando o servidor CENA estiver disponível, informe o endereço HTTPS. Os títulos locais são preservados, sem transferência automática.</p><form id="local-server-form"><label for="local-server-url">Endereço do servidor</label><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><div class="actions"><button class="primary" type="submit">Conectar</button></div></form></div><div class="panel"><h2>Experimentar agora</h2><p>Busque pelo nome de qualquer filme ou série. Por exemplo: SISU.</p><button class="secondary" id="local-search">Abrir catálogo</button></div>`;
   $('#local-search').onclick = () => setTab('library');
   $('#local-server-form').onsubmit = async event => {
     event.preventDefault();
