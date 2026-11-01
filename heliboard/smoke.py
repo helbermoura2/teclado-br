@@ -16,16 +16,8 @@ def run_phase(phase):
     print(log,flush=True)
     (out/(phase+'-results.txt')).write_text(log)
     return log,'result=PASS' in log and 'INSTRUMENTATION_CODE: -1' in log
-log,ok=run_phase('full')
-if ok:
-    # Reinstalling the exact same signed APK must retain app-private pins.
-    apk=next(pathlib.Path('heli-package').rglob('*.apk'))
-    subprocess.run(['adb','install','-r',str(apk)],check=True)
-    second,ok=run_phase('verify_pins')
-    log+='\nPROCESS RESTART / REINSTALL\n'+second
-if ok:
-    third,ok=run_phase('verify_ai_missing')
-    log+='\nMISSING MODEL UI\n'+third
+log,ok=run_phase('verify_ai_missing')
+third=log
 if ok:
     import os
     model=pathlib.Path(os.environ.get('AI_SMOKE_MODEL','/tmp/qwen-smoke.gguf'))
@@ -42,6 +34,14 @@ if ok:
     subprocess.run(['adb','shell','svc','data','disable'],check=True)
     fourth,ok=run_phase('verify_ai')
     log+='\nOFFLINE NATIVE AI\n'+fourth
+if ok:
+    baseline,ok=run_phase('full')
+    log+='\nKEYBOARD REGRESSIONS\n'+baseline
+if ok:
+    apk=next(pathlib.Path('heli-package').rglob('*.apk'))
+    subprocess.run(['adb','install','-r',str(apk)],check=True)
+    second,ok=run_phase('verify_pins')
+    log+='\nPROCESS RESTART / REINSTALL\n'+second
 (out/'results.txt').write_text(log)
 files=subprocess.run(['adb','shell','run-as',package,'ls','cache/heli-shots'],capture_output=True,text=True).stdout.splitlines()
 for name in files:

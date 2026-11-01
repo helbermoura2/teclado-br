@@ -13,7 +13,7 @@ public final class WritingEngineService extends Service {
         @Override public void handleMessage(Message m){
             if(m.what==2){stopGeneration();return;}
             if(m.what!=1)return;
-            Bundle b=m.getData();ResultReceiver receiver=b.getParcelable("receiver");
+            Bundle b=m.getData();b.setClassLoader(WritingEngineService.class.getClassLoader());ResultReceiver receiver=b.getParcelable("receiver");
             if(receiver==null)return;
             if(busy){send(receiver,3,"Aguarde o cancelamento anterior terminar.",false);return;}
             if(!ModelStore.model(WritingEngineService.this).isFile()){send(receiver,3,"Adicione um modelo nas configurações do assistente.",false);return;}
