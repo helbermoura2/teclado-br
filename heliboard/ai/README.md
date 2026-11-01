@@ -9,7 +9,7 @@ Campos de senha não são enviados ao assistente.
 
 O APK não recebe permissão INTERNET. Não há servidor, API nem inferência remota.
 O usuário baixa um GGUF pelo navegador e o importa pelo seletor de arquivos.
-Importação faz cópia privada com verificação de formato, tamanho e SHA-256;
+Importação faz cópia privada com verificação de formato e tamanho, registrando SHA-256;
 substituição atômica do modelo anterior. Modelos ficam fora dos backups.
 O arquivo de pesos não está embutido no APK nem nas fontes.
 
@@ -41,3 +41,5 @@ Se a substituição for recusada, a resposta é reaberta para copiar, sem altera
 O pacote de fontes exclui somente os binários GGUF de vocabulário usados nos
 testes do upstream; o código necessário para compilar o aplicativo e o motor
 permanece completo. Prompts e respostas não são enviados a logs do runtime.
+
+Validação, respostas reais e limites desta entrega em [VALIDACAO.md](VALIDACAO.md).
