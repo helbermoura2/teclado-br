@@ -32,6 +32,8 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
+    private val installedVersion by lazy { packageManager.getPackageInfo(packageName, 0).versionName ?: "dev" }
+    private val assetPrefix get() = "/cena-${installedVersion}/"
     private var photoUri: Uri? = null
     private var photoFile: File? = null
     private var scanning = false
@@ -73,10 +75,7 @@ class MainActivity : ComponentActivity() {
             val image = InputImage.fromFilePath(this, uri)
             recognizer.process(image)
                 .addOnSuccessListener { result ->
-                    val lines = result.textBlocks.flatMap { it.lines }
-                        .sortedByDescending { it.boundingBox?.height() ?: 0 }
-                        .map { it.text }.distinct().take(24)
-                    sendResult(JSONObject().put("lines", JSONArray(lines)).put("fullText", result.text.take(6000)))
+                    sendResult(CoverOcr.analyze(result))
                 }
                 .addOnFailureListener { sendError("Não consegui ler a imagem. Você pode digitar o título.") }
                 .addOnCompleteListener { scanning = false; cleanPhoto(); consumePending() }
@@ -143,7 +142,7 @@ class MainActivity : ComponentActivity() {
         }
         ViewCompat.requestApplyInsets(root)
         val loader = WebViewAssetLoader.Builder()
-            .addPathHandler("/assets/", WebViewAssetLoader.AssetsPathHandler(this))
+            .addPathHandler(assetPrefix, WebViewAssetLoader.AssetsPathHandler(this))
             .build()
         web.settings.apply {
             javaScriptEnabled = true
@@ -154,13 +153,14 @@ class MainActivity : ComponentActivity() {
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
             setSupportMultipleWindows(false)
         }
+        web.clearCache(true)
         // Bridge only exists on bundled assets. Remote documents cannot load in this WebView.
         web.addJavascriptInterface(Bridge(), "CenaAndroid")
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? = loader.shouldInterceptRequest(request.url)
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
-                if (uri.scheme == "https" && uri.host == "appassets.androidplatform.net" && uri.path?.startsWith("/assets/") == true) return false
+                if (uri.scheme == "https" && uri.host == "appassets.androidplatform.net" && uri.path?.startsWith(assetPrefix) == true) return false
                 if (request.isForMainFrame && uri.scheme == "https") {
                     try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
                 }
@@ -175,11 +175,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         })
-        web.loadUrl("https://appassets.androidplatform.net/assets/index.html")
+        web.loadUrl("https://appassets.androidplatform.net${assetPrefix}index.html")
         receiveImage(intent)
     }
 
     inner class Bridge {
+        @JavascriptInterface fun appVersion(): String = installedVersion
         @JavascriptInterface fun compareCovers(requestId: String, raw: String) {
             if (isDestroyed || raw.length > 16000 || !Regex("[0-9]{1,10}").matches(requestId)) return
             val source = visionInput
