@@ -6,7 +6,7 @@ Protótipo Android para fotografar capas ou importar prints, identificar filmes 
 
 A versão 0.4.1 é distribuída como **CENA IA**, identificador `app.cena.mobile`. Ela instala ao lado do antigo CENA (`app.cena`): a assinatura das versões anteriores não foi preservada corretamente. Não desinstale o antigo se precisar dos dados dele. A lista antiga não é transferida automaticamente.
 
-Depois de todos os testes passarem, o GitHub Actions publica `CENA-0.4.1.apk` na prévia privada **cena-v0.4.1**. Baixe o APK diretamente pela área Releases do repositório, usando sua conta GitHub, e instale no Android 8 ou superior. Não exige PC nem extrair ZIP. Confira **v0.4.1** ao lado do logo ao abrir. O arquivo inclui o modelo visual e tem aproximadamente 120 MB.
+Depois de todos os testes passarem, o GitHub Actions publica `CENA-0.4.1.apk` na prévia privada **cena-v0.4.1**. Baixe o APK diretamente pela área Releases do repositório, usando sua conta GitHub, e instale no Android 8 ou superior. Não exige PC nem extrair ZIP. Confira **v0.4.1** ao lado do logo ao abrir. O arquivo inclui o modelo visual e tem aproximadamente 193 MB.
 
 A identidade de assinatura desta nova distribuição é persistida em um asset de release **privada e em rascunho** (`cena-internal-signing`), utilizada tanto na compilação quanto nos testes Android. Não publique nem exclua esse rascunho: atualizações futuras dependem da mesma chave. Trata-se de assinatura de protótipo, sem publicação na Play Store.
 
@@ -22,7 +22,7 @@ A identidade de assinatura desta nova distribuição é persistida em um asset d
 
 ## Validação e limites
 
-Os testes incluem 20 verificações de lógica, buscas reais dos textos incorretos relatados, comparação visual das duas fotos fornecidas, validação do APK empacotado, navegação no navegador e testes Android 15 da interface, OCR e modelo visual. A publicação do APK depende da validação do OCR Android contra o catálogo. As fotos de regressão ficam somente nos testes do repositório privado; não entram no APK.
+Os testes incluem 21 verificações de lógica, buscas reais dos textos incorretos relatados, comparação visual das duas fotos fornecidas, validação do APK empacotado, navegação no navegador e testes Android 15 da interface, OCR e modelo visual. A publicação do APK depende da validação do OCR Android contra o catálogo. As fotos de regressão ficam somente nos testes do repositório privado; não entram no APK.
 
 A comparação visual depende de candidatos encontrados pelo texto. Não é identificação universal de qualquer imagem: pode falhar e requer conferência do título e do ano.
 
