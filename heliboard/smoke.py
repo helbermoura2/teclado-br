@@ -23,6 +23,22 @@ if ok:
     subprocess.run(['adb','install','-r',str(apk)],check=True)
     second,ok=run_phase('verify_pins')
     log+='\nPROCESS RESTART / REINSTALL\n'+second
+if ok:
+    third,ok=run_phase('verify_ai_missing')
+    log+='\nMISSING MODEL UI\n'+third
+if ok:
+    import os
+    model=pathlib.Path(os.environ.get('AI_SMOKE_MODEL','/tmp/qwen-smoke.gguf'))
+    if not model.is_file(): raise SystemExit('Offline model fixture is required')
+    destination='/data/user/0/'+package+'/no_backup/offline-ai'
+    subprocess.run(['adb','shell','run-as',package,'mkdir','-p',destination],check=True)
+    with model.open('rb') as incoming:
+        subprocess.run(['adb','exec-in','run-as',package,'dd','of='+destination+'/model.gguf','bs=1048576'],stdin=incoming,stdout=subprocess.DEVNULL,check=True)
+    # Model is already local. Inference must work with device networking disabled.
+    subprocess.run(['adb','shell','svc','wifi','disable'],check=True)
+    subprocess.run(['adb','shell','svc','data','disable'],check=True)
+    fourth,ok=run_phase('verify_ai')
+    log+='\nOFFLINE NATIVE AI\n'+fourth
 (out/'results.txt').write_text(log)
 files=subprocess.run(['adb','shell','run-as',package,'ls','cache/heli-shots'],capture_output=True,text=True).stdout.splitlines()
 for name in files:

@@ -10,7 +10,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -18,6 +18,11 @@ jobs:
           repository: HeliBorg/HeliBoard
           ref: f8ec91a982835911cc224fa99434c3396d4cd562
           path: heli-source
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/llama.cpp
+          ref: 0ec4027a2a0183de87c007069adddc06e665f7de
+          path: heli-source/ai-native/llama.cpp
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -48,7 +53,9 @@ jobs:
         run: |
           python3 heliboard/prepare.py heli-source
           mkdir -p heli-artifacts
-          tar --exclude=.git --exclude=build --exclude=.gradle -czf heli-artifacts/teclado-br-heli-fontes.tar.gz -C heli-source .
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build -czf heli-artifacts/teclado-br-heli-fontes.tar.gz -C heli-source .
+      - name: Compilar motor offline para Android
+        run: bash heliboard/ai/build-native.sh heli-source
       - name: Testar e compilar a base
         working-directory: heli-source
         run: |
@@ -70,10 +77,20 @@ jobs:
             heli-source/app/build/outputs/apk/debugNoMinify/*.apk
             heli-artifacts/teclado-br-heli-fontes.tar.gz
             heli-artifacts/signing-cert.sha256
+      - name: Guardar APK separado
+        uses: actions/upload-artifact@v4
+        with:
+          name: teclado-br-heli-apk
+          path: heli-source/app/build/outputs/apk/debugNoMinify/*.apk
+      - name: Guardar fontes separadas
+        uses: actions/upload-artifact@v4
+        with:
+          name: teclado-br-heli-fontes
+          path: heli-artifacts/teclado-br-heli-fontes.tar.gz
   interaction:
     needs: build
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -93,6 +110,10 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Baixar fixture sintética para teste offline
+        run: |
+          curl --fail --location --retry 3 --output /tmp/qwen-smoke.gguf 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf?download=true'
+          echo '9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031  /tmp/qwen-smoke.gguf' | sha256sum -c -
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35

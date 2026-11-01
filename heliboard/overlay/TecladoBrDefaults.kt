@@ -85,6 +85,14 @@ fun configureTecladoBr(context: Context) {
             .putBoolean("teclado_br_typing_v1", true)
             .commit()
     }
+    if (!prefs.getBoolean("teclado_br_offline_ai_v1", false)) {
+        val keys = prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS)!!
+            .split("|").filterNot { it.startsWith("AI:") }
+        prefs.edit()
+            .putString(Settings.PREF_TOOLBAR_KEYS, (listOf("AI:true") + keys).joinToString("|"))
+            .putBoolean("teclado_br_offline_ai_v1", true)
+            .commit()
+    }
     if (!prefs.getBoolean("teclado_br_visual_v1", false)) {
         val theme = "Teclado BR · escuro"
         val blue = Color.rgb(109, 159, 231)

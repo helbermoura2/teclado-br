@@ -125,11 +125,41 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         });
         result.putString("pin_retention","Pinned text survives 30-day timestamp aging; unpinned text expires");
     }
+    AccessibilityNodeInfo aiNode(String description)throws Exception {
+        long until=SystemClock.uptimeMillis()+10000;
+        do {AccessibilityNodeInfo n=find(v->description.contentEquals(v.getContentDescription()==null?"":v.getContentDescription()));if(n!=null)return n;Thread.sleep(100);}while(SystemClock.uptimeMillis()<until);
+        throw new AssertionError("AI control missing: "+description);
+    }
+    void aiClick(String description)throws Exception {AccessibilityNodeInfo n=aiNode(description);check(n.performAction(AccessibilityNodeInfo.ACTION_CLICK),"AI action rejected: "+description);Thread.sleep(300);}
+    void aiSet(String description,String value)throws Exception {Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);check(aiNode(description).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"AI edit rejected");}
+    String aiText(String description)throws Exception {CharSequence t=aiNode(description).getText();return t==null?"":t.toString();}
+    void writing(boolean withModel)throws Exception {
+        helium314.keyboard.latin.ai.WritingLauncher.syntheticTest=true;
+        clear();type("texto original");toolbar(ToolbarKey.AI);aiNode("ai_source");
+        check(aiText("ai_source").equals("texto original"),"AI did not capture source");
+        if(!withModel){check(!aiNode("ai_generate").isEnabled(),"Missing model must disable generation");shot("13-ia-sem-modelo");aiClick("ai_back");expect("texto original");return;}
+        check(aiNode("ai_generate").isEnabled(),"Native model not ready");
+        aiClick("ai_task");AccessibilityNodeInfo compositor=find(v->v.getText()!=null&&"Compositor".contentEquals(v.getText()));check(compositor!=null,"Compositor option missing");Rect menu=new Rect();compositor.getBoundsInScreen(menu);tap(menu);Thread.sleep(200);
+        aiSet("ai_prompt","Escreva uma saudação curta em português, sem nomes.");shot("14-ia-compositor");
+        aiClick("ai_generate");
+        long until=SystemClock.uptimeMillis()+240000;
+        do {String state=aiText("ai_status");if(state.startsWith("Pronto.")||state.startsWith("Limite de geração"))break;Thread.sleep(300);}while(SystemClock.uptimeMillis()<until);
+        String response=aiText("ai_output");check(!response.trim().isEmpty(),"Native inference produced no output: "+aiText("ai_status"));
+        check(aiNode("ai_replace").isEnabled(),"Replace did not become available");
+        check(!response.contains("<think>")&&!response.contains("[channel]"),"Reasoning/control tokens leaked");
+        result.putString("offline_model_output",response);shot("15-ia-resposta-offline");
+        aiSet("ai_output","Texto revisado no aparelho.");aiClick("ai_replace");expect("Texto revisado no aparelho.");shot("16-ia-substituido");
+        toolbar(ToolbarKey.AI);aiClick("ai_generate");Thread.sleep(100);aiClick("ai_cancel");
+        until=SystemClock.uptimeMillis()+30000;
+        while(!aiText("ai_status").startsWith("Cancelado")&&SystemClock.uptimeMillis()<until)Thread.sleep(200);
+        check(aiText("ai_status").startsWith("Cancelado"),"Native cancellation timed out");shot("17-ia-cancelada");aiClick("ai_back");expect("Texto revisado no aparelho.");
+    }
     @Override public void onStart(){try{
         ui=getUiAutomation();AccessibilityServiceInfo info=ui.getServiceInfo();info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;ui.setServiceInfo(info);
         shots=new File(getTargetContext().getCacheDir(),"heli-shots");shots.mkdirs();
         shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");shell("ime set br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");
         Thread.sleep(10000);options(false,false);launch();
+        if(phase.equals("verify_ai")||phase.equals("verify_ai_missing")){writing(phase.equals("verify_ai"));result.putString("result","PASS");result.putString("coverage","Offline native generation, compositor prompt, editable result, safe replacement and cancellation; missing-model state");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_pins")){check(storedPinned(),"Stored pin lost after process restart");pinnedEntry(true);result.putString("result","PASS");result.putString("coverage","Pinned clipboard text survives app restart and reinstall with same certificate, and can be pasted");finish(Activity.RESULT_OK,result);return;}
         check(bounds('a',false).left>bounds('q',false).left,"A-L row must be centered");
         runOnMainSync(()->{for(Key key:main().getKeyboard().getSortedKeys())check(key.getCode()!=KeyCode.EMOJI&&key.getCode()!=KeyCode.LANGUAGE_SWITCH,"Bottom row contains emoji or globe");});

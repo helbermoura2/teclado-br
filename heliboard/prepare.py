@@ -17,9 +17,9 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 6050')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 7000')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.6.5-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.7.0-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -170,5 +170,32 @@ text = text.replace('    private void handleSeparatorEvent(final Event event, fi
     methods + '    private void handleSeparatorEvent(final Event event, final InputTransaction inputTransaction,')
 logic.write_text(text)
 
+# Offline writing workspace and native runtime. No INTERNET permission is added.
+replace('app/build.gradle.kts', 'minSdk = 21', 'minSdk = 26')
+ai_java = root/'app/src/main/java/helium314/keyboard/latin/ai'
+shutil.copytree(here/'ai/java', ai_java, dirs_exist_ok=True)
+shutil.copytree(here/'ai/native', root/'ai-native', dirs_exist_ok=True)
+replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',
+    '    LANGUAGE -> KeyCode.LANGUAGE_SWITCH', '    AI -> -11050\n    LANGUAGE -> KeyCode.LANGUAGE_SWITCH')
+replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',
+    'PAGE_START, PAGE_END, LANGUAGE\n}', 'PAGE_START, PAGE_END, LANGUAGE, AI\n}')
+for style in ('holo', 'lxx', 'rounded'):
+    replace('app/src/main/java/helium314/keyboard/keyboard/internal/KeyboardIconsSet.kt',
+        f'                    ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_{style}',
+        f'                    ToolbarKey.AI -> R.drawable.teclado_br_ai\n                    ToolbarKey.EMOJI -> R.drawable.sym_keyboard_smiley_{style}')
+(root/'app/src/main/res/drawable/teclado_br_ai.xml').write_text('''<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M12,2 L14.8,9.2 L22,12 L14.8,14.8 L12,22 L9.2,14.8 L2,12 L9.2,9.2 Z M21,1 L21.8,3.2 L24,4 L21.8,4.8 L21,7 L20.2,4.8 L18,4 L20.2,3.2 Z"/></vector>''')
+strings = root/'app/src/main/res/values/strings.xml'
+strings.write_text(strings.read_text().replace('</resources>', '<string name="ai">Assistente de escrita offline</string>\n</resources>'))
+replace('app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java',
+    '            case KeyCode.LANGUAGE_SWITCH:',
+    '            case -11050:\n                helium314.keyboard.latin.ai.WritingLauncher.open(mLatinIME);\n                break;\n            case KeyCode.LANGUAGE_SWITCH:')
+manifest = root/'app/src/main/AndroidManifest.xml'
+manifest.write_text(manifest.read_text().replace('        <!-- Services -->', '''        <activity android:name=".ai.WritingActivity" android:exported="false"
+            android:process=":writing" android:directBootAware="false"
+            android:taskAffinity="br.com.tecladobr.heli.writing" android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Material.NoActionBar"
+            android:windowSoftInputMode="adjustResize"/>
+        <!-- Services -->'''))
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True)
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
