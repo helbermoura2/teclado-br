@@ -4,6 +4,7 @@ import { identifyCover } from '../web/identify-cover.js';
 
 const fetcher = (url, options = {}) => fetch(url, { ...options, headers: { ...options.headers, 'User-Agent': 'CENA/0.4 (https://github.com/helbermoura2/teclado-br)' } });
 for (const [lines, expected] of [
+  [['Jheye God9 ItsMe, Margatet.', 'Margatet.', 'Jheye God9', 'ItsMe,'], 'tt9185206'],
   [['LSMARSHAIG'], 'tt0120873'],
   [['SMARSHALS-'], 'tt0120873'],
   [['LSMARSHAIG', 'TOMMY LEE JONES', 'WESLEY SNIPES', 'ROBERT DOWNEY JR.'], 'tt0120873'],
