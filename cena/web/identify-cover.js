@@ -18,26 +18,29 @@ export function similarity(left, right) {
   return 1 - prev[right.length] / Math.max(left.length, right.length);
 }
 
+export function coverInput(result) {
+  const lines = [...new Set((result.lines || []).filter(value => typeof value === 'string' && value.trim()).map(value => value.trim()))];
+  const phrases = (result.phrases || []).filter(value => typeof value === 'string' && value.trim().length <= 150);
+  const query = [result.title, ...phrases, lines[0]].find(value => typeof value === 'string' && value.trim().length >= 2 && value.trim().length <= 150)?.trim() || '';
+  return { query, lines: [...new Set([query, ...lines, ...phrases, ...String(result.fullText || '').split('\n')])].filter(Boolean).slice(0, 24) };
+}
+
 export function coverQueries(lines) {
-  const usable = [...new Set(lines.filter(value => typeof value === 'string').map(value => value.trim()).filter(value => value.length >= 3 && value.length <= 100))];
+  const usable = [...new Set(lines.filter(value => typeof value === 'string').map(value => value.trim()).filter(value => value.length >= 3 && value.length <= 150))];
   const primary = usable[0] || '';
-  const compact = normalizeTitle(primary);
+  const anchor = usable.find(value => value.split(/\s+/).length === 1 && normalizeTitle(value).length >= 5) || primary;
+  const compact = normalizeTitle(anchor);
   const queries = [];
-  // Prefix windows recover an attached/misread initial such as "LSMARSHAIG".
-  // There are no title-specific corrections or actor-name lookup tables.
-  if (compact.length >= 6) {
-    for (let offset = 0; offset <= Math.min(2, compact.length - 5); offset++) {
-      queries.push(`intitle:${compact.slice(offset, offset + 5)}* hastemplate:Infobox_film`);
-    }
+  // Search the complete assembled phrase as well as independent OCR fragments.
+  if (primary.split(/\s+/).length > 1) queries.push(primary.replace(/[^\p{L}\p{N} ]/gu, ' ') + ' film');
+  queries.push(`intitle:${compact || primary}~2`);
+  if (compact.length >= 6) for (let offset = 0; offset <= Math.min(2, compact.length - 5); offset++) {
+    queries.push(`intitle:${compact.slice(offset, offset + 5)}* hastemplate:Infobox_film`);
   }
-  if (!queries.length) queries.push(`${primary.replace(/[^\p{L}\p{N} ]/gu, ' ')} film`);
-  const clues = usable.slice(1).map(value => value.replace(/[^\p{L} .'-]/gu, '').trim()).filter(value => {
-    const words = value.split(/\s+/);
-    return words.length >= 2 && words.length <= 5 && value.length <= 50 && !/coming|march|produced|directed|presents|copyright|trailer|subscribe|assistir|cinema|legendado|dublado/i.test(value);
-  }).slice(0, 3);
-  if (clues.length >= 2) queries.unshift(`"${clues[0].replaceAll('"', '')}" "${clues[1].replaceAll('"', '')}" film`);
-  else queries.unshift(`intitle:${compact || primary}~2`);
-  return [...new Set(queries)].slice(0, 4);
+  const supporting = [...new Set(usable.join(' ').match(/[\p{L}]{3,}/gu) || [])]
+    .filter(word => similarity(word, anchor) < .65 && !/^(the|and|for|with|from|film|coming|march|produced|directed|presents)$/i.test(word)).slice(0, 6);
+  if (compact.length >= 5 && supporting.length) queries.unshift(`intitle:${compact.slice(0,5)}* (${supporting.map(word => `intitle:${word.slice(0,5)}*`).join(' OR ')}) hastemplate:Infobox_film`);
+  return [...new Set(queries)].slice(0, 6);
 }
 
 async function json(fetcher, base, params) {
@@ -57,7 +60,8 @@ function supportingClues(labels, lines) {
   const primary = lines[0] || '';
   if (!context || lines.length < 2) return 0;
   const common = new Set(['the', 'and', 'for', 'with', 'from', 'you', 'are', 'its', 'that', 'this', 'her', 'his']);
-  const words = [...new Set(labels.flatMap(label => label.toLowerCase().match(/[a-z]+/g) || []))]
+  const tokens = labels.flatMap(label => label.toLowerCase().replace(/['’]/g, '').match(/[a-z]+/g) || []);
+  const words = [...new Set([...tokens, ...tokens.slice(1).map((word, i) => tokens[i] + word)])]
     .filter(word => word.length >= 3 && !common.has(word) && similarity(word, primary) < .7);
   let hits = 0;
   for (const word of words) {
