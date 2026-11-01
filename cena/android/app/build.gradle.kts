@@ -9,11 +9,12 @@ android {
         applicationId = "app.cena"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets["main"].assets.srcDir("../../web")
+    sourceSets["androidTest"].assets.srcDir("../../tests/fixtures")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -21,6 +22,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
