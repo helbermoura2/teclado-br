@@ -1,3 +1,4 @@
+import { ArtworkResolver, trustedArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
 import { getTitleDetails } from './search-public.js';
 import { createLocalApi } from './local-api.js';
@@ -18,6 +19,42 @@ let traktInitialUploadRequested = false;
 let libraryReady=false, deferredTraktState=null;
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
+const artworkResolver = new ArtworkResolver({storage:localStorage});
+const artworkModels = new Map();
+const artworkObserved = new WeakSet();
+const artworkLoading = new WeakSet();
+function persistArtwork(item, url) {
+  if(apiBase==='local') {
+    const saved=items.find(row=>row.id===item.id && row.type===item.type);
+    if(saved && saved.poster!==url) { saved.poster=url; try {localStorage.setItem('cena.local.items.v1',JSON.stringify(items));}catch{} }
+  }
+  for(const row of searchResults) if(row.id===item.id && row.type===item.type) row.poster=url;
+  if(detailItem?.id===item.id && detailItem?.type===item.type) detailItem.poster=url;
+}
+async function hydrateArtwork(element) {
+  if(!element.isConnected || artworkLoading.has(element))return;
+  const item=artworkModels.get(element.dataset.artworkKey);if(!item)return;
+  artworkLoading.add(element);
+  try {
+    const url=await artworkResolver.resolve(item);
+    if(!url)return;
+    item.poster=url;persistArtwork(item,url);
+    artworkObserver?.unobserve(element);
+    for(const poster of document.querySelectorAll('.poster-art[data-artwork-key]')) {
+      if(poster.dataset.artworkKey!==element.dataset.artworkKey || poster.querySelector('img'))continue;
+      const image=new Image();image.alt='';image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';image.src=url;
+      image.onerror=()=>{ image.remove();artworkResolver.failures.set(artworkResolver.key(item),Date.now()); };
+      poster.append(image);
+    }
+  } finally {artworkLoading.delete(element);}
+}
+const artworkObserver = typeof IntersectionObserver==='function' ? new IntersectionObserver(entries=>{
+  for(const entry of entries) {
+    if(!entry.target.isConnected){artworkObserver.unobserve(entry.target);continue;}
+    if(entry.isIntersecting)hydrateArtwork(entry.target);
+  }
+},{rootMargin:'200px'}) : null;
+
 function sendTraktInventory() {
   if (apiBase === 'local' && native && typeof window.CenaAndroid.traktInventory === 'function') window.CenaAndroid.traktInventory(JSON.stringify(items.map(({id,type})=>({id,type}))));
 }
@@ -69,10 +106,16 @@ function notice() {
   return config?.searchMode === 'sample' ? '<div class="notice">Prévia com 6 títulos de amostra. Busca completa disponível ao configurar o TMDB no servidor.</div>' : '';
 }
 function poster(item, badge = '') {
-  return `<div class="poster-art"><span class="fallback">${escape(item.name)}</span>${item.poster ? `<img src="${escape(item.poster)}" alt="" loading="lazy" crossorigin="anonymous">` : ''}${badge ? `<span class="badge">${escape(badge)}</span>` : ''}</div>`;
+  const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
+  return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}</div>`;
 }
 function grid(rows) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? '✓ Assistido' : item.watchedEpisodes ? `${item.watchedEpisodes} episódios vistos` : '')}<strong>${escape(item.name)}</strong><small>${escape(item.year)} · ${titleType(item)}</small></button>`).join('')}</div>`; }
-function wireImages() { document.querySelectorAll('img').forEach(img => { img.addEventListener('error', () => img.remove(), { once: true }); }); }
+function wireImages() {
+  for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
+    if(artworkObserved.has(element))continue;artworkObserved.add(element);
+    if(artworkObserver)artworkObserver.observe(element);else hydrateArtwork(element);
+  }
+}
 function wireCards(rows) {
 
   wireImages();
@@ -98,7 +141,15 @@ function home() {
 }
 function library() {
   const rows = items.filter(i => filter === 'all' || i.status === filter);
-  main.innerHTML = `<div class="eyebrow">CADA HISTÓRIA TEM SEU LUGAR</div><h1>Meu catálogo</h1><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Assistidos</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><span class="count">${rows.length} títulos</span></div><div id="library-grid">${rows.length ? grid(rows) : empty()}</div>${notice()}`;
+  main.innerHTML = `<div class="eyebrow">CADA HISTÓRIA TEM SEU LUGAR</div><h1>Meu catálogo</h1><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Assistidos</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count">${rows.length} títulos</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><div id="library-grid">${rows.length ? grid(rows) : empty()}</div>${notice()}`;
+  if($('#refresh-artwork')) $('#refresh-artwork').onclick=()=>{
+    artworkResolver.retry();
+    for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
+      if(element.querySelector('img'))continue;
+      const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);
+    }
+    toast('Buscando capas. As demais carregam ao rolar a lista.');
+  };
   $('#search-form').onsubmit = e => { e.preventDefault(); runSearch($('#query').value); };
   document.querySelectorAll('[data-filter]').forEach(button => button.onclick = () => { filter = button.dataset.filter; library(); });
   if ($('#empty-search')) $('#empty-search').onclick = () => $('#query').focus();
@@ -204,6 +255,7 @@ async function remove(item) {
 function showDetail(item, enriched = false) {
   if (!item) return;
   detailItem = item;
+  if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
   $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
@@ -313,12 +365,14 @@ async function story(item) {
     ctx.font = 'bold 35px sans-serif'; ctx.fillStyle = 'white'; ctx.fillText('CEN', 345, 1200); ctx.fillStyle='#9959ff'; ctx.fillText('▲', 410, 1200);
   };
   draw(); $('#story-caption').oninput = draw;
-  if (item.poster) {
+  const loadStoryPoster = url => {
+    if(!url || !canvas.isConnected)return;
     const img = new Image(); img.crossOrigin = 'anonymous';
     img.onload = () => { if (!canvas.isConnected) return; image = img; draw(); };
-    img.onerror = () => { if (canvas.isConnected) toast('Pôster indisponível. O card será gerado com o título.'); };
-    img.src = item.poster;
-  }
+    img.onerror = () => { if (canvas.isConnected) toast('Pôster indisponível para exportação. O card será gerado com o título.'); };
+    img.src = url;
+  };
+  if(item.poster)loadStoryPoster(item.poster);else artworkResolver.resolve(item).then(loadStoryPoster);
   $('#save-story').onclick = () => {
     try { if(native && typeof window.CenaAndroid.saveStory==='function') window.CenaAndroid.saveStory(canvas.toDataURL('image/png').split(',')[1]);
       else { const link=document.createElement('a'); link.href=canvas.toDataURL('image/png'); link.download='CENA-Story.png'; link.click(); }
@@ -347,3 +401,5 @@ if (apiBase) refresh().then(() => { libraryReady=true; setTab(tab); sendTraktInv
 else setTab('connect');
 
 if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready(); }
+
+window.addEventListener('online',()=>{artworkResolver.retry();for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')){if(!element.querySelector('img')){const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);}}});
