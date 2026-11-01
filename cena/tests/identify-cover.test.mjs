@@ -47,3 +47,11 @@ test('failed searches do not invent an identification', async () => {
 test('a network failure remains an error rather than a fabricated match', async () => {
   await assert.rejects(identifyCover(['LSMARSHAIG'], async () => { throw Error('offline'); }), /internet/);
 });
+
+test('a multi-line title outranks an unrelated movie with the same last word', () => {
+  const lines = ['Margahet.', "Are You There God? It's Me, Margahet.", 'Are You', 'There God?', "It's Me,"];
+  const correct = { name: "Are You There God? It's Me, Margaret.", originalName: "Are You There God? It's Me, Margaret." };
+  const other = { name: 'Margaret', originalName: 'Margaret' };
+  assert.ok(scoreCover(correct, lines) > scoreCover(other, lines));
+  assert.ok(scoreCover(correct, ['Margahet.']) >= .4, 'The full title must remain a candidate even if only its last word is readable.');
+});
