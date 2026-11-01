@@ -27,7 +27,7 @@ export function coverQueries(lines) {
   // There are no title-specific corrections or actor-name lookup tables.
   if (compact.length >= 6) {
     for (let offset = 0; offset <= Math.min(2, compact.length - 5); offset++) {
-      queries.push(`intitle:${compact.slice(offset, offset + 5)}* film`);
+      queries.push(`intitle:${compact.slice(offset, offset + 5)}* hastemplate:Infobox_film`);
     }
   }
   if (!queries.length) queries.push(`${primary.replace(/[^\p{L}\p{N} ]/gu, ' ')} film`);
@@ -36,7 +36,7 @@ export function coverQueries(lines) {
     return words.length >= 2 && words.length <= 5 && value.length <= 50 && !/coming|march|produced|directed|presents|copyright|trailer|subscribe|assistir|cinema|legendado|dublado/i.test(value);
   }).slice(0, 3);
   if (clues.length >= 2) queries.unshift(`"${clues[0].replaceAll('"', '')}" "${clues[1].replaceAll('"', '')}" film`);
-  else queries.unshift(`intitle:${compact || primary}~2 film`);
+  else queries.unshift(`intitle:${compact || primary}~2`);
   return [...new Set(queries)].slice(0, 4);
 }
 
@@ -73,8 +73,8 @@ export async function identifyCover(lines, fetcher = fetch) {
   if (exact.some(item => Math.max(similarity(primary, item.name), similarity(primary, item.originalName)) > .93)) return exact;
   const queries = coverQueries(lines);
   const replies = await Promise.allSettled(queries.map(query => json(fetcher, 'https://en.wikipedia.org/w/api.php', {
-    action: 'query', generator: 'search', gsrsearch: query, gsrnamespace: '0', gsrlimit: '10',
-    prop: 'pageprops|pageimages|extracts', piprop: 'thumbnail', pithumbsize: '500', pilicense: 'any',
+    action: 'query', generator: 'search', gsrsearch: query, gsrnamespace: '0', gsrlimit: '50',
+    prop: 'pageprops|pageimages|extracts', exlimit: 'max', pilimit: '50', piprop: 'thumbnail', pithumbsize: '500', pilicense: 'any',
     exintro: '1', explaintext: '1', exchars: '1800'
   })));
   const successful = replies.filter(reply => reply.status === 'fulfilled');
@@ -86,8 +86,9 @@ export async function identifyCover(lines, fetcher = fetch) {
   }
   let suggestions = [];
   if (pages.size) {
-    const data = await json(fetcher, 'https://www.wikidata.org/w/api.php', { action: 'wbgetentities', ids: [...pages.keys()].slice(0, 40).join('|'), props: 'claims|labels|descriptions|sitelinks', languages: 'pt|en', sitefilter: 'enwiki' });
-    for (const [id, page] of pages) {
+    const relevant = [...pages.entries()].sort((a,b) => similarity(primary, b[1].title.replace(/\([^)]*\)/g, '')) - similarity(primary, a[1].title.replace(/\([^)]*\)/g, ''))).slice(0,40);
+    const data = await json(fetcher, 'https://www.wikidata.org/w/api.php', { action: 'wbgetentities', ids: relevant.map(([id]) => id).join('|'), props: 'claims|labels|descriptions|sitelinks', languages: 'pt|en', sitefilter: 'enwiki' });
+    for (const [id, page] of relevant) {
       const item = titleFromEntity(data.entities?.[id] || {});
       if (!item) continue;
       const score = scoreCover(item, lines, page.extract || '');
