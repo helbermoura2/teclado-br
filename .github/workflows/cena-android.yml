@@ -41,7 +41,7 @@ jobs:
           npm run check
           npm test
           node scripts/check-cover-identification.mjs
-      - name: Verify live public movie lookup
+      - name: Verify live SISU movie lookup
         working-directory: ${{ steps.source.outputs.directory }}
         run: node scripts/check-public-search.mjs
       - name: Bundle and validate free on-device visual model
@@ -64,13 +64,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Keep preview signing key between builds
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: cena-debug-signing-v1-${{ github.repository_id }}
+      - name: Restore persistent private preview signing identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
+        run: bash "${{ steps.source.outputs.directory }}/scripts/prepare-signing.sh" initialize
       - name: Build installable preview APK
         working-directory: ${{ steps.source.outputs.directory }}/android
+        env:
+          CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
         run: gradle --no-daemon assembleDebug
       - name: Validate the actual packaged UI and version
         working-directory: ${{ steps.source.outputs.directory }}
