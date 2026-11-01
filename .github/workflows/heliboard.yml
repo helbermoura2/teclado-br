@@ -53,7 +53,7 @@ jobs:
         run: |
           python3 heliboard/prepare.py heli-source
           mkdir -p heli-artifacts
-          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build -czf heli-artifacts/teclado-br-heli-fontes.tar.gz -C heli-source .
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf heli-artifacts/teclado-br-heli-fontes.tar.gz -C heli-source .
       - name: Recuperar motor offline compilado
         uses: actions/cache/restore@v4
         id: native-cache

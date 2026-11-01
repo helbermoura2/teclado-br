@@ -37,3 +37,7 @@ revisão fixada. Essa quantização difere da Q4_K_M requantizada usada na rodad
 sua qualidade e seu uso de memória no Android precisam ser medidos separadamente.
 Remover modelo apaga somente os pesos, preservando dicionário e pins.
 Se a substituição for recusada, a resposta é reaberta para copiar, sem alterar o campo.
+
+O pacote de fontes exclui somente os binários GGUF de vocabulário usados nos
+testes do upstream; o código necessário para compilar o aplicativo e o motor
+permanece completo. Prompts e respostas não são enviados a logs do runtime.

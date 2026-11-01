@@ -3,6 +3,7 @@
 #include "llama.h"
 #include "common.h"
 #include "chat.h"
+#include "log.h"
 #include <atomic>
 #include <algorithm>
 #include <mutex>
@@ -39,6 +40,8 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
         std::call_once(backend_once, [] {
             // Never log prompts, model output, or native debug data to Android logcat.
             llama_log_set([](ggml_log_level, const char*, void*) {}, nullptr);
+            common_log_set_verbosity_thold(-1);
+            common_log_set_jsonl(false);
             llama_backend_init();
         });
         const auto path=bytes(env,pathBytes), user=bytes(env,userBytes);
@@ -85,21 +88,22 @@ Java_helium314_keyboard_latin_ai_OfflineNative_generate(JNIEnv* env, jclass, jby
         const auto callback=env->GetMethodID(env->GetObjectClass(progress),"onProgress","([B)V");
         if(!callback) return nullptr;
         bool ended=false;
+        common_chat_input terminal;
         int position=tokens.size();
         for(int i=0;i<max_tokens;i++) {
             if(cancelled.load()) throw std::runtime_error("Cancelado");
             llama_token token=llama_sampler_sample(sampler.get(),ctx.get(),-1);
-            if(llama_vocab_is_eog(vocab,token)) { ended=true; break; }
+            if(llama_vocab_is_eog(vocab,token)) { terminal.append(common_token_to_piece(vocab,token,true),token); ended=true; break; }
             common_chat_input piece; piece.append(common_token_to_piece(vocab,token,true),token);
             const auto& msg=session.feed(piece);
             if(i%8==0 && !msg.content.empty()) {
                 auto value=array(env,msg.content); env->CallVoidMethod(progress,callback,value); env->DeleteLocalRef(value);
                 if(env->ExceptionCheck()) return nullptr;
             }
-            decode(&token,1,position++,true);
+            if(i+1<max_tokens) decode(&token,1,position++,true);
         }
         if(cancelled.load()) throw std::runtime_error("Cancelado");
-        const auto& result=session.finish();
+        const auto& result=ended?session.finish(terminal):session.msg();
         if(result.content.empty()) throw std::runtime_error("O modelo nao retornou texto final. Tente um pedido menor ou outro modelo.");
         // First byte indicates whether generation hit the token limit. UTF-8 follows.
         return array(env,std::string(ended?"S\n":"T\n")+result.content);

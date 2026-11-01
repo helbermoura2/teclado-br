@@ -97,6 +97,6 @@ public final class WritingActivity extends Activity {
         }catch(Exception e){failure(e);}catch(OutOfMemoryError e){failure(new Exception("Memória insuficiente. Experimente um modelo menor."));}});
     }
     private void failure(Exception e){runOnUiThread(()->{if(!isDestroyed()){output.setText("");status.setText(stopped?"Cancelado.":e.getMessage());controls(false,false);}});}
-    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("source",source.getText().toString());state.putString("prompt",prompt.getText().toString());state.putString("output",output.getText().toString());state.putInt("task",task.getSelectedItemPosition());state.putInt("style",style.getSelectedItemPosition());}
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("source",source.getText().toString());state.putString("prompt",prompt.getText().toString());state.putString("output",busy?"":output.getText().toString());state.putInt("task",task.getSelectedItemPosition());state.putInt("style",style.getSelectedItemPosition());}
     @Override protected void onDestroy(){stopped=true;if(nativeReady)OfflineNative.cancel();worker.shutdownNow();super.onDestroy();}
 }
