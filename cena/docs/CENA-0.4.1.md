@@ -1,11 +1,12 @@
-CENA 0.4.1 — atualização de teste para Android.
+CENA IA 0.4.1 — versão de teste para Android.
 
-- Carrega a interface por um endereço interno exclusivo da versão, preservando a lista local.
+Instala como um novo aplicativo chamado CENA IA, ao lado do CENA antigo. Não desinstale o antigo se quiser manter sua lista: os dados permanecem nele e não são transferidos automaticamente.
+
+- IA visual local e gratuita para comparar a foto com capas candidatas, sem chave de API.
+- Melhora a busca com letras incorretas e títulos divididos em linhas.
+- Câmera, galeria, prints compartilhados e recorte.
 - Mostra a versão instalada ao lado do logo.
-- Reconstrói títulos divididos em várias linhas, incluindo o caso “Are You There God? It's Me, Margaret.”.
-- Mantém a IA visual local e gratuita para comparar a foto com as capas candidatas. A busca de metadados e capas requer internet.
-- Inclui câmera, galeria, imagens compartilhadas e recorte.
 
-Baixe CENA-0.4.1.apk e instale como atualização. Ao terminar, toque em Abrir na própria tela de instalação e confira v0.4.1 ao lado do logo.
+Baixe CENA-0.4.1.apk, instale e toque em Abrir. Confira v0.4.1 no aplicativo. A busca de títulos e capas exige internet; a identificação gera sugestões para você confirmar e pode falhar.
 
-A identificação gera sugestões que precisam de confirmação. A sincronização com Stremio/Nuvio ainda não está ativa.
+A sincronização com Stremio/Nuvio ainda não está ativa.
