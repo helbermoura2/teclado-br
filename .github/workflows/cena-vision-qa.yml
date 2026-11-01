@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   local-model:
     runs-on: ubuntu-24.04
@@ -29,9 +30,17 @@ jobs:
         with:
           gradle-version: '8.11.1'
           cache-read-only: false
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: cena-debug-signing-v1-${{ github.repository_id }}
       - name: Compile the APK and focused model test
         working-directory: cena/android
         run: gradle --no-daemon assembleDebug assembleDebugAndroidTest
+      - name: Download the previously delivered app for upgrade testing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 41257919458 --repo "$GITHUB_REPOSITORY" --name CENA-Android-APK --dir /tmp/cena-legacy
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -46,7 +55,21 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048 -partition-size 2048
           disable-animations: true
           working-directory: cena/android
-          script: timeout 240s gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.cena.VisualModelTest
+          script: |
+            adb install -r /tmp/cena-legacy/CENA-preview.apk
+            adb shell am start -n app.cena/.MainActivity
+            sleep 3
+            adb shell run-as app.cena mkdir -p files
+            adb shell "run-as app.cena sh -c 'echo legacy > files/legacy-update-marker.txt'"
+            timeout 240s gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.cena.VisualModelTest,app.cena.CoverRecognitionTest,app.cena.AssetsUpgradeTest
+            mkdir -p ../qa
+            adb exec-out run-as app.cena cat files/native-ocr.json > ../qa/native-ocr.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Identify the two actual photos using the real Android OCR output
+        working-directory: cena
+        run: node scripts/check-native-cover-identification.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
