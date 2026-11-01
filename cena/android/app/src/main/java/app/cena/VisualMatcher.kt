@@ -82,7 +82,7 @@ class VisualMatcher(private val context: Context) : AutoCloseable {
 
     private fun download(address: String): Bitmap {
         val url = URL(address)
-        require(url.protocol == "https" && url.host in setOf("upload.wikimedia.org", "image.tmdb.org"))
+        require(url.protocol == "https" && url.host in setOf("upload.wikimedia.org", "image.tmdb.org", "images.metahub.space"))
         val connection = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 4000; readTimeout = 5000; instanceFollowRedirects = false
             setRequestProperty("User-Agent", "CENA/0.4 (https://github.com/helbermoura2/teclado-br)")
