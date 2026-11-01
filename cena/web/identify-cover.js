@@ -80,7 +80,7 @@ function supportingClues(labels, lines) {
 }
 
 export function scoreCover(item, lines, extract = '') {
-  const labels = [item.name, item.originalName, item.wikiTitle?.replace(/\([^)]*\)/g, '')].filter(Boolean);
+  const labels = [item.name, item.originalName, ...(item.aliases || []), item.localWikiTitle, item.wikiTitle?.replace(/\([^)]*\)/g, '')].filter(Boolean);
   const primary = lines[0] || '';
   const titleScore = Math.max(0, ...labels.map(label => similarity(primary, label)));
   const secondaryTitle = Math.max(0, ...lines.slice(1, 10).flatMap(line => labels.map(label => similarity(line, label) * (normalizeTitle(line).length > normalizeTitle(primary).length + 6 ? .98 : .9))));
