@@ -1,5 +1,5 @@
 import { createLocalApi } from './local-api.js';
-import { identifyCover, searchTolerantTitles } from './identify-cover.js';
+import { coverInput, identifyCover, searchTolerantTitles } from './identify-cover.js';
 import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
@@ -81,6 +81,10 @@ async function runSearch(query, coverLines = null) {
     const response = coverLines && apiBase === 'local' ? { items: await identifyCover(coverLines), mode: 'assisted' } : await api(`/api/search?q=${encodeURIComponent(query)}`);
     if (generation !== searchGeneration || !target.isConnected) return;
     searchResults = response.items;
+    if (coverLines && searchResults[0]?.matchScore >= .65 && (!searchResults[1] || searchResults[0].matchScore - searchResults[1].matchScore >= .04)) {
+      const field = $('#scan-query');
+      if (field) field.value = searchResults[0].originalName || searchResults[0].name;
+    }
     const assisted = searchResults.some(item => item.suggested) || response.mode === 'assisted';
     target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} títulos</span></div>${assisted && searchResults.length ? '<p class="muted">Conferi variações do texto e pistas da capa. Confira a imagem e o ano antes de adicionar.</p>' : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
     target.querySelectorAll('[data-id]').forEach(button => button.onclick = () => showDetail(searchResults.find(i => i.id === button.dataset.id)));
@@ -92,7 +96,7 @@ async function runSearch(query, coverLines = null) {
   } catch (error) { if (generation === searchGeneration && target.isConnected) target.innerHTML = `<div class="error" role="alert">${escape(error.message)}</div>`; }
 }
 function scan() {
-  main.innerHTML = `<div class="eyebrow">ENCONTROU UMA BOA HISTÓRIA?</div><h1>Capturar título</h1><p class="muted">Use uma foto de capa ou um print da sua galeria.</p><div class="scan-frame">${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">▣ &nbsp; ${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button><button class="secondary wide" id="pick-image">Escolher imagem ou print</button></div><div class="notice">${native ? 'Fotografe, escolha um print ou use Compartilhar → CENA. Inclua o título e a imagem da capa no recorte. A leitura e a comparação visual com IA acontecem no aparelho; sua imagem não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</div><form id="scan-search" class="search-row"><input id="scan-query" type="search" placeholder="Título da capa" aria-label="Título identificado na imagem" minlength="2" maxlength="150" required><button class="primary">Buscar</button></form><div id="detected-lines"></div><div id="search-results"></div>`;
+  main.innerHTML = `<div class="eyebrow">ENCONTROU UMA BOA HISTÓRIA?</div><h1>Capturar título</h1><p class="muted">Use uma foto de capa ou um print da sua galeria.</p><div class="scan-frame">${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">▣ &nbsp; ${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button><button class="secondary wide" id="pick-image">Escolher imagem ou print</button></div><div class="notice">${native ? 'Fotografe, escolha um print ou use Compartilhar → CENA. Inclua o título e a imagem da capa no recorte. A leitura e a comparação visual com IA acontecem no aparelho; sua imagem não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</div><form id="scan-search" class="search-row"><textarea id="scan-query" rows="3" placeholder="Título completo da capa" aria-label="Título completo identificado na imagem" minlength="2" maxlength="150" required></textarea><button class="primary">Buscar</button></form><div id="detected-lines"></div><div id="search-results"></div>`;
   $('#take-photo').onclick = () => { if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
   $('#pick-image').onclick = () => { if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
   $('#scan-search').onsubmit = event => { event.preventDefault(); runSearch($('#scan-query').value); };
@@ -116,8 +120,9 @@ window.CenaNativeResult = result => {
     $('#detected-lines').innerHTML = `<p class="muted">O título está em outra linha? Toque para buscar:</p><div class="chips">${detectedLines.map((line, index) => `<button class="chip" data-line="${index}">${escape(line)}</button>`).join('')}</div>`;
     document.querySelectorAll('[data-line]').forEach(button => button.onclick = () => { $('#scan-query').value = detectedLines[Number(button.dataset.line)].slice(0, 150); runSearch($('#scan-query').value); });
   }
-  $('#scan-query').value = lines[0]?.slice(0, 150) || '';
-  if (lines.length) { toast('Conferindo o título e outras pistas da capa…'); const context = [...new Set([lines[0], ...(Array.isArray(result.phrases) ? result.phrases : []), ...lines.slice(1), ...String(result.fullText || '').split('\n')])].slice(0, 24); runSearch($('#scan-query').value, context); }
+  const input = coverInput(result);
+  $('#scan-query').value = input.query;
+  if (input.query) { toast('Buscando o título completo e as pistas da capa…'); runSearch(input.query, input.lines); }
   else toast('Não encontrei texto. Digite o título para buscar.');
 };
 window.CenaVisualResult = result => {
