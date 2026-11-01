@@ -2,7 +2,7 @@ name: CENA Android image import QA
 on:
   push:
     branches: ['cena/**']
-    paths: ['.github/workflows/cena-android.yml', '.github/workflows/cena-native-qa.yml']
+    paths: ['.github/workflows/cena-android.yml', '.github/workflows/cena-native-qa.yml', 'cena/android/app/src/main/java/app/cena/MainActivity.kt']
   workflow_dispatch:
 permissions:
   contents: read
