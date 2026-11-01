@@ -80,7 +80,7 @@ jobs:
                   expect(page.locator('.status-label')).to_contain_text('Quero assistir', timeout=10000)
                   page.locator('#detail .close').click()
                   page.evaluate("window.CenaNativeResult({lines:['Margahet.','Are You','There God?', \"It's Me,\"],phrases:[\"Are You There God? It's Me, Margahet.\"]})")
-                  margaret = page.locator('#search-results .poster-card[data-id="tt3915174"]')
+                  margaret = page.locator('#search-results .poster-card[data-id="tt9185206"]')
                   expect(margaret).to_be_visible(timeout=60000)
                   margaret.click()
                   expect(page.locator('#detail-content')).to_contain_text('2023')
