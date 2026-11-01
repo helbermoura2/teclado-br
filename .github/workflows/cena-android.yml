@@ -128,3 +128,4 @@ jobs:
             gh release create cena-v0.5.1 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'CENA 0.5.1 — atualização de teste' --notes-file cena/docs/CENA-0.5.1.md
           fi
           gh release upload cena-v0.5.1 entrega/CENA-0.5.1.apk entrega/CENA-0.5.1.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+
