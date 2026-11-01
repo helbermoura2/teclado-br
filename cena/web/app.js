@@ -9,7 +9,7 @@ try { stored = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {
 let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
 const localApi = createLocalApi(localStorage, { search: searchPublicTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
-let scanPhoto = '', detailItem = null, searchGeneration = 0, busy = false;
+let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -86,8 +86,9 @@ async function runSearch(query) {
   } catch (error) { if (generation === searchGeneration && target.isConnected) target.innerHTML = `<div class="error" role="alert">${escape(error.message)}</div>`; }
 }
 function scan() {
-  main.innerHTML = `<div class="eyebrow">ENCONTROU UMA BOA HISTÓRIA?</div><h1>Fotografar capa</h1><p class="muted">Enquadre o título do filme ou da série.</p><div class="scan-frame">${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">▣ &nbsp; ${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button></div><div class="notice">${native ? 'O Android lê o texto da capa no aparelho. Confira o título encontrado antes de adicionar. A foto não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</div><form id="scan-search" class="search-row"><input id="scan-query" type="search" placeholder="Título da capa" aria-label="Título identificado na capa" minlength="2" maxlength="150" required><button class="primary">Buscar</button></form><div id="search-results"></div>`;
-  $('#take-photo').onclick = () => native ? window.CenaAndroid.scanCover() : $('#photo-input').click();
+  main.innerHTML = `<div class="eyebrow">ENCONTROU UMA BOA HISTÓRIA?</div><h1>Capturar título</h1><p class="muted">Use uma foto de capa ou um print da sua galeria.</p><div class="scan-frame">${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">▣ &nbsp; ${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button><button class="secondary wide" id="pick-image">Escolher imagem ou print</button></div><div class="notice">${native ? 'Você pode fotografar, escolher um print ou usar Compartilhar → CENA em outro aplicativo. Recorte o título e confirme o filme encontrado. A imagem não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</div><form id="scan-search" class="search-row"><input id="scan-query" type="search" placeholder="Título da capa" aria-label="Título identificado na imagem" minlength="2" maxlength="150" required><button class="primary">Buscar</button></form><div id="detected-lines"></div><div id="search-results"></div>`;
+  $('#take-photo').onclick = () => { if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
+  $('#pick-image').onclick = () => { if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
   $('#scan-search').onsubmit = event => { event.preventDefault(); runSearch($('#scan-query').value); };
 }
 $('#photo-input').onchange = event => {
@@ -102,7 +103,12 @@ $('#photo-input').onchange = event => {
 window.CenaNativeResult = result => {
   if (result.error) { toast(result.error); return; }
   setTab('scan');
-  const lines = (result.lines || []).filter(line => line.trim().length > 2);
+  const lines = (result.lines || []).filter(line => typeof line === 'string' && line.trim().length > 2);
+  detectedLines = [...new Set(lines)].slice(0, 6);
+  if (detectedLines.length > 1) {
+    $('#detected-lines').innerHTML = `<p class="muted">O título está em outra linha? Toque para buscar:</p><div class="chips">${detectedLines.map((line, index) => `<button class="chip" data-line="${index}">${escape(line)}</button>`).join('')}</div>`;
+    document.querySelectorAll('[data-line]').forEach(button => button.onclick = () => { $('#scan-query').value = detectedLines[Number(button.dataset.line)].slice(0, 150); runSearch($('#scan-query').value); });
+  }
   $('#scan-query').value = lines[0]?.slice(0, 150) || '';
   if (lines.length) { toast('Texto lido. Buscando títulos para você confirmar.'); runSearch($('#scan-query').value); }
   else toast('Não encontrei texto. Digite o título para buscar.');
@@ -246,3 +252,5 @@ if (stored?.id && stored?.writeToken) connection = { id: stored.id, writeToken: 
 home();
 if (apiBase) refresh().then(() => setTab(tab)).catch(error => toast(error.message));
 else setTab('connect');
+
+if (native) window.CenaAndroid.ready();
