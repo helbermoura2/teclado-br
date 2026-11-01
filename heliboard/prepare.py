@@ -17,9 +17,9 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 7000')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 7010')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.7.0-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.7.1-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -191,12 +191,43 @@ replace('app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java',
     '            case KeyCode.LANGUAGE_SWITCH:',
     '            case -11050:\n                helium314.keyboard.latin.ai.WritingLauncher.open(mLatinIME);\n                break;\n            case KeyCode.LANGUAGE_SWITCH:')
 manifest = root/'app/src/main/AndroidManifest.xml'
-manifest.write_text(manifest.read_text().replace('        <!-- Services -->', '''        <activity android:name=".ai.WritingActivity" android:exported="false"
-            android:process=":writing" android:directBootAware="false"
-            android:taskAffinity="br.com.tecladobr.heli.writing" android:excludeFromRecents="true"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:theme="@android:style/Theme.Material.NoActionBar"
-            android:windowSoftInputMode="adjustResize"/>
+manifest.write_text(manifest.read_text().replace('        <!-- Services -->', '''        <activity android:name=".ai.ModelSettingsActivity" android:exported="false"
+            android:directBootAware="false" android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Material.NoActionBar"/>
+        <service android:name=".ai.WritingEngineService" android:exported="false"
+            android:process=":writing" android:directBootAware="false"/>
         <!-- Services -->'''))
+# Overlay stays inside the existing IME window, preserving the current app/input connection.
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '    public void onEvent(@NonNull final Event event) {',
+    '    public void onEvent(@NonNull final Event event) {\n        if (helium314.keyboard.latin.ai.WritingPanel.key(event)) { mKeyboardSwitcher.onEvent(event, 0, 0); return; }')
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '    public void onTextInput(final String rawText) {',
+    '    public void onTextInput(final String rawText) {\n        if (helium314.keyboard.latin.ai.WritingPanel.text(rawText)) return;')
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '    public int getCurrentAutoCapsState() {',
+    '    public int getCurrentAutoCapsState() {\n        if (helium314.keyboard.latin.ai.WritingPanel.isEditing()) return 0;')
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '    public int getCurrentRecapitalizeState() {',
+    '    public int getCurrentRecapitalizeState() {\n        if (helium314.keyboard.latin.ai.WritingPanel.isEditing()) return 0;')
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '        super.onComputeInsets(outInsets);',
+    '        super.onComputeInsets(outInsets);\n        if (mInputView != null && helium314.keyboard.latin.ai.WritingPanel.insets(outInsets, mInputView)) return;')
+replace('app/src/main/java/helium314/keyboard/latin/InputView.java',
+    '    public boolean onInterceptTouchEvent(final MotionEvent me) {',
+    '    public boolean onInterceptTouchEvent(final MotionEvent me) {\n        if (helium314.keyboard.latin.ai.WritingPanel.isActive()) { mActiveForwarder = null; return false; }')
+for method in ('onStartInput(final EditorInfo editorInfo, final boolean restarting)',
+               'onFinishInputView(final boolean finishingInput)', 'onFinishInput()', 'onDestroy()'):
+    replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+        '\n    public void ' + method + ' {',
+        '\n    public void ' + method + ' {\n        helium314.keyboard.latin.ai.WritingPanel.dismiss();')
+for method in ('onStartBatchInput()', 'onUpdateBatchInput(final InputPointers batchPointers)',
+               'onEndBatchInput(final InputPointers batchPointers)', 'onCancelBatchInput()'):
+    replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+        '\n    public void ' + method + ' {',
+        '\n    public void ' + method + ' {\n        if (helium314.keyboard.latin.ai.WritingPanel.isEditing()) return;')
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '    private View mInputView;',
+    '    private View mInputView;\n    public View getTecladoInputView() { return mInputView; }\n    public void prepareTecladoWriting() { mInputLogic.finishInput(); mHandler.cancelUpdateSuggestionStrip(); }')
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True)
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
