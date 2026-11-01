@@ -55,3 +55,10 @@ test('a multi-line title outranks an unrelated movie with the same last word', (
   assert.ok(scoreCover(correct, lines) > scoreCover(other, lines));
   assert.ok(scoreCover(correct, ['Margahet.']) >= .4, 'The full title must remain a candidate even if only its last word is readable.');
 });
+
+test('real Android OCR fragments distinguish a long title from a different film sharing its last word', () => {
+  const lines = ['Margaiet.', 'AeloGod Jhere Tts Me, Margaiet.', 'AeloGod Margaiet.', 'Jhere Tts Me,', 'AeloGod', 'Tts Me,', 'Jhere'];
+  const correct = { name: "Are You There God? It's Me, Margaret." };
+  assert.ok(scoreCover(correct, lines) > scoreCover({ name: 'Margaret' }, lines));
+  assert.ok(scoreCover(correct, lines) > scoreCover({ name: 'The Master and Margaret' }, lines));
+});
