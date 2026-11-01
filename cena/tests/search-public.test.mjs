@@ -23,7 +23,8 @@ test('SISU is found online and carries its IMDb identifier through the local lis
   assert.equal(items[0].id, 'tt14846026');
   assert.equal(items[0].year, '2022');
   assert.ok(items[0].poster.startsWith('https://upload.wikimedia.org/'));
-  assert.equal(calls.length, 4);
+  assert.ok(calls.some(url => url.hostname === 'pt.wikipedia.org'));
+  assert.ok(calls.some(url => url.hostname === 'v3-cinemeta.strem.io'));
   await api('/api/libraries/local/items', { method: 'PUT', body: JSON.stringify({ ...items[0], status: 'watchlist' }) });
   assert.equal((await api('/api/libraries/local')).items[0].id, 'tt14846026');
   assert.equal((await api('/api/config')).searchMode, 'public');
@@ -46,4 +47,27 @@ test('optional poster failure does not discard a recognized film', async () => {
 test('series are distinguished from films and people are excluded', () => {
   assert.equal(titleFromEntity({ ...film, claims: { ...film.claims, P31: [claim({ id: 'Q5398426' })] } }).type, 'series');
   assert.equal(titleFromEntity({ ...film, claims: { ...film.claims, P31: [claim({ id: 'Q5' })] } }), null);
+});
+
+test('regional article discovery recovers a film absent from the Wikidata text search', async () => {
+  const entity = { ...film, id:'Q57177410', labels:{pt:{value:'Aves de Rapina: Arlequina e sua Emancipação Fantabulosa'},en:{value:'Birds of Prey'}}, claims:{...film.claims,P345:[claim('tt7713068')],P577:[claim({time:'+2020-01-25T00:00:00Z'})]},sitelinks:{ptwiki:{title:'Aves de Rapina (filme)'},enwiki:{title:'Birds of Prey (2020 film)'}} };
+  const result = await searchPublicTitles('AVES DE RAPINA', async raw => {
+    const url = new URL(raw);
+    let data={};
+    if(url.hostname==='pt.wikipedia.org') data={query:{pages:{1:{title:'Aves de Rapina (filme)',index:1,pageprops:{wikibase_item:entity.id},extract:'Um filme de super-heróis lançado em 2020.'}}}};
+    else if(url.searchParams.get('action')==='wbsearchentities') data={search:[]};
+    else if(url.searchParams.get('action')==='wbgetentities') data={entities:{[entity.id]:entity}};
+    return {ok:true,json:async()=>data};
+  });
+  assert.equal(result[0].id,'tt7713068');
+  assert.equal(result[0].year,'2020');
+});
+
+test('Cinemeta remains an independent catalog when Wikimedia is unavailable', async () => {
+  const items = await searchPublicTitles('Example', async raw => {
+    if (!raw.startsWith('https://v3-cinemeta.strem.io/')) throw Error('offline');
+    return {ok:true,json:async()=>({metas:[{id:'tt1234567',type:'movie',name:'Example',releaseInfo:'2020',poster:'https://images.metahub.space/poster/small/tt1234567/img'}]})};
+  });
+  assert.equal(items[0].id,'tt1234567');
+  assert.equal(items[0].source,'Cinemeta');
 });
