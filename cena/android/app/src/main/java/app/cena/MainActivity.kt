@@ -114,7 +114,6 @@ class MainActivity : ComponentActivity() {
         val uri = if (Build.VERSION.SDK_INT >= 33) incoming.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
             else @Suppress("DEPRECATION") (incoming.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
         pendingImage = uri ?: incoming.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
-        incoming.action = null
         consumePending()
     }
     private fun consumePending() {
