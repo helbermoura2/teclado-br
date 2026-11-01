@@ -216,8 +216,10 @@ replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
 replace('app/src/main/java/helium314/keyboard/latin/InputView.java',
     '    public boolean onInterceptTouchEvent(final MotionEvent me) {',
     '    public boolean onInterceptTouchEvent(final MotionEvent me) {\n        if (helium314.keyboard.latin.ai.WritingPanel.isActive()) { mActiveForwarder = null; return false; }')
-for method in ('onStartInput(final EditorInfo editorInfo, final boolean restarting)',
-               'onFinishInputView(final boolean finishingInput)', 'onFinishInput()', 'onDestroy()'):
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '\n    public void onStartInput(final EditorInfo editorInfo, final boolean restarting) {',
+    '\n    public void onStartInput(final EditorInfo editorInfo, final boolean restarting) {\n        helium314.keyboard.latin.ai.WritingPanel.onStart(editorInfo, restarting);')
+for method in ('onFinishInputView(final boolean finishingInput)', 'onFinishInput()', 'onDestroy()'):
     replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
         '\n    public void ' + method + ' {',
         '\n    public void ' + method + ' {\n        helium314.keyboard.latin.ai.WritingPanel.dismiss();')

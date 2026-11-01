@@ -18,6 +18,7 @@ public final class WritingPanel {
     }
     public static boolean isActive(){return active!=null&&!active.closed;}
     public static boolean isEditing(){return isActive()&&active.localEditor!=null;}
+    public static void onStart(EditorInfo info,boolean restarting){if(active!=null&&(!restarting||info==null||!Objects.equals(active.originPackage,info.packageName)||active.originField!=info.fieldId||active.originType!=info.inputType))dismiss();}
     public static void dismiss(){if(active!=null)active.close();}
     public static boolean insets(InputMethodService.Insets out,View input){if(!isActive())return false;int top=Math.max(0,input.getHeight()-active.areaHeight());out.contentTopInsets=top;out.visibleTopInsets=top;out.touchableInsets=InputMethodService.Insets.TOUCHABLE_INSETS_REGION;out.touchableRegion.set(0,top,input.getWidth(),input.getHeight());return true;}
     public static boolean text(String value){if(!isEditing())return false;active.localConnection.commitText(value,1);return true;}
@@ -32,6 +33,7 @@ public final class WritingPanel {
         return true;
     }
     private final LatinIME ime;private final Context c;private final FrameLayout input;private final LinearLayout frame;private final View strip;
+    private final String originPackage;private final int originField,originType;
     private final int height,stripVisibility;private FrameLayout overlay;private LinearLayout content,header,editorBar;private TextView resultView,status;
     private EditText localEditor;private InputConnection localConnection;private String prompt="",answer="",task="",style="";private boolean closed,busy,bound,applied,replaceAllowed;
     private int request;private Snapshot snapshot;private Messenger remote;private Runnable pending;private TextView replaceButton;
@@ -39,7 +41,7 @@ public final class WritingPanel {
         @Override public void onServiceConnected(ComponentName n,IBinder binder){if(closed)return;remote=new Messenger(binder);if(pending!=null){Runnable p=pending;pending=null;p.run();}}
         @Override public void onServiceDisconnected(ComponentName n){remote=null;if(!closed&&busy)failed("O processamento foi interrompido. Tente novamente.");}
     };
-    private WritingPanel(LatinIME service,FrameLayout root){ime=service;input=root;c=root.getContext();frame=root.findViewById(R.id.main_keyboard_frame);strip=root.findViewById(R.id.strip_container);stripVisibility=strip.getVisibility();height=Math.min((int)(c.getResources().getDisplayMetrics().heightPixels*.65f),Math.max(dp(260),frame.getHeight()));}
+    private WritingPanel(LatinIME service,FrameLayout root){ime=service;EditorInfo origin=service.getCurrentInputEditorInfo();originPackage=origin.packageName;originField=origin.fieldId;originType=origin.inputType;input=root;c=root.getContext();frame=root.findViewById(R.id.main_keyboard_frame);strip=root.findViewById(R.id.strip_container);stripVisibility=strip.getVisibility();height=Math.min((int)(c.getResources().getDisplayMetrics().heightPixels*.65f),Math.max(dp(260),frame.getHeight()));}
     private int dp(int n){return (int)(n*c.getResources().getDisplayMetrics().density+.5f);}
     private int areaHeight(){return localEditor!=null?frame.getHeight():height;}
     private GradientDrawable round(int color,int radius){GradientDrawable b=new GradientDrawable();b.setColor(color);b.setCornerRadius(dp(radius));return b;}
