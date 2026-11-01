@@ -168,7 +168,7 @@ export async function createApp(options = {}) {
       const files = { '/artwork.js': ['artwork.js', 'text/javascript'], '/trakt-state.js': ['trakt-state.js', 'text/javascript'], '/visual-ranking.js': ['visual-ranking.js', 'text/javascript'], '/identify-cover.js': ['identify-cover.js', 'text/javascript'], '/search-public.js': ['search-public.js', 'text/javascript'], '/local-api.js': ['local-api.js', 'text/javascript'], '/offline-catalog.js': ['offline-catalog.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/styles.css': ['styles.css', 'text/css'], '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'], '/icon.svg': ['icon.svg', 'image/svg+xml'] };
       if (req.method === 'GET' && files[p]) {
         const [name, mime] = files[p];
-        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://upload.wikimedia.org; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+        res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://upload.wikimedia.org https://images.metahub.space https://m.media-amazon.com; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
         res.writeHead(200, { 'Content-Type': mime + '; charset=utf-8' });
         res.end(await readFile(path.join(webRoot, name)));
         return;
