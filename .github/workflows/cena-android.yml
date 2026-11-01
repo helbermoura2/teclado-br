@@ -39,6 +39,9 @@ jobs:
         run: |
           npm run check
           npm test
+      - name: Verify live SISU movie lookup
+        working-directory: ${{ steps.source.outputs.directory }}
+        run: node scripts/check-public-search.mjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -78,4 +81,4 @@ jobs:
         run: |
           echo '### CENA Android' >> "$GITHUB_STEP_SUMMARY"
           echo 'Baixe o artefato CENA-Android-APK ao final desta página, extraia o ZIP no celular e abra CENA-preview.apk.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Esta é uma versão de teste com lista local e seis títulos de amostra. A integração dos players depende de servidor hospedado.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Versão 0.2: busca online de filmes e séries, câmera/OCR e lista local. A integração dos players depende de servidor hospedado.' >> "$GITHUB_STEP_SUMMARY"
