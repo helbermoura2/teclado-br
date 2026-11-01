@@ -6,12 +6,20 @@ android {
     namespace = "app.cena"
     compileSdk = 35
     defaultConfig {
-        applicationId = "app.cena"
+        applicationId = "app.cena.mobile"
         minSdk = 26
         targetSdk = 35
         versionCode = 5
         versionName = "0.4.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    System.getenv("CENA_KEYSTORE_PATH")?.let { path ->
+        signingConfigs.getByName("debug") {
+            storeFile = file(path)
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
     sourceSets["main"].assets.srcDir("../../web")
     sourceSets["androidTest"].assets.srcDir("../../tests/fixtures")
