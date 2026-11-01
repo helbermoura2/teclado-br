@@ -24,25 +24,30 @@ def embedding(image):
     assert vector.shape == (512,) and np.isfinite(vector).all()
     return vector / max(float(np.linalg.norm(vector)), .000001)
 
-photo = Image.open(io.BytesIO(base64.b64decode((root / 'tests/fixtures/marshals-photo.base64').read_text())))
-original = embedding(photo)
-assert float(np.dot(original, embedding(photo))) > .999
-candidates = json.loads((root / 'qa/cover-candidates.json').read_text())
-comparisons = []
-for item in candidates[:4]:
-    if not item.get('poster', '').startswith('https://upload.wikimedia.org/'):
-        continue
-    try:
-        request = urllib.request.Request(item['poster'], headers={'User-Agent': 'CENA/0.4 (https://github.com/helbermoura2/teclado-br)'})
-        with urllib.request.urlopen(request, timeout=15) as response:
-            reference = Image.open(io.BytesIO(response.read()))
-        score = max(0, min(1, float(np.dot(original, embedding(reference)))))
-        combined = .75 * item.get('matchScore', .85) + .25 * score
-        comparisons.append({'id': item['id'], 'name': item['name'], 'visual': score, 'combined': combined})
-    except Exception as error:
-        print('Optional poster unavailable:', item['id'], type(error).__name__)
-assert any(item['id'] == 'tt0120873' for item in comparisons), 'The reference cover must be available for the photo regression.'
-comparisons.sort(key=lambda item: item['combined'], reverse=True)
-assert comparisons[0]['id'] == 'tt0120873', 'Visual-assisted ranking must keep the actual photographed film first.'
-(root / 'qa/visual-comparison.json').write_text(json.dumps(comparisons, indent=2))
-print('Real local visual inference OK:', json.dumps(comparisons))
+reports = []
+for expected, filename in [('tt0120873', 'marshals-photo.base64'), ('tt3915174', 'margaret-photo.base64')]:
+    photo = Image.open(io.BytesIO(base64.b64decode((root / 'tests/fixtures' / filename).read_text())))
+    original = embedding(photo)
+    assert float(np.dot(original, embedding(photo))) > .999
+    candidates = json.loads((root / f'qa/candidates-{expected}.json').read_text())
+    comparisons = []
+    ambiguous = any(item.get('ambiguousTitle') for item in candidates)
+    visual_weight = .55 if ambiguous else .25
+    for item in candidates[:4]:
+        if not item.get('poster', '').startswith('https://upload.wikimedia.org/'):
+            continue
+        try:
+            request = urllib.request.Request(item['poster'], headers={'User-Agent': 'CENA/0.4.1 (https://github.com/helbermoura2/teclado-br)'})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                reference = Image.open(io.BytesIO(response.read()))
+            score = max(0, min(1, float(np.dot(original, embedding(reference)))))
+            combined = (1 - visual_weight) * item.get('matchScore', .85) + visual_weight * score
+            comparisons.append({'id': item['id'], 'name': item['name'], 'visual': score, 'combined': combined})
+        except Exception as error:
+            print('Optional poster unavailable:', item['id'], type(error).__name__)
+    assert any(item['id'] == expected for item in comparisons), f'Reference cover unavailable for {expected}.'
+    comparisons.sort(key=lambda item: item['combined'], reverse=True)
+    assert comparisons[0]['id'] == expected, f'Visual-assisted ranking failed for {expected}.'
+    reports.append({'expected': expected, 'results': comparisons})
+    print('Real local visual inference OK:', json.dumps(reports[-1]))
+(root / 'qa/visual-comparison.json').write_text(json.dumps(reports, indent=2))
