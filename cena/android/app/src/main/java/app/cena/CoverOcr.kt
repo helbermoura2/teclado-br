@@ -23,6 +23,7 @@ object CoverOcr {
             .map { it.trim().replace(Regex("\\s+"), " ") }
             .filter { it.length in 5..180 && it.contains(' ') }.distinct().take(6)
         return JSONObject()
+            .put("title", phrases.firstOrNull() ?: ranked.firstOrNull()?.text.orEmpty())
             .put("lines", JSONArray(ranked.map { it.text }.distinct().take(24)))
             .put("phrases", JSONArray(phrases))
             .put("fullText", result.text.take(6000))
