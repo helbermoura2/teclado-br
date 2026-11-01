@@ -36,7 +36,7 @@ public final class WritingPanel {
     private final String originPackage;private final int originField,originType;
     private final int height,stripVisibility;private FrameLayout overlay;private LinearLayout content,header,editorBar;private TextView resultView,status;
     private EditText localEditor;private InputConnection localConnection;private String prompt="",answer="",task="",style="";private boolean closed,busy,bound,applied,replaceAllowed;
-    private int request;private Snapshot snapshot;private Messenger remote;private Runnable pending;private TextView replaceButton;
+    private int safeBottom,request;private Snapshot snapshot;private Messenger remote;private Runnable pending;private TextView replaceButton;
     private final ServiceConnection connection=new ServiceConnection(){
         @Override public void onServiceConnected(ComponentName n,IBinder binder){if(closed)return;remote=new Messenger(binder);if(pending!=null){Runnable p=pending;pending=null;p.run();}}
         @Override public void onServiceDisconnected(ComponentName n){remote=null;if(!closed&&busy)failed("O processamento foi interrompido. Tente novamente.");}
@@ -50,7 +50,7 @@ public final class WritingPanel {
     private View icon(String name,int size){ImageView v=new ImageView(c);v.setImageDrawable(new Symbol(name));v.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);v.setLayoutParams(new LinearLayout.LayoutParams(dp(size),dp(size)));return v;}
     private void screen(String title,boolean home){if(closed)return;endEditing(false);frame.setVisibility(View.INVISIBLE);if(overlay!=null)input.removeView(overlay);
         overlay=new FrameLayout(c);overlay.setContentDescription("ai_panel");overlay.setElevation(dp(16));overlay.setBackground(new Atmosphere());overlay.setClickable(true);input.addView(overlay,new FrameLayout.LayoutParams(-1,height,Gravity.BOTTOM));
-        LinearLayout all=new LinearLayout(c);all.setOrientation(1);WindowInsets system=input.getRootWindowInsets();int bottom=system==null?0:system.getStableInsetBottom();all.setPadding(dp(12),0,dp(12),dp(12)+bottom);overlay.addView(all,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout all=new LinearLayout(c);all.setOrientation(1);WindowInsets system=input.getRootWindowInsets();safeBottom=system==null?0:system.getStableInsetBottom();all.setPadding(dp(12),0,dp(12),dp(12)+safeBottom);overlay.addView(all,new FrameLayout.LayoutParams(-1,-1));
         header=new LinearLayout(c);header.setGravity(Gravity.CENTER_VERTICAL);all.addView(header,new LinearLayout.LayoutParams(-1,dp(44)));
         LinearLayout keyboard=new LinearLayout(c);keyboard.setGravity(Gravity.CENTER);keyboard.addView(icon("keyboard",22));keyboard.setContentDescription("ai_back");keyboard.setOnClickListener(v->close());header.addView(keyboard,new LinearLayout.LayoutParams(dp(38),-1));
         View line=new View(c);line.setBackgroundColor(0x55ffffff);LinearLayout.LayoutParams divider=new LinearLayout.LayoutParams(dp(1),dp(20));divider.setMargins(dp(6),0,dp(12),0);header.addView(line,divider);
@@ -83,7 +83,7 @@ public final class WritingPanel {
         answer="";busy=true;screen(value,false);renderResult();generate();
     }
     private void notice(String value){TextView t=label(value,16);t.setPadding(dp(18),dp(18),dp(18),dp(18));content.addView(t,new LinearLayout.LayoutParams(-1,0,1));content.addView(action("Configurações do modelo","ai_settings_model",this::settings),new LinearLayout.LayoutParams(-1,dp(48)));content.addView(action("Voltar","ai_home",this::home),new LinearLayout.LayoutParams(-1,dp(44)));}
-    private void renderResult(){content.removeAllViews();LinearLayout card=new LinearLayout(c);card.setOrientation(1);card.setPadding(dp(18),dp(18),dp(10),dp(8));card.setBackground(round(0x8a2b3e4d,28));int h=Math.min(dp(220),Math.max(dp(120),height-dp(160)));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,h);cp.topMargin=dp(18);content.addView(card,cp);
+    private void renderResult(){content.removeAllViews();LinearLayout card=new LinearLayout(c);card.setOrientation(1);card.setPadding(dp(18),dp(18),dp(10),dp(8));card.setBackground(round(0x8a2b3e4d,28));int h=Math.min(dp(220),Math.max(dp(120),height-dp(160)-safeBottom));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,h);cp.topMargin=dp(18);content.addView(card,cp);
         ScrollView scroll=new ScrollView(c);resultView=label(busy&&answer.isEmpty()?"Processando…":answer,17);resultView.setContentDescription("ai_output");resultView.setTextIsSelectable(!busy);resultView.setGravity(Gravity.TOP);scroll.addView(resultView,new ScrollView.LayoutParams(-1,-2));card.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         LinearLayout actions=new LinearLayout(c);actions.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);card.addView(actions,new LinearLayout.LayoutParams(-1,dp(46)));
         TextView edit=action("Editar","ai_edit_result",()->edit(answer,false));TextView copy=action("Copiar","ai_copy",()->{((ClipboardManager)ime.getSystemService(Context.CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Texto revisado",answer));toast("Texto copiado");});replaceButton=action("Substituir","ai_replace",this::replace);
