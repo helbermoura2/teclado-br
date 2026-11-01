@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.4.1' in index
+    assert 'v0.4.2' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
     assert 'compareCovers' in app and 'result.phrases' in app
     assert archive.getinfo('assets/models/clip-vision.onnx').file_size > 20_000_000
@@ -20,5 +20,5 @@ tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.4.1'" in badging and "versionCode='5'" in badging
+assert "versionName='0.4.2'" in badging and "versionCode='6'" in badging
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
