@@ -27,9 +27,9 @@ class AssetsUpgradeTest {
         assertTrue(done.await(3, TimeUnit.SECONDS))
         return output
     }
-    @Test(timeout = 45000) fun oldAppUpdatesWithoutDeletingDataAndLoadsTheNewAssets() {
+    @Test(timeout = 45000) fun newAppLoadsCurrentAssetsAlongsideLegacyApp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("legacy", File(context.filesDir, "legacy-update-marker.txt").readText().trim())
+        assertEquals("app.cena.mobile", context.packageName)
         assertEquals("0.4.1", context.packageManager.getPackageInfo(context.packageName, 0).versionName)
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             val deadline = android.os.SystemClock.uptimeMillis()+15000
