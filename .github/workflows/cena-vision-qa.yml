@@ -64,7 +64,10 @@ jobs:
             sleep 3
             adb shell run-as app.cena mkdir -p files
             adb shell "run-as app.cena sh -c 'echo legacy > files/legacy-update-marker.txt'"
-            timeout 240s gradle --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=app.cena.VisualModelTest,app.cena.CoverRecognitionTest,app.cena.AssetsUpgradeTest
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            timeout 240s adb shell am instrument -w -r -e class app.cena.VisualModelTest,app.cena.CoverRecognitionTest,app.cena.AssetsUpgradeTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
+            grep -F 'OK (3 tests)' /tmp/cena-instrumentation.txt
             adb shell run-as app.cena cat files/legacy-update-marker.txt | grep -x legacy
             mkdir -p ../qa
             adb exec-out run-as app.cena.mobile cat files/native-ocr.json > ../qa/native-ocr.json
