@@ -190,7 +190,7 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
                 val failed=batch.filter { it.getString("id") in missingIds }
                 val completedKeys=(batch-failed.toSet()).map(::contentKey).toSet()
                 s.put("queue",JSONArray(records(s.optJSONArray("queue")).filter { contentKey(it) !in completedKeys }))
-                val synced=records(s.optJSONArray("synced")).filter { contentKey(it) !in completedKeys }.toMutableList(); synced.addAll(batch.filter { contentKey(it) in completedKeys })
+                val synced=records(s.optJSONArray("synced")).filter { contentKey(it) !in completedKeys }.toMutableList(); synced.addAll(batch.filter { contentKey(it) in completedKeys }.map { JSONObject(it.toString()).put("at",now()) })
                 s.put("synced",JSONArray(synced.takeLast(2000))); save(s)
                 if(failed.isNotEmpty()) { s.put("blocked",true); error("Alguns títulos não foram encontrados no Trakt. Eles continuam na sua lista local.") }
             }
