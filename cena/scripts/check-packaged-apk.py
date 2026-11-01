@@ -19,5 +19,6 @@ with ZipFile(apk) as archive:
 tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
+assert "name='app.cena.mobile'" in badging
 assert "versionName='0.4.1'" in badging and "versionCode='5'" in badging
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
