@@ -41,7 +41,7 @@ jobs:
           npm run check
           npm test
           node scripts/check-cover-identification.mjs
-      - name: Verify live SISU movie lookup
+      - name: Verify live movie lookup and regional poster recovery
         working-directory: ${{ steps.source.outputs.directory }}
         run: |
           node scripts/check-public-search.mjs
