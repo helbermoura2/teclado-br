@@ -1,3 +1,5 @@
+import {renderStory} from './story-layout.js';
+import {storyMetadata} from './story-metadata.js';
 import {loadStoryPoster,receiveStoryArtwork} from './story-artwork.js';
 import {createStremioPanel} from './stremio-panel.js';
 import { ArtworkResolver, trustedArtwork } from './artwork.js';
@@ -360,32 +362,28 @@ function localConnection() {
 
 // Render a 9:16 PNG locally. Photo captures never leave the device.
 async function story(item) {
-  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-caption">Sua frase</label><input id="story-caption" value="${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}" maxlength="70"><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
-  const canvas = $('#story-canvas'); const ctx = canvas.getContext('2d');
-  let image = null;
-  const caption=$('#story-caption');
-  const draw = () => {
-    ctx.setTransform(1.5,0,0,1.5,0,0);
-    const gradient = ctx.createLinearGradient(0, 0, 720, 1280); gradient.addColorStop(0, '#492570'); gradient.addColorStop(.5, '#191323'); gradient.addColorStop(1, '#613d76');
-    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 720, 1280);
-    ctx.fillStyle = '#221c2e'; ctx.fillRect(110, 120, 500, 750);
-    if (image) {
-      const scale = Math.max(500 / image.width, 750 / image.height); const w = image.width * scale, h = image.height * scale;
-      ctx.save(); ctx.beginPath(); ctx.rect(110, 120, 500, 750); ctx.clip(); ctx.drawImage(image, 110 + (500 - w) / 2, 120 + (750 - h) / 2, w, h); ctx.restore();
-    } else { ctx.fillStyle = '#b790e8'; ctx.font = '120px Georgia'; ctx.textAlign = 'center'; ctx.fillText('▲', 360, 540); }
-    ctx.textAlign = 'center'; ctx.fillStyle = 'white'; ctx.font = 'bold 38px Georgia';
-    ctx.font = `bold ${item.name.length > 100 ? 24 : 32}px Georgia`;
-    const words = item.name.split(' '); let line = '', y = 925;
-    for (const word of words) { if (ctx.measureText(line + word).width > 600 && line) { ctx.fillText(line.trim(), 360, y); y += 38; line = ''; } line += word + ' '; }
-    ctx.fillText(line.trim(), 360, y);
-    ctx.font = '22px sans-serif'; ctx.fillStyle = '#ded0ec'; ctx.fillText(caption.value, 360, 1110, 620);
-    ctx.font = 'bold 35px sans-serif'; ctx.fillStyle = 'white'; ctx.fillText('CEN', 345, 1200); ctx.fillStyle='#9959ff'; ctx.fillText('▲', 410, 1200);
+  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" placeholder="Ex.: 8,5" maxlength="4"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
+  const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
+  let image=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
+  const notesKey='cena.story.notes.v1',noteId=`${item.type}:${item.id}`;
+  let notes={};try{notes=JSON.parse(localStorage.getItem(notesKey)||'{}');}catch{}
+  if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
+  if(notes[noteId]){caption.value=String(notes[noteId].caption||'').slice(0,140);rating.value=String(notes[noteId].rating||'');if(notes[noteId].title)title.value=String(notes[noteId].title).slice(0,180);}
+  let editedTitle=Boolean(notes[noteId]?.title);
+  const validRating=()=>rating.value.trim()===''||(/^\d{1,2}([.,]\d)?$/.test(rating.value.trim())&&Number(rating.value.replace(',','.'))>=0&&Number(rating.value.replace(',','.'))<=10);
+  const draw=()=>{
+    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value});
+    ratingError.hidden=validRating();
+    if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
   };
-  draw(); $('#story-caption').oninput = draw;
+  const remember=()=>{notes[noteId]={caption:caption.value,rating:rating.value,title:editedTitle?title.value:'',at:Date.now()};try{localStorage.setItem(notesKey,JSON.stringify(Object.fromEntries(Object.entries(notes).sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,200))));}catch{}};
+  caption.oninput=rating.oninput=()=>{draw();remember();};title.oninput=()=>{editedTitle=true;draw();remember();};
+  storyMetadata(item).then(value=>{if(!canvas.isConnected)return;metadata=value;if(!editedTitle)title.value=value.title;draw();}).catch(()=>{});
+  draw();
   const status=$('#story-status'),share=$('#share-story'),save=$('#save-story'),retry=$('#retry-story'),without=$('#story-without-poster');
-  const enable=()=>{share.disabled=false;save.disabled=false;};
+  const enable=()=>{ready=true;draw();};
   const prepare=async()=>{
-    share.disabled=true;save.disabled=true;retry.hidden=true;without.hidden=true;status.dataset.state='loading';status.textContent='Carregando a capa…';
+    ready=false;share.disabled=true;save.disabled=true;retry.hidden=true;without.hidden=true;status.dataset.state='loading';status.textContent='Carregando a capa…';
     try{
       const result=await loadStoryPoster(item,{bridge:window.CenaAndroid,resolveArtwork:value=>artworkResolver.resolve(value)});
       if(!canvas.isConnected)return;
