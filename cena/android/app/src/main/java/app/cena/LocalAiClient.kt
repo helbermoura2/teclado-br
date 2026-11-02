@@ -14,7 +14,7 @@ class LocalAiClient(private val context:Context,private val result:(JSONObject)-
         val data=message.data;val id=data.getString("requestId")?:""
         if(message.what==3&&active==id){finish(JSONObject().put("requestId",id).put("status",data.getString("status")).put("text",data.getString("text")).put("error",data.getString("error")));true}else false
     })
-    fun generate(id:String,uri:String,prompt:String,maximum:Int=256){
+    fun generate(id:String,uri:String,prompt:String,maximum:Int=128){
         if(active!=null){result(JSONObject().put("requestId",id).put("status","error").put("error","A IA local já está trabalhando."));return}
         if(uri.isBlank()){result(JSONObject().put("requestId",id).put("status","error").put("error","Selecione o GGUF em Conectar → IA local."));return}
         active=id
