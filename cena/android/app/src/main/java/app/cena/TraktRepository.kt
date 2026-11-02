@@ -34,6 +34,7 @@ class TraktVault(context: Context, private val namespace: String = "cena.trakt.v
             JSONObject(String(cipher.doFinal(Base64.decode(value.getString("data"), Base64.NO_WRAP)), Charsets.UTF_8))
         } catch (_: Exception) { JSONObject().put("error", "A conexão protegida não está disponível. Conecte o $serviceName novamente.") }
     }
+    fun clear() { check(prefs.edit().clear().commit()) }
     fun write(value: JSONObject) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key())
         val sealed = JSONObject().put("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
