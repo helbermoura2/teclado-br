@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { samples } from './samples.mjs';
 
 const webRoot = fileURLToPath(new URL('../web/', import.meta.url));
+const files = { '/nuvio-state.js':['nuvio-state.js','text/javascript'],'/nuvio-panel.js':['nuvio-panel.js','text/javascript'], '/ratings.js':['ratings.js','text/javascript'], '/similar.js':['similar.js','text/javascript'], '/local-ai.js':['local-ai.js','text/javascript'], '/recommendations.js': ['recommendations.js','text/javascript'], '/series-view.js': ['series-view.js','text/javascript'], '/story-layout.js': ['story-layout.js', 'text/javascript'], '/story-metadata.js': ['story-metadata.js', 'text/javascript'], '/story-artwork.js': ['story-artwork.js', 'text/javascript'], '/artwork.js': ['artwork.js', 'text/javascript'], '/stremio-panel.js': ['stremio-panel.js', 'text/javascript'], '/stremio-import.js': ['stremio-import.js', 'text/javascript'], '/trakt-state.js': ['trakt-state.js', 'text/javascript'], '/visual-ranking.js': ['visual-ranking.js', 'text/javascript'], '/identify-cover.js': ['identify-cover.js', 'text/javascript'], '/search-public.js': ['search-public.js', 'text/javascript'], '/local-api.js': ['local-api.js', 'text/javascript'], '/offline-catalog.js': ['offline-catalog.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/styles.css': ['styles.css', 'text/css'], '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'], '/icon.svg': ['icon.svg', 'image/svg+xml'] };
 const token = () => randomBytes(24).toString('base64url');
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const normalize = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -84,13 +85,13 @@ export async function createApp(options = {}) {
     return { id: library.id, writeToken: library.writeToken, manifestUrl: `${base(req)}/addon/${library.id}/${library.readToken}/manifest.json` };
   }
   const limits = new Map();
-  function rateLimit(req) {
-    const key = req.socket.remoteAddress;
+  function rateLimit(req, asset = false) {
+    const key = (asset ? 'assets:' : 'api:') + req.socket.remoteAddress;
     const now = Date.now();
     if (limits.size > 2000) for (const [ip, entry] of limits) if (now > entry.until) limits.delete(ip);
     const entry = limits.get(key);
     if (!entry || now > entry.until) { limits.set(key, { count: 1, until: now + 60_000 }); return; }
-    if (++entry.count > 180) throw fail(429, 'Muitas solicitações. Aguarde um minuto.');
+    if (++entry.count > (asset ? 1500 : 180)) throw fail(429, 'Muitas solicitações. Aguarde um minuto.');
   }
   const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin;
@@ -105,9 +106,9 @@ export async function createApp(options = {}) {
     const json = (status, value) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(value)); };
     try {
       if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-      rateLimit(req);
       const url = new URL(req.url, 'http://localhost');
       const p = url.pathname;
+      rateLimit(req, req.method === 'GET' && Object.hasOwn(files,p));
       if (req.method === 'GET' && p === '/api/config') return json(200, { searchMode: tmdbToken ? 'tmdb' : 'sample', publicConfigured: Boolean(publicBase), catalogName: 'CENA · Quero assistir' });
       if (req.method === 'GET' && p === '/api/search') {
         const query = (url.searchParams.get('q') ?? '').trim();
@@ -165,7 +166,6 @@ export async function createApp(options = {}) {
         if (catalog) return json(200, { metas: library.items.filter(i => i.type === catalog[1] && i.status === 'watchlist').map(i => ({ id: i.id, type: i.type, name: i.name, poster: i.poster || undefined, releaseInfo: i.year, description: i.description })), cacheMaxAge: 0, staleRevalidate: 0, staleError: 0 });
         throw fail(404, 'Recurso não encontrado.');
       }
-      const files = { '/nuvio-state.js':['nuvio-state.js','text/javascript'],'/nuvio-panel.js':['nuvio-panel.js','text/javascript'], '/ratings.js':['ratings.js','text/javascript'], '/similar.js':['similar.js','text/javascript'], '/local-ai.js':['local-ai.js','text/javascript'], '/recommendations.js': ['recommendations.js','text/javascript'], '/series-view.js': ['series-view.js','text/javascript'], '/story-layout.js': ['story-layout.js', 'text/javascript'], '/story-metadata.js': ['story-metadata.js', 'text/javascript'], '/story-artwork.js': ['story-artwork.js', 'text/javascript'], '/artwork.js': ['artwork.js', 'text/javascript'], '/stremio-panel.js': ['stremio-panel.js', 'text/javascript'], '/stremio-import.js': ['stremio-import.js', 'text/javascript'], '/trakt-state.js': ['trakt-state.js', 'text/javascript'], '/visual-ranking.js': ['visual-ranking.js', 'text/javascript'], '/identify-cover.js': ['identify-cover.js', 'text/javascript'], '/search-public.js': ['search-public.js', 'text/javascript'], '/local-api.js': ['local-api.js', 'text/javascript'], '/offline-catalog.js': ['offline-catalog.js', 'text/javascript'], '/': ['index.html', 'text/html'], '/index.html': ['index.html', 'text/html'], '/app.js': ['app.js', 'text/javascript'], '/styles.css': ['styles.css', 'text/css'], '/manifest.webmanifest': ['manifest.webmanifest', 'application/manifest+json'], '/icon.svg': ['icon.svg', 'image/svg+xml'] };
       if (req.method === 'GET' && files[p]) {
         const [name, mime] = files[p];
         res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://upload.wikimedia.org https://images.metahub.space https://m.media-amazon.com; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
