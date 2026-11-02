@@ -32,8 +32,7 @@ class LocalAiService:Service(){
                 check(!cancelled.get());nativeLoaded=true;val epoch=LocalAiNative.epoch();check(!cancelled.get())
                 contentResolver.openFileDescriptor(address,"r")?.use{descriptor->
                     require(descriptor.statSize in 1024..8L*1024*1024*1024)
-                    val path="/proc/self/fd/${descriptor.fd}"
-                    val result=String(LocalAiNative.generate(path.toByteArray(Charsets.UTF_8),prompt.toByteArray(Charsets.UTF_8),epoch,data.getInt("maximum",256)),Charsets.UTF_8)
+                    val result=String(LocalAiNative.generate(descriptor.fd,prompt.toByteArray(Charsets.UTF_8),epoch,data.getInt("maximum",256)),Charsets.UTF_8)
                     check(!cancelled.get());if(result.startsWith("S\n"))deliver("ok",result.substring(2))else deliver("error",error="A resposta da IA ficou incompleta. Mantive a seleção do catálogo.")
                 }?:error("Modelo indisponível")
             }catch(error:Throwable){deliver("error",error=localAiFailure(error,cancelled.get()))}
