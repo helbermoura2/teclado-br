@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.8.0' in index
+    assert 'v0.9.0' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
     identification = archive.read('assets/identify-cover.js').decode()
     assert 'compareCovers' in app and 'coverInput(result)' in app
@@ -32,11 +32,16 @@ with ZipFile(apk) as archive:
     assert 'assets/stremio-import.js' in archive.namelist()
     assert 'trakt-state.js' in '\n'.join(archive.namelist())
     assert '1080' in app and '1920' in app and 'Salvar imagem PNG' in app
+    assert 'assets/similar.js' in archive.namelist() and 'assets/local-ai.js' in archive.namelist()
+    assert 'id="similar-titles"' in app
+    assert not any(name.endswith('.gguf') for name in archive.namelist())
+    for abi in ['arm64-v8a','x86_64']: assert archive.getinfo(f'lib/{abi}/libcenallm.so').file_size > 1000000
+    assert 'assets/licenses/llama.cpp.txt' in archive.namelist()
     model = json.loads(archive.read('assets/models/model-info.json'))
 tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.8.0'" in badging and "versionCode='15'" in badging
+assert "versionName='0.9.0'" in badging and "versionCode='16'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
