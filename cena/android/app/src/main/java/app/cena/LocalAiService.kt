@@ -36,11 +36,34 @@ class LocalAiService:Service(){
                     val result=String(LocalAiNative.generate(path.toByteArray(Charsets.UTF_8),prompt.toByteArray(Charsets.UTF_8),epoch,data.getInt("maximum",256)),Charsets.UTF_8)
                     check(!cancelled.get());if(result.startsWith("S\n"))deliver("ok",result.substring(2))else deliver("error",error="A resposta da IA ficou incompleta. Mantive a seleção do catálogo.")
                 }?:error("Modelo indisponível")
-            }catch(_:Throwable){deliver("error",error="Não consegui executar o GGUF. Confira o acesso ao arquivo, a compatibilidade e a memória disponível.")}
+            }catch(error:Throwable){deliver("error",error=localAiFailure(error,cancelled.get()))}
             finally{Handler(Looper.getMainLooper()).post{busy=false};stopSelf()}
         }
         true
     })
     override fun onBind(intent:Intent?):IBinder=input.binder
     override fun onDestroy(){cancellation.set(true);if(nativeLoaded)try{LocalAiNative.cancel()}catch(_:Throwable){};executor.shutdownNow();super.onDestroy()}
+}
+
+/** Safe, actionable diagnostics: never expose model paths, prompts or raw native logs. */
+internal fun localAiFailure(error:Throwable,cancelled:Boolean=false):String {
+ if(cancelled)return "Consulta cancelada. Mantive as opções do catálogo. [CANCELADO]"
+ return when(error){
+  is SecurityException->"O Android retirou o acesso ao GGUF. Selecione o arquivo novamente em Conectar → IA local. [ACESSO]"
+  is java.io.FileNotFoundException->"O arquivo GGUF não está mais disponível. Selecione o original em Downloads. [ARQUIVO]"
+  is OutOfMemoryError->"Faltou memória para executar o modelo. Feche outros aplicativos e tente novamente. [MEMORIA]"
+  is UnsatisfiedLinkError->"O motor local não pôde ser carregado nesta arquitetura Android. [MOTOR]"
+  else->{val code=error.message.orEmpty().takeIf{it.matches(Regex("(INICIAR|CARREGAR_MODELO|TEMPLATE|CONTEXTO|PROCESSAR):(MEMORIA|INCOMPATIVEL|ARQUIVO|PEDIDO_LONGO|CANCELADO|FALHA)"))}?:"EXECUCAO:FALHA"
+   val help=when{
+    code.endsWith(":MEMORIA")->"Faltou memória para carregar o GGUF. Feche outros aplicativos ou use um modelo menor."
+    code.endsWith(":INCOMPATIVEL")->"Este GGUF usa uma arquitetura ou quantização não suportada pelo motor instalado."
+    code.endsWith(":ARQUIVO")->"Não consegui ler a estrutura do GGUF. Confira se o download terminou e selecione o original em Downloads."
+    code.endsWith(":PEDIDO_LONGO")->"O pedido excedeu o contexto local. Reduza a preferência e tente novamente."
+    code.startsWith("TEMPLATE:")->"O formato de conversa deste GGUF não pôde ser preparado pelo motor."
+    code.startsWith("CONTEXTO:")->"Não consegui reservar o contexto do modelo. Feche outros aplicativos e tente novamente."
+    code.startsWith("CARREGAR_MODELO:")->"O motor não conseguiu carregar este GGUF. Pode ser memória insuficiente ou incompatibilidade do arquivo."
+    else->"A execução local falhou. As sugestões do catálogo foram preservadas."
+   };"$help [$code]"
+  }
+ }
 }
