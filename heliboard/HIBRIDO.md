@@ -48,7 +48,7 @@ Não há resultado de desempenho real do telefone nem validação com chave real
 nesta implementação. O modelo pequeno do teste Android verifica integração, não
 qualidade geral de revisão ou desempenho da Gemma maior.
 
-Testes automatizados previstos: transporte HTTP real contra servidor local controlado,
+Testes automatizados aprovados ([registro](VALIDACAO-0.8.0.md)): transporte HTTP real contra servidor local controlado,
 sucesso, cota, autenticação, redirecionamento, resposta inválida, timeout, cancelamento,
 fallback; chave cifrada; comparação sem alteração do texto; backup do dicionário;
 controles de aparência e regressões de digitação, idiomas, pins e inferência offline.

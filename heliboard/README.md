@@ -21,7 +21,7 @@ visível acima: revisão, Compositor com prompt, cinco estilos, resumo, marcador
 tabela e tradução de texto. A revisão oferece Editar, Copiar e Substituir.
 O prompt é digitado com as teclas nativas, sem alterar a mensagem original.
 A inferência roda em processo separado; a engrenagem abre somente as configurações
-do modelo. Modelos já importados na 0.7.0 permanecem no mesmo diretório privado.
+da IA e dos ajustes. Modelos já importados na 0.7.0 permanecem no mesmo diretório privado.
 O modelo GGUF deve ser baixado pelo navegador e importado uma vez. O APK não
 inclui pesos. O modo Offline gera no aparelho; o modo online opcional usa Groq
 e declara INTERNET. Configuração, privacidade e limites: [HIBRIDO.md](HIBRIDO.md).
@@ -31,6 +31,8 @@ A lupa sobre frases em outros aplicativos ainda não foi integrada. A Gemma 4
 E2B permanece no comparativo final de qualidade e desempenho no Nothing Phone (1).
 A execução Android com modelo pequeno valida o caminho de inferência; não mede
 qualidade geral em português nem desempenho do modelo maior no telefone real.
+
+Validação da 0.8.0: [testes, capturas, hashes e limites](VALIDACAO-0.8.0.md).
 
 ## Compilar
 

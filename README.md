@@ -19,8 +19,13 @@ A versão passa a declarar INTERNET para as tarefas online explicitamente solici
 Não inclui pesos, chave de API ou serviço pago. Uma conta/chave Groq é necessária
 para o modo online; a gratuidade depende do plano da conta e de seus limites.
 
-Validação da 0.8.0 em andamento. Não foi usada uma chave real da Groq nem executada
-medição no Nothing Phone (1). A lupa flutuante com OCR continua pendente.
+142 testes unitários e sete fases de interação Android aprovados no
+[run 41449779518](https://github.com/helbermoura2/teclado-br/actions/runs/41449779518).
+[APK 0.8.0 (ZIP)](https://github.com/helbermoura2/teclado-br/actions/runs/41449779518/artifacts/13143308299) ·
+[Fontes (ZIP)](https://github.com/helbermoura2/teclado-br/actions/runs/41449779518/artifacts/13144012909) ·
+[Validação e limites](heliboard/VALIDACAO-0.8.0.md).
+Não foi usada chave real da Groq nem executada medição no Nothing Phone (1).
+A lupa flutuante com OCR continua pendente.
 
 A documentação abaixo preserva o histórico do aplicativo original 0.1–0.5.
 
