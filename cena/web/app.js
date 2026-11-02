@@ -1,3 +1,5 @@
+import {SimilarEngine,buildLocalSelectionPrompt,validateLocalSelection} from './similar.js';
+import {createLocalAI} from './local-ai.js';
 import {RecommendationEngine} from './recommendations.js';
 import {seriesSummary} from './series-view.js';
 import {renderStory,parseStoryRating} from './story-layout.js';
@@ -41,6 +43,45 @@ window.CenaStremioResult=state=>stremioPanel.update(state);
 
 const artworkResolver = new ArtworkResolver({storage:localStorage});
 const recommendationEngine=new RecommendationEngine({storage:localStorage});
+const similarEngine=new SimilarEngine({storage:localStorage,engine:recommendationEngine});
+let similarResults=[],similarTicket=0;
+const localAI=createLocalAI({bridge:window.CenaAndroid,onState:renderLocalAI});
+window.CenaLocalModelResult=value=>localAI.update(value);
+window.CenaLocalAiResult=value=>localAI.receive(value);
+function renderLocalAI(){
+ const panel=$('#local-ai-panel');if(!panel)return;
+ const state=localAI.state;
+ panel.innerHTML=`<h2>IA local · GGUF</h2><p>Use o modelo que você já baixou para refinar cinco títulos semelhantes. O modelo e o pedido ficam no celular. A consulta de capas e metadados usa a internet.</p><p class="muted">Selecione o arquivo original em Downloads. Não copiamos nem baixamos os pesos; mantenha o arquivo nesse local. Esta integração usa texto, sem análise de imagens pelo Gemma.</p>${!localAI.available()?'<p>Disponível no APK Android atualizado.</p>':!state.supported?'<p>Este motor precisa de Android de 64 bits.</p>':`<p>${state.configured?`✓ ${escape(state.name)} · ${(Number(state.bytes)/1024**3).toFixed(2)} GB`:'Nenhum modelo selecionado.'}</p><button class="primary" id="choose-model">${state.configured?'Trocar GGUF':'Selecionar GGUF já baixado'}</button>${state.configured?'<button class="secondary" id="forget-model">Remover acesso ao modelo</button>':''}<p class="muted">Carregado somente quando você pedir. Pode demorar e exigir bastante memória. Remover o acesso não apaga o arquivo.</p>`}`;
+ if($('#choose-model'))$('#choose-model').onclick=()=>localAI.select();
+ if($('#forget-model'))$('#forget-model').onclick=()=>localAI.remove();
+}
+async function findSimilar(seed,includeSaved=false){
+ localAI.cancel();const ticket=++similarTicket,panel=$('#similar-panel');
+ panel.innerHTML='<p role="status">Buscando cinco títulos semelhantes…</p>';
+ try{
+  const result=await similarEngine.find(seed,{existing:items,includeSaved});
+  if(ticket!==similarTicket||!panel.isConnected)return;
+  similarResults=result.items;
+  panel.innerHTML=`<h3>Semelhantes a ${escape(result.seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><p id="similar-status" class="muted" role="status">${result.items.length===5?'Cinco opções por temas, gêneros e elenco.':`Encontrei ${result.items.length} opções com os dados disponíveis.`}</p><div id="similar-grid">${grid(similarResults)}</div><div id="similar-reasons">${similarResults.map(item=>`<p class="muted"><strong>${escape(item.name)}:</strong> ${escape(item.recommendationReason)}</p>`).join('')}</div>${localAI.state.configured&&localAI.state.supported&&result.candidates.length>=5?'<label for="similar-preference">Preferência opcional para a IA</label><input id="similar-preference" maxlength="200" placeholder="Mais ação e fantasia, por exemplo"><button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
+  wireImages();
+  panel.querySelectorAll('button.poster-card[data-id]').forEach(button=>button.onclick=()=>showDetail(similarResults.find(item=>item.id===button.dataset.id)));
+  $('#similar-saved').onchange=event=>findSimilar(result.seed,event.target.checked);
+  if($('#similar-ai-settings'))$('#similar-ai-settings').onclick=()=>{$('#detail').close();setTab('connect');$('#local-ai-panel')?.scrollIntoView({block:'center'});};
+  if($('#refine-similar'))$('#refine-similar').onclick=async()=>{
+   const button=$('#refine-similar'),cancel=$('#cancel-similar'),status=$('#similar-status');button.disabled=true;cancel.hidden=false;status.textContent='Executando o GGUF no celular… Você pode cancelar.';
+   cancel.onclick=()=>localAI.cancel();
+   try{
+    const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,$('#similar-preference').value));
+    if(ticket!==similarTicket||!panel.isConnected)return;
+    const selected=validateLocalSelection(answer,result.candidates);if(!selected)throw Error('A IA não retornou cinco IDs válidos. Mantive as opções do catálogo.');
+    similarResults=selected;$('#similar-grid').innerHTML=grid(selected);$('#similar-reasons').textContent='';status.textContent='Cinco opções selecionadas com IA local entre títulos verificados do catálogo.';wireImages();
+    panel.querySelectorAll('button.poster-card[data-id]').forEach(card=>card.onclick=()=>showDetail(similarResults.find(item=>item.id===card.dataset.id)));
+   }catch(error){if(ticket===similarTicket&&status.isConnected)status.textContent=error.message;}
+   finally{if(button.isConnected){button.disabled=false;cancel.hidden=true;}}
+  };
+ }catch(error){if(ticket===similarTicket&&panel.isConnected)panel.innerHTML=`<p role="alert">${escape(error.message)}</p><button class="secondary" id="retry-similar">Tentar novamente</button>`;if($('#retry-similar'))$('#retry-similar').onclick=()=>findSimilar(seed,includeSaved);}
+}
+
 window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSeriesSections();};
 const artworkModels = new Map();
 const artworkObserved = new WeakSet();
@@ -111,7 +152,7 @@ window.CenaTraktResult = state => {
 };
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
-  if (card) showDetail([...searchResults,...discoveryResults,...items].find(item => item.id === card.dataset.id));
+  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...items].find(item => item.id === card.dataset.id));
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -360,20 +401,22 @@ async function remove(item) {
 }
 function showDetail(item, enriched = false) {
   if (!item) return;
+  localAI.cancel();similarTicket++;
   detailItem = item;
   if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver 5 semelhantes</button><div id="similar-panel"></div><div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
   if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
   $('#share-title').onclick = () => story(item);
+  $('#similar-titles').onclick=()=>findSimilar(item);
   renderSeriesSections();
   wireImages();
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
   if (!enriched) getTitleDetails(item).then(details => {
     if ($('#detail').open && detailItem?.id === item.id) {
-      if($('#story-canvas')) { const status=$('#detail-loading'); if(status) status.textContent=''; }
+      if($('#story-canvas')||$('#similar-panel')?.childNodes.length) { const status=$('#detail-loading'); if(status) status.textContent=''; }
       else showDetail(details, true);
     }
   }).catch(() => { const status = $('#detail-loading'); if (status && detailItem?.id === item.id) status.textContent = 'Não consegui carregar a ficha. Tente abrir o filme novamente.'; });
@@ -432,11 +475,11 @@ function localConnection() {
     <div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
     ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
     ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
-    <div class="panel" id="stremio-panel"></div>
+    <div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
-  stremioPanel.mount($('#stremio-panel'));
+  stremioPanel.mount($('#stremio-panel'));renderLocalAI();
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
   if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
   if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
@@ -515,7 +558,7 @@ document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = (
 $('#search-shortcut').onclick = () => { setTab('library'); $('#query').focus(); };
 $('.brand').onclick = event => { event.preventDefault(); setTab('home'); };
 $('#detail .close').onclick = () => $('#detail').close();
-$('#detail').addEventListener('close',refreshCurrentView);
+$('#detail').addEventListener('close',()=>{similarTicket++;localAI.cancel();refreshCurrentView();});
 $('#detail').onclick = event => { if (event.target === $('#detail')) { const r = $('#detail').getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) $('#detail').close(); } };
 if (stored?.id && stored?.writeToken) connection = { id: stored.id, writeToken: stored.writeToken, manifestUrl: stored.manifestUrl };
 home();
