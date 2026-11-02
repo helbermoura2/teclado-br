@@ -130,4 +130,14 @@ fun configureTecladoBr(context: Context) {
             .commit()
     }
 
+    if (!prefs.getBoolean("teclado_br_hint_legibility_v1", false)) {
+        val colorKey = Settings.PREF_USER_ALL_COLORS_PREFIX + "Teclado BR · escuro"
+        val colors = prefs.getString(colorKey, "")!!.split(";")
+            .filter { it.isNotBlank() && !it.startsWith("${ColorType.KEY_HINT_TEXT},") }
+        prefs.edit()
+            .putString(colorKey, (colors + "${ColorType.KEY_HINT_TEXT},${Color.rgb(210, 210, 214)}").joinToString(";"))
+            .putBoolean("teclado_br_hint_legibility_v1", true)
+            .commit()
+    }
+
 }

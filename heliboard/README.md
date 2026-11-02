@@ -1,10 +1,14 @@
 # Teclado BR — HeliBoard com assistente offline
 
-Variante 0.7.2-heli3.6, pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
+Variante 0.7.3-heli3.6, pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
 v3.6 fixada em upstream.json. Android mínimo 8 (API 26); Nothing Phone (1) usa arm64-v8a.
 Atualiza as versões 0.6.1–0.7.0 com a mesma assinatura de teste, preservando pins,
 idiomas e dicionário pessoal. O HeliBoard oficial e o aplicativo original 0.1–0.5
 continuam separados.
+
+Os símbolos secundários nos cantos das teclas usam 32% da altura da tecla
+(antes 16%) e cor mais clara no tema Teclado BR escuro. A migração atualiza
+somente a cor desses símbolos, preservando as outras cores e preferências.
 
 O botão ＋ junto às sugestões salva a palavra do campo de texto no dicionário.
 Aprendizado de palavras recorrentes e próxima palavra usa o motor local nativo.
