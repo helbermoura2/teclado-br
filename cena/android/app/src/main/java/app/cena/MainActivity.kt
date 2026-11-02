@@ -53,6 +53,7 @@ class MainActivity : ComponentActivity() {
     }
     private fun emitTrakt() {
         val state=trakt.status()
+        if(state.optBoolean("connected")&&!historyScheduled){historyScheduled=true;WatchHistoryWorker.schedule(applicationContext)}else if(!state.optBoolean("connected"))historyScheduled=false
         traktWaitingAuth=state.optString("userCode").isNotBlank()
         val fingerprint=state.optBoolean("connected").toString()+state.optString("username")+state.optJSONArray("progress").toString()
         if(fingerprint!=seriesFingerprint){seriesFingerprint=fingerprint;if(state.optBoolean("connected"))seriesTask()else{series.clear();emitSeries()}}
@@ -79,6 +80,15 @@ class MainActivity : ComponentActivity() {
             emitStremio()
         }} catch(_:java.util.concurrent.RejectedExecutionException) {}
     }
+    private val historyExecutor=Executors.newSingleThreadScheduledExecutor()
+    private val history by lazy {WatchHistoryRepository(applicationContext)}
+    @Volatile private var historyScheduled=false
+    private var historyLoop=false
+    private fun emitHistory(){val value=history.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryResult && window.CenaHistoryResult($value)",null)}}
+    private fun historyTask(task:()->Unit={}){try{historyExecutor.execute{try{task();emitHistory()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui ler o histórico local. Tente novamente.")}}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
+    private fun startHistoryLoop(){if(historyLoop)return;historyLoop=true;historyExecutor.scheduleWithFixedDelay({if(traktVisible&&pageReady&&!isDestroyed)try{emitHistory()}catch(_:Exception){}},5,10,java.util.concurrent.TimeUnit.SECONDS)}
+    private var pendingHistoryExport:ByteArray?=null
+    private val saveHistoryFile=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->val value=pendingHistoryExport;pendingHistoryExport=null;if(uri!=null&&value!=null)historyTask{contentResolver.openOutputStream(uri)?.use{it.write(value)}?:error("Arquivo indisponível");runOnUiThread{if(!isDestroyed)sendError("Histórico exportado em JSON.")}}}
     private val nuvioExecutor=Executors.newSingleThreadScheduledExecutor()
     private val nuvio by lazy {NuvioRepository(applicationContext)}
     @Volatile private var nuvioVisible=false
@@ -260,6 +270,13 @@ class MainActivity : ComponentActivity() {
     override fun onPause() { nuvioVisible=false;traktVisible=false;localAiClient.cancel();super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun historyState(){historyTask()}
+        @JavascriptInterface fun importHistory(){WatchHistoryWorker.schedule(applicationContext,true);historyTask()}
+        @JavascriptInterface fun historyRows(requestId:String,year:String,kind:String,page:Int,mediaId:String){
+            if(!requestId.matches(Regex("[0-9]{1,12}"))||year.length>12||mediaId.length>20)return
+            historyTask{val value=history.page(year,kind,page,mediaId).put("requestId",requestId);runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryRows && window.CenaHistoryRows($value)",null)}}
+        }
+        @JavascriptInterface fun exportHistory(){historyTask{val value=history.export().toString(2).toByteArray(Charsets.UTF_8);runOnUiThread{if(!isDestroyed){pendingHistoryExport=value;saveHistoryFile.launch("CENA-Historico-${java.time.LocalDate.now()}.json")}}}}
         @JavascriptInterface fun nuvioState(){nuvioTask()}
         @JavascriptInterface fun connectNuvio(){nuvioTask{nuvio.begin()}}
         @JavascriptInterface fun refreshNuvioProfiles(){nuvioTask{nuvio.profiles()}}
@@ -353,7 +370,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();nuvioTask{nuvio.poll();nuvio.sync()} }
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();startHistoryLoop();historyTask();nuvioTask{nuvio.poll();nuvio.sync()} }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -410,7 +427,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         stremio.cancelReading()
         stremioExecutor.shutdownNow()
-        localAiClient.cancel();localModelExecutor.shutdownNow();nuvioVisible=false;nuvioExecutor.shutdownNow()
+        localAiClient.cancel();localModelExecutor.shutdownNow();nuvioVisible=false;nuvioExecutor.shutdownNow();historyExecutor.shutdownNow()
         seriesExecutor.shutdownNow()
         storyExecutor.shutdownNow()
         traktExecutor.shutdownNow()
