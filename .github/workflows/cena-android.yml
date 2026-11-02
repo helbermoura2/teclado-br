@@ -77,7 +77,7 @@ jobs:
         env:
           CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
         run: gradle --no-daemon assembleDebug
-      - name: Validate the actual packaged UI and version
+      - name: Validate the packaged discovery UI and update version
         working-directory: ${{ steps.source.outputs.directory }}
         run: python3 scripts/check-packaged-apk.py android/app/build/outputs/apk/debug/app-debug.apk
       - name: Name APK and checksum
