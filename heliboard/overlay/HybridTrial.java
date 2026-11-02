@@ -262,13 +262,17 @@ public final class HybridTrial {
         android.graphics.Rect titleBounds=new android.graphics.Rect(),backBounds=new android.graphics.Rect();
         test.aiNode("dictionary_title").getBoundsInScreen(titleBounds);
         test.aiNode("dictionary_back").getBoundsInScreen(backBounds);
-        android.util.DisplayMetrics display=new android.util.DisplayMetrics();
-        ((android.view.WindowManager)c.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRealMetrics(display);
+        // Display.getRealMetrics is scoped to app bounds on recent target SDKs.
+        // Accessibility bounds use physical screenshot coordinates, so use that same frame.
+        android.graphics.Bitmap screen=test.ui.takeScreenshot();
+        check(screen!=null,"Cannot inspect the screen frame");
+        int screenHeight=screen.getHeight();
+        screen.recycle();
         int statusId=c.getResources().getIdentifier("status_bar_height","dimen","android");
         int navId=c.getResources().getIdentifier("navigation_bar_height","dimen","android");
         int top=statusId==0?0:c.getResources().getDimensionPixelSize(statusId);
         int bottom=navId==0?0:c.getResources().getDimensionPixelSize(navId);
-        check(titleBounds.top>=top&&backBounds.bottom<=display.heightPixels-bottom,"Dictionary controls overlap system bars");
+        check(titleBounds.top>=top&&backBounds.bottom<=screenHeight-bottom,"Dictionary controls overlap system bars: title="+titleBounds+", back="+backBounds+", screen="+screenHeight+", status="+top+", nav="+bottom);
         test.shot("25-dicionario-e-backup");
         result.putString("hybrid_contract","PASS: HTTPS payload, explicit modes, quota/auth/server/malformed/timeout fallback, no network offline, cancellation without fallback, encrypted key, diff, dictionary backup, settings touch flow");
     }
