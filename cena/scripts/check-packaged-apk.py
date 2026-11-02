@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.7.2' in index
+    assert 'v0.8.0' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
     identification = archive.read('assets/identify-cover.js').decode()
     assert 'compareCovers' in app and 'coverInput(result)' in app
@@ -19,6 +19,10 @@ with ZipFile(apk) as archive:
     assert archive.getinfo('assets/models/clip-vision.onnx').file_size > 20_000_000
     assert not any('photo.base64' in name for name in archive.namelist()), 'Private test photos must never ship in the app.'
     assert 'assets/artwork.js' in archive.namelist()
+    assert 'assets/recommendations.js' in archive.namelist()
+    assert 'assets/series-view.js' in archive.namelist()
+    assert 'data-tab="discover"' in index
+    assert index.count('data-tab=') == 5
     assert 'assets/story-artwork.js' in archive.namelist()
     assert 'assets/story-layout.js' in archive.namelist()
     assert 'assets/story-metadata.js' in archive.namelist()
@@ -33,6 +37,6 @@ tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.7.2'" in badging and "versionCode='14'" in badging
+assert "versionName='0.8.0'" in badging and "versionCode='15'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
