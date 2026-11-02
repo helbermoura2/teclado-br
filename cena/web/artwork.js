@@ -10,6 +10,37 @@ export async function catalogArtwork(item, fetcher=fetch) {
   if((meta?.imdb_id || meta?.id)!==item.id || meta?.type!==item.type) return '';
   return trustedArtwork(meta.poster);
 }
+async function artworkJson(fetcher,address){
+  const response=await fetcher(address,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});
+  if(!response.ok)throw Error('Fonte de capa indisponível.');return response.json();
+}
+export async function searchCatalogArtwork(item,fetcher=fetch){
+  if(!safeId(item)||!item.name)return '';
+  const data=await artworkJson(fetcher,`https://v3-cinemeta.strem.io/catalog/${item.type}/top/search=${encodeURIComponent(item.name)}.json`);
+  const row=(data.metas||[]).find(row=>(row.imdb_id||row.id)===item.id&&(!row.type||row.type===item.type));return trustedArtwork(row?.poster);
+}
+export async function regionalArtwork(item,fetcher=fetch){
+  if(!safeId(item)||!item.name)return '';
+  const query=item.name.replaceAll('"','').slice(0,150);
+  for(const language of ['pt','en']){
+    try{
+      const params=new URLSearchParams({action:'query',format:'json',origin:'*',generator:'search',gsrsearch:'"'+query+'"',gsrlimit:'5',prop:'pageprops|pageimages',piprop:'thumbnail',pithumbsize:'600',pilicense:'any'});
+      const pages=Object.values((await artworkJson(fetcher,`https://${language}.wikipedia.org/w/api.php?${params}`)).query?.pages||{});
+      const ids=[...new Set(pages.map(page=>page.pageprops?.wikibase_item).filter(id=>/^Q\d+$/.test(id||'')))];if(!ids.length)continue;
+      const entityParams=new URLSearchParams({action:'wbgetentities',format:'json',origin:'*',ids:ids.join('|'),props:'claims'});
+      const entities=(await artworkJson(fetcher,`https://www.wikidata.org/w/api.php?${entityParams}`)).entities||{};
+      for(const page of pages){
+        const claims=entities[page.pageprops?.wikibase_item]?.claims?.P345||[];
+        if(!claims.some(claim=>claim.mainsnak?.datavalue?.value===item.id))continue;
+        const thumb=page.thumbnail,ratio=thumb?.width/thumb?.height;
+        // Exact film identity plus a portrait poster, not a cast member or landscape still.
+        if(ratio<.5||ratio>.85||!Number.isFinite(ratio))continue;
+        const poster=trustedArtwork(thumb?.source);if(poster)return poster;
+      }
+    }catch{}
+  }
+  return '';
+}
 function probeImage(url) {
   return new Promise(resolve=>{
     const image=new Image(); let done=false;
@@ -37,17 +68,18 @@ export class ArtworkResolver {
     const entries=Object.entries(this.cache).sort((a,b)=>b[1].at-a[1].at).slice(0,600);this.cache=Object.fromEntries(entries);
     try{this.storage?.setItem('cena.artwork.v1',JSON.stringify(this.cache));}catch{}
   }
-  resolve(item){
+  resolve(item,{shouldLoad}={}){
     if(!safeId(item))return Promise.resolve('');
     const key=this.key(item);
     if(this.jobs.has(key))return this.jobs.get(key);
     if(this.failures.has(key) && this.now()-this.failures.get(key)<60000)return Promise.resolve('');
-    const task=new Promise(resolve=>this.queue.push({item:{...item},resolve}));this.jobs.set(key,task);this.pump();return task;
+    const task=new Promise(resolve=>this.queue.push({item:{...item},resolve,shouldLoad}));this.jobs.set(key,task);this.pump();return task;
   }
   pump(){
     while(this.active<this.concurrency && this.queue.length){
       const task=this.queue.shift();this.active++;
-      this.find(task.item).then(task.resolve,()=>task.resolve('')).finally(()=>{this.active--;this.jobs.delete(this.key(task.item));this.pump();});
+      const work=task.shouldLoad&&!task.shouldLoad()?Promise.resolve(''):this.find(task.item);
+      work.then(task.resolve,()=>task.resolve('')).finally(()=>{this.active--;this.jobs.delete(this.key(task.item));this.pump();});
     }
   }
   async find(item){
@@ -56,6 +88,10 @@ export class ArtworkResolver {
     for(const candidate of [this.peek(item),item.poster]) {const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}}
     let catalog='';try{catalog=await catalogArtwork(item,this.fetcher);}catch{}
     for(const candidate of [catalog,`https://images.metahub.space/poster/medium/${item.id}/img`]) {const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}}
+    for(const lookup of [searchCatalogArtwork,regionalArtwork]){
+      let candidate='';try{candidate=await lookup(item,this.fetcher);}catch{}
+      const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}
+    }
     this.failures.set(this.key(item),this.now());return '';
   }
 }
