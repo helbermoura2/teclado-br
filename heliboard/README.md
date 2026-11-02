@@ -57,3 +57,27 @@ llama.cpp tem licença MIT, incluída na árvore de fontes e nos assets do APK.
 O arquivo completo de fontes correspondente acompanha o APK nos artefatos da
 execução. O repositório permanece privado. Modelos têm licenças próprias, consultáveis
 na página escolhida pelo usuário, e não são redistribuídos dentro do APK.
+
+## Legibilidade — 0.7.3
+
+Símbolos secundários ampliados de 16% para 32% da altura da tecla. A cor no tema
+Teclado BR escuro passa de RGB 140/140/145 para 210/210/214. Migração única que
+altera somente KEY_HINT_TEXT no mapa de cores existente. A disposição, áreas de
+toque e dados pessoais são preservados.
+
+Compilação, 142 testes unitários e todas as fases de interação aprovados no
+[run 41419040336](https://github.com/helbermoura2/teclado-br/actions/runs/41419040336),
+commit `da4a358f821abb96f31a46cc3577d370b6262776`. Capturas 01 e 07 no Android 15
+AOSP x86_64 conferidas com letras minúsculas e maiúsculas; símbolos legíveis nos
+cantos, sem sobreposição observada com as letras. ARM64 também compilado.
+
+APK SHA-256: `cf5329c9999e323b600ad6352a7303de010a96f4e5a1493585ebf3cc98d1ab75`.
+Fontes SHA-256: `953719d290501a94224810d30a74fa7cb5c1e660ebc36b9eb5f72d38f5aab6ca`.
+Certificado SHA-256: `b758875ca8380d3b2ba0aa7b2b34a17f785aac3d0c4d1874674266a8877e9d45`.
+
+Assinatura verificada pelo CI e certificado v2 conferido no APK baixado. Instalar
+por cima da atual, sem desinstalar, para manter modelo, dicionário e pins.
+
+[ZIP com APK](https://github.com/helbermoura2/teclado-br/actions/runs/41419040336/artifacts/13129985267)
+· [Fontes](https://github.com/helbermoura2/teclado-br/actions/runs/41419040336/artifacts/13128284930)
+· [Capturas e resultados](https://github.com/helbermoura2/teclado-br/actions/runs/41419040336/artifacts/13130421414).

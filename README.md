@@ -1,6 +1,10 @@
 # Teclado BR
 
-## Versão atual: 0.7.2 com base HeliBoard
+## Versão atual: 0.7.3 com base HeliBoard
+
+Os símbolos secundários nos cantos das teclas têm o dobro do tamanho anterior
+(32% da altura da tecla, antes 16%) e contraste maior no tema Teclado BR escuro.
+Capturas no emulador conferidas; detalhes em [heliboard/README.md](heliboard/README.md).
 
 O botão ＋ junto às sugestões cadastra a palavra digitada no dicionário pessoal,
 mesmo quando ela não aparece nas sugestões. O teclado aprende palavras recorrentes
@@ -8,7 +12,7 @@ com o uso; as previsões de próxima palavra são atualizadas quando aprende.
 Detalhes e validação em [PERSONALIZACAO.md](heliboard/PERSONALIZACAO.md).
 
 Compilação, 142 testes unitários e interação Android aprovados no
-[run 41409012543](https://github.com/helbermoura2/teclado-br/actions/runs/41409012543).
+[run 41419040336](https://github.com/helbermoura2/teclado-br/actions/runs/41419040336).
 Os testes confirmaram inclusão, completamento por toque, próxima palavra e
 persistência após reinstalar, além das regressões de digitação, idiomas, pins e IA.
 
