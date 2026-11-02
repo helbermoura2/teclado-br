@@ -1,3 +1,5 @@
+import {RecommendationEngine} from './recommendations.js';
+import {seriesSummary} from './series-view.js';
 import {renderStory,parseStoryRating} from './story-layout.js';
 import {storyMetadata} from './story-metadata.js';
 import {loadStoryPoster,receiveStoryArtwork} from './story-artwork.js';
@@ -18,6 +20,8 @@ try { stored = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {
 let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
 const localApi = createLocalApi(localStorage, { search: searchTolerantTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
+let seriesState={items:[],reading:false,pending:0,lastCheck:0};
+let discoveryResults=[],discoveryMode='recommend',discoveryFilter='all',discoveryInfo=null,discoveryFingerprint='';
 let traktState = { connected:false, configured:false, pending:[] };
 let traktWasConnected = false;
 let traktInitialUploadRequested = false;
@@ -36,6 +40,8 @@ const stremioPanel=createStremioPanel({
 window.CenaStremioResult=state=>stremioPanel.update(state);
 
 const artworkResolver = new ArtworkResolver({storage:localStorage});
+const recommendationEngine=new RecommendationEngine({storage:localStorage});
+window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSeriesSections();};
 const artworkModels = new Map();
 const artworkObserved = new WeakSet();
 const artworkLoading = new WeakSet();
@@ -100,11 +106,12 @@ window.CenaTraktResult = state => {
     if(tab==='library') { if(libraryChanged)patchLibrary();else updateArtworkProgress(); }
     else if(tab==='home'&&libraryChanged) {const position=window.scrollY;home();window.scrollTo(0,position);}
   }
+  renderSeriesSections();
   const label=$('#trakt-item-state'); if(label && detailItem) label.textContent=traktItemLabel(detailItem,state);
 };
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
-  if (card) showDetail([...searchResults, ...items].find(item => item.id === card.dataset.id));
+  if (card) showDetail([...searchResults,...discoveryResults,...items].find(item => item.id === card.dataset.id));
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -132,7 +139,7 @@ function poster(item, badge = '') {
   const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
   return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}</div>`;
 }
-function grid(rows) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? '✓ Assistido' : item.watchedEpisodes ? `${item.watchedEpisodes} episódios vistos` : '')}<strong>${escape(item.name)}</strong><small>${escape(item.year)} · ${titleType(item)}</small></button>`).join('')}</div>`; }
+function grid(rows,recommendation=false) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? '✓ Assistido' : item.watchedEpisodes ? `${item.watchedEpisodes} episódios vistos` : '')}<strong>${escape(item.name)}</strong><small>${escape(item.year)} · ${titleType(item)}</small>${recommendation?`<p class="recommendation-reason">${escape(item.recommendationReason)}</p>`:''}</button>`).join('')}</div>`; }
 function wireImages() {
   for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
     if(artworkObserved.has(element))continue;artworkObserved.add(element);
@@ -152,15 +159,16 @@ function setTab(next) {
   if (tab === 'library') library();
   if (tab === 'scan') scan();
   if (tab === 'connect') connect();
+  if (tab === 'discover') discover();
   window.scrollTo(0, 0);
 }
 function home() {
   const pending = items.filter(i => i.status === 'watchlist');
-  main.innerHTML = `<div class="eyebrow">SEU CINEMA, DO SEU JEITO</div><h1>O que vamos<br>assistir hoje?</h1><section class="hero"><div class="hero-content"><span class="eyebrow">DA CAPA PARA SUA LISTA</span><h2>Sua próxima<br>grande história.</h2><p class="meta">Viu uma capa que chamou sua atenção?</p><button class="primary" id="hero-scan">▣ &nbsp; Fotografar capa</button></div></section><div class="section-heading"><h2>Quero assistir</h2><button id="see-all">${pending.length ? `Ver todos · ${pending.length}` : 'Seu catálogo'}</button></div>${pending.length ? grid(pending.slice(0, 8)) : empty()}${notice()}<div class="panel"><h2>Uma lista. Seu próximo play.</h2><p>Adicione no CENA e consulte seu catálogo no player compatível.</p><button class="link-button" id="connect-shortcut">Conectar minha lista →</button></div>`;
+  main.innerHTML = `<div class="eyebrow">SEU CINEMA, DO SEU JEITO</div><h1>O que vamos<br>assistir hoje?</h1><section class="hero"><div class="hero-content"><span class="eyebrow">DA CAPA PARA SUA LISTA</span><h2>Sua próxima<br>grande história.</h2><p class="meta">Viu uma capa que chamou sua atenção?</p><button class="primary" id="hero-scan">▣ &nbsp; Fotografar capa</button></div></section><section id="series-home"></section><div class="section-heading"><h2>Quero assistir</h2><button id="see-all">${pending.length ? `Ver todos · ${pending.length}` : 'Seu catálogo'}</button></div>${pending.length ? grid(pending.slice(0, 8)) : empty()}${notice()}<div class="panel"><h2>Uma lista. Seu próximo play.</h2><p>Adicione no CENA e consulte seu catálogo no player compatível.</p><button class="link-button" id="connect-shortcut">Conectar minha lista →</button></div>`;
   $('#hero-scan').onclick = () => setTab('scan'); $('#see-all').onclick = () => setTab('library');
   $('#connect-shortcut').onclick = () => setTab('connect');
   if ($('#empty-search')) $('#empty-search').onclick = () => { setTab('library'); $('#query').focus(); };
-  wireCards(pending);
+  wireCards(pending);renderSeriesSections();
 }
 function library() {
   const rows = items.filter(i => filter === 'all' || i.status === filter);
@@ -212,7 +220,46 @@ function patchLibrary(){
   if(anchor)window.scrollBy(0,anchor.card.getBoundingClientRect().top-anchor.top);else window.scrollTo(0,position);
 }
 function refreshCurrentView(){
-  if(tab==='library')patchLibrary();else if(tab==='home'){const position=window.scrollY;home();window.scrollTo(0,position);}
+  if(tab==='discover'){renderRecommendations();renderSeriesSections();}
+  else if(tab==='library')patchLibrary();else if(tab==='home'){const position=window.scrollY;home();window.scrollTo(0,position);}
+}
+function seriesRows(){return items.filter(item=>item.type==='series').map(item=>({item,state:seriesState.items?.find(row=>row.id===item.id)})).sort((a,b)=>(b.state?.newEpisodes||0)-(a.state?.newEpisodes||0)||(b.state?.available||0)-(a.state?.available||0));}
+function seriesContent(limit=Infinity){
+  if(!traktState.connected)return '<div class="notice">Conecte a mesma conta Trakt usada no Nuvio para consultar os episódios vistos e disponíveis.</div>';
+  const rows=seriesRows();
+  return `<p class="muted">${seriesState.lastCheck?`Última consulta: ${new Date(seriesState.lastCheck).toLocaleString('pt-BR')}.`:'Aguardando a primeira consulta.'} Atualização automática a cada 12 horas; o Android pode adiar a execução.</p><div class="actions"><button class="secondary" data-series-refresh ${seriesState.reading?'disabled':''}>${seriesState.reading?'Consultando séries…':'Atualizar episódios'}</button></div>${seriesState.pending?`<p class="muted" role="status">${seriesState.pending} série(s) aguardam consulta. A lista é processada em lotes.</p>`:''}${seriesState.error?`<p class="notice">${escape(seriesState.error)}</p>`:''}${!rows.length?'<div class="empty"><p>Adicione uma série ao catálogo para acompanhar seus episódios.</p></div>':`<div class="series-list">${rows.slice(0,limit).map(({item,state})=>{const summary=seriesSummary(state);return `<button class="series-card" data-series-id="${escape(item.id)}"><div class="series-cover">${poster(item)}</div><span><strong>${escape(item.name)}</strong><b class="series-status ${summary.state}">${escape(summary.headline)}</b><small>${escape(summary.detail)}</small>${state?.error?'<small class="error-text">Consulta pendente · dados podem estar desatualizados</small>':''}${state?.warning?`<small>${escape(state.warning)}</small>`:''}</span></button>`;}).join('')}</div>`}`;
+}
+function renderSeriesSections(){
+  const position=window.scrollY;
+  const homeSection=$('#series-home');if(homeSection){homeSection.innerHTML=items.some(item=>item.type==='series')?`<div class="section-heading"><h2>Suas séries</h2><button id="see-series">Ver todas</button></div>${seriesContent(4)}`:'';if($('#see-series'))$('#see-series').onclick=()=>{discoveryMode='series';setTab('discover');};}
+  const section=$('#series-discovery');if(section)section.innerHTML=seriesContent();
+  const details=$('#series-detail-state');if(details){const state=seriesState.items?.find(row=>row.id===detailItem?.id);if(detailItem?.type==='series'&&traktState.connected){const summary=seriesSummary(state);details.innerHTML=`<div class="notice"><strong>${escape(summary.headline)}</strong><p>${escape(summary.detail)}</p>${state?.error?'<p>Consulta pendente. Os dados anteriores foram preservados.</p>':''}</div>`;}else details.innerHTML='';}
+  for(const button of document.querySelectorAll('[data-series-refresh]'))button.onclick=()=>{if(typeof window.CenaAndroid?.refreshSeries==='function'){window.CenaAndroid.refreshSeries();toast('Consulta de episódios solicitada.');}else toast('A consulta de episódios usa a conexão Trakt no APK Android.');};
+  for(const button of document.querySelectorAll('[data-series-id]'))button.onclick=()=>showDetail(items.find(item=>item.id===button.dataset.seriesId&&item.type==='series'));
+  wireImages();if(window.scrollY!==position)window.scrollTo(0,position);
+}
+function discover(){
+  main.innerHTML=`<div class="eyebrow">NOVAS HISTÓRIAS PARA VOCÊ</div><h1>Descobrir</h1><div class="chips"><button class="chip ${discoveryMode==='recommend'?'selected':''}" data-discovery-mode="recommend">Para você</button><button class="chip ${discoveryMode==='series'?'selected':''}" data-discovery-mode="series">Suas séries</button></div>${discoveryMode==='series'?'<section id="series-discovery"></section>':`<p class="muted">Sugestões calculadas no aparelho por semelhança de gêneros, temas e elenco. Seus assistidos e notas pessoais ajudam; a lista Quero assistir é uma pista mais fraca.</p><div class="chips"><button class="chip ${discoveryFilter==='all'?'selected':''}" data-discovery-filter="all">Tudo</button><button class="chip ${discoveryFilter==='movie'?'selected':''}" data-discovery-filter="movie">Filmes</button><button class="chip ${discoveryFilter==='series'?'selected':''}" data-discovery-filter="series">Séries</button></div><div class="actions"><button class="secondary" id="refresh-recommendations">Atualizar sugestões</button></div><div id="recommendation-status" class="muted" role="status"></div><div id="recommendation-grid"></div><p class="muted">Abra uma indicação para ver detalhes e adicionar a Quero assistir. Com o Trakt conectado, ela segue para sua lista usada no Nuvio.</p>`}`;
+  document.querySelectorAll('[data-discovery-mode]').forEach(button=>button.onclick=()=>{discoveryMode=button.dataset.discoveryMode;discover();});
+  document.querySelectorAll('[data-discovery-filter]').forEach(button=>button.onclick=()=>{discoveryFilter=button.dataset.discoveryFilter;discover();});
+  renderSeriesSections();
+  if(discoveryMode==='recommend'){$('#refresh-recommendations').onclick=()=>loadRecommendations(true);renderRecommendations();if(!discoveryInfo||discoveryFingerprint!==tasteFingerprint()||Date.now()-discoveryInfo.at>=12*3600000)loadRecommendations();}
+}
+function renderRecommendations(){
+  const target=$('#recommendation-grid');if(!target)return;
+  const known=new Set(items.map(item=>`${item.type}:${item.id}`));
+  const rows=discoveryResults.filter(item=>!known.has(`${item.type}:${item.id}`)&&(discoveryFilter==='all'||item.type===discoveryFilter)).slice(0,24);
+  target.innerHTML=rows.length?grid(rows,true):discoveryInfo?'<div class="empty"><p>Sem novas sugestões neste filtro. Atualize as opções ou amplie seu catálogo.</p></div>':'';
+  const status=$('#recommendation-status');if(status&&discoveryInfo)status.textContent=`${discoveryInfo.seedCount?'Baseado em '+discoveryInfo.seedCount+' títulos do seu catálogo.':'Descobertas do catálogo para começar.'} ${discoveryInfo.stale?'Mostrando a última consulta salva. ':''}Atualizado em ${new Date(discoveryInfo.at).toLocaleString('pt-BR')}.`;
+  wireImages();
+}
+function tasteFingerprint(){return JSON.stringify(items.map(({id,type,status,watchedEpisodes})=>({id,type,status,watchedEpisodes})))+(localStorage.getItem('cena.story.notes.v1')||'');}
+async function loadRecommendations(force=false){
+  const status=$('#recommendation-status'),button=$('#refresh-recommendations');if(!status)return;
+  status.textContent='Preparando sugestões a partir do seu catálogo…';if(button)button.disabled=true;
+  try{const fingerprint=tasteFingerprint();const value=await recommendationEngine.recommend(items,{force});discoveryResults=value.items;discoveryInfo=value;discoveryFingerprint=fingerprint;if(status.isConnected)renderRecommendations();}
+  catch(error){if(status.isConnected)status.textContent=error.message;}
+  finally{if(button?.isConnected)button.disabled=false;}
 }
 async function runSearch(query, coverLines = null) {
   const target = $('#search-results');
@@ -292,7 +339,7 @@ async function save(item, status = 'watchlist') {
   busy = true;
   try {
     await ensureConnection();
-    const payload={...item,status};
+    const payload={...item,status};delete payload.recommendationReason;delete payload.affinity;delete payload.providerOrder;
     if(status==='watchlist') { delete payload.watchedSource; delete payload.watchedAt; }
     const result = await api(`/api/libraries/${connection.id}/items`, { method: 'PUT', body: JSON.stringify(payload) });
     items = result.items;
@@ -316,11 +363,12 @@ function showDetail(item, enriched = false) {
   detailItem = item;
   if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2><span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.rating ? `<p><strong>Nota IMDb:</strong> ${escape(item.rating)} / 10</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
   if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
   $('#share-title').onclick = () => story(item);
+  renderSeriesSections();
   wireImages();
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
   if (!enriched) getTitleDetails(item).then(details => {
@@ -385,7 +433,7 @@ function localConnection() {
     ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
     ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
     <div class="panel" id="stremio-panel"></div>
-    <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">O Android pode adiar tarefas em segundo plano. Ao abrir o CENA, a consulta é retomada.</p></div>
+    <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
   stremioPanel.mount($('#stremio-panel'));
