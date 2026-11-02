@@ -64,7 +64,10 @@ jobs:
             adb shell "run-as app.cena.mobile sh -c 'echo update > files/legacy-update-marker.txt'"
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            mkdir -p ../qa
             timeout 240s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
+            adb shell dumpsys activity lastanr > ../qa/native-last-anr.txt
+            if ! grep -F 'OK (15 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
             grep -F 'OK (15 tests)' /tmp/cena-instrumentation.txt
             adb shell run-as app.cena.mobile cat files/legacy-update-marker.txt | grep -x update
             mkdir -p ../qa
@@ -82,6 +85,8 @@ jobs:
           name: CENA-local-visual-model-report
           path: |
             cena/qa/native-ocr.json
+            cena/qa/native-last-anr.txt
+            cena/qa/native-anr-traces.txt
             cena/qa/story-with-poster.png
             cena/android/app/build/reports/androidTests/connected/**
 
