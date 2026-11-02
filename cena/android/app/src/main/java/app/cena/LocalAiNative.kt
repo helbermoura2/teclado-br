@@ -5,5 +5,5 @@ object LocalAiNative {
     init {System.loadLibrary("cenallm")}
     @JvmStatic external fun epoch():Long
     @JvmStatic external fun cancel()
-    @JvmStatic external fun generate(path:ByteArray,prompt:ByteArray,epoch:Long,maximum:Int):ByteArray
+    @JvmStatic external fun generate(descriptor:Int,prompt:ByteArray,epoch:Long,maximum:Int):ByteArray
 }
