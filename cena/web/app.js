@@ -46,21 +46,24 @@ function persistArtwork(item, url) {
   }
   for(const row of searchResults) if(row.id===item.id && row.type===item.type) row.poster=url;
   if(detailItem?.id===item.id && detailItem?.type===item.type) detailItem.poster=url;
+  updateArtworkProgress();
 }
 async function hydrateArtwork(element) {
   if(!element.isConnected || artworkLoading.has(element))return;
   const item=artworkModels.get(element.dataset.artworkKey);if(!item)return;
   artworkLoading.add(element);
   try {
-    const url=await artworkResolver.resolve(item);
-    if(!url)return;
+    element.dataset.artworkState='loading';
+    const url=await artworkResolver.resolve(item,{shouldLoad:()=>{const rect=element.getBoundingClientRect();return element.isConnected&&rect.bottom>=-200&&rect.top<=innerHeight+200;}});
+    if(!url){element.dataset.artworkState='missing';return;}
+    element.dataset.artworkState='ready';
     persistArtwork(item,url);item.poster=url;
     artworkObserver?.unobserve(element);
     for(const poster of document.querySelectorAll('.poster-art[data-artwork-key]')) {
       if(poster.dataset.artworkKey!==element.dataset.artworkKey || poster.querySelector('img'))continue;
       const image=new Image();image.alt='';image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';image.src=url;
-      image.onerror=()=>{ image.remove();artworkResolver.failures.set(artworkResolver.key(item),Date.now()); };
-      poster.insertBefore(image,poster.querySelector('.badge'));
+      image.onerror=()=>{image.remove();poster.dataset.artworkState='missing';delete artworkResolver.cache[artworkResolver.key(item)];persistArtwork(item,'');artworkResolver.failures.set(artworkResolver.key(item),Date.now());};
+      poster.dataset.artworkState='ready';poster.insertBefore(image,poster.querySelector('.badge'));
     }
   } finally {artworkLoading.delete(element);}
 }
@@ -88,11 +91,15 @@ window.CenaTraktResult = state => {
   traktWasConnected = Boolean(state.connected); traktState = state;
   if(apiBase !== 'local') return;
   const merged = applyTraktState(items,state);
-  if(JSON.stringify(merged)!==JSON.stringify(items)) { items=merged; localStorage.setItem('cena.local.items.v1',JSON.stringify(items)); }
+  const libraryChanged=JSON.stringify(merged)!==JSON.stringify(items);
+  if(libraryChanged) { items=merged; localStorage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
   if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
   if(tab==='connect' && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus')) localConnection();
-  else if(!$('#detail').open && (tab==='home'||tab==='library')) setTab(tab);
+  else if(!$('#detail').open) {
+    if(tab==='library') { if(libraryChanged)patchLibrary();else updateArtworkProgress(); }
+    else if(tab==='home'&&libraryChanged) {const position=window.scrollY;home();window.scrollTo(0,position);}
+  }
   const label=$('#trakt-item-state'); if(label && detailItem) label.textContent=traktItemLabel(detailItem,state);
 };
 main.addEventListener('click', event => {
@@ -157,7 +164,7 @@ function home() {
 }
 function library() {
   const rows = items.filter(i => filter === 'all' || i.status === filter);
-  main.innerHTML = `<div class="eyebrow">CADA HISTÓRIA TEM SEU LUGAR</div><h1>Meu catálogo</h1><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Assistidos</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count">${rows.length} títulos</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><div id="library-grid">${rows.length ? grid(rows) : empty()}</div>${notice()}`;
+  main.innerHTML = `<div class="eyebrow">CADA HISTÓRIA TEM SEU LUGAR</div><h1>Meu catálogo</h1><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Assistidos</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} títulos</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p><div id="library-grid">${rows.length ? grid(rows) : empty()}</div><div id="library-sync-notice">${notice()}</div>`;
   if($('#refresh-artwork')) $('#refresh-artwork').onclick=()=>{
     artworkResolver.retry();
     for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
@@ -169,7 +176,43 @@ function library() {
   $('#search-form').onsubmit = e => { e.preventDefault(); runSearch($('#query').value); };
   document.querySelectorAll('[data-filter]').forEach(button => button.onclick = () => { filter = button.dataset.filter; library(); });
   if ($('#empty-search')) $('#empty-search').onclick = () => $('#query').focus();
-  wireCards(rows);
+  wireCards(rows);updateArtworkProgress();
+}
+function updateArtworkProgress(){
+  const label=$('#artwork-progress');if(!label)return;
+  const rows=items.filter(i=>filter==='all'||i.status===filter),known=rows.filter(i=>trustedArtwork(i.poster)).length;
+  label.textContent=`Capas salvas: ${known} de ${rows.length}. As demais carregam ao rolar.`;
+}
+function patchLibrary(){
+  const target=$('#library-grid');if(!target)return;
+  const anchors=[...target.querySelectorAll('.poster-card')].filter(card=>{const rect=card.getBoundingClientRect();return rect.bottom>0&&rect.top<innerHeight;}).map(card=>({card,top:card.getBoundingClientRect().top}));
+  const position=window.scrollY,rows=items.filter(i=>filter==='all'||i.status===filter);
+  const existing=new Map([...target.querySelectorAll('.poster-card')].map(card=>[card.querySelector('[data-artwork-key]')?.dataset.artworkKey,card]));
+  let list=target.querySelector(':scope > .grid');
+  if(!rows.length){target.innerHTML=empty();if($('#empty-search'))$('#empty-search').onclick=()=>$('#query').focus();}
+  else{
+    if(!list){target.innerHTML='<div class="grid"></div>';list=target.firstElementChild;}
+    let next=list.firstElementChild;
+    for(const row of rows){
+      const key=`${row.type}:${row.id}`;let card=existing.get(key);artworkModels.set(key,row);
+      if(!card){const template=document.createElement('template');template.innerHTML=grid([row]);card=template.content.querySelector('.poster-card');}
+      existing.delete(key);
+      const art=card.querySelector('.poster-art'),badge=row.status==='watched'?'✓ Assistido':row.watchedEpisodes?`${row.watchedEpisodes} episódios vistos`:'';
+      let badgeNode=art.querySelector('.badge');
+      if(badge){if(!badgeNode){badgeNode=document.createElement('span');badgeNode.className='badge';art.append(badgeNode);}badgeNode.textContent=badge;}else badgeNode?.remove();
+      card.querySelector('strong').textContent=row.name;card.querySelector('.fallback').textContent=row.name;card.querySelector('small').textContent=`${row.year||''} · ${titleType(row)}`;
+      if(card!==next)list.insertBefore(card,next);next=card.nextElementSibling;
+    }
+    for(const card of existing.values())card.remove();
+  }
+  const count=$('#library-count');if(count)count.textContent=`${rows.length} títulos`;
+  const noticeArea=$('#library-sync-notice');if(noticeArea)noticeArea.innerHTML=notice();
+  updateArtworkProgress();wireImages();
+  const anchor=anchors.find(value=>value.card.isConnected);
+  if(anchor)window.scrollBy(0,anchor.card.getBoundingClientRect().top-anchor.top);else window.scrollTo(0,position);
+}
+function refreshCurrentView(){
+  if(tab==='library')patchLibrary();else if(tab==='home'){const position=window.scrollY;home();window.scrollTo(0,position);}
 }
 async function runSearch(query, coverLines = null) {
   const target = $('#search-results');
@@ -255,7 +298,7 @@ async function save(item, status = 'watchlist') {
     items = result.items;
     sendTraktInventory(); queueTrakt(item, status === 'watchlist' ? 'add' : 'remove');
     toast(status === 'watched' ? 'Marcado como assistido.' : apiBase === 'local' ? 'Adicionado à lista neste aparelho.' : 'Adicionado! Sua lista no servidor foi atualizada.');
-    showDetail(item); setTab(tab);
+    showDetail(item); refreshCurrentView();
   } catch (error) { toast(error.message); }
   finally { busy = false; }
 }
@@ -264,7 +307,7 @@ async function remove(item) {
   busy = true;
   try {
     const result = await api(`/api/libraries/${connection.id}/items/${item.id}`, { method: 'DELETE' });
-    items = result.items; queueTrakt(item,'remove'); sendTraktInventory(); $('#detail').close(); setTab(tab); toast('Título removido da lista.');
+    items = result.items; queueTrakt(item,'remove'); sendTraktInventory(); $('#detail').close();refreshCurrentView();toast('Título removido da lista.');
   } catch (error) { toast(error.message); }
   finally { busy = false; }
 }
@@ -424,6 +467,7 @@ document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = (
 $('#search-shortcut').onclick = () => { setTab('library'); $('#query').focus(); };
 $('.brand').onclick = event => { event.preventDefault(); setTab('home'); };
 $('#detail .close').onclick = () => $('#detail').close();
+$('#detail').addEventListener('close',refreshCurrentView);
 $('#detail').onclick = event => { if (event.target === $('#detail')) { const r = $('#detail').getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) $('#detail').close(); } };
 if (stored?.id && stored?.writeToken) connection = { id: stored.id, writeToken: stored.writeToken, manifestUrl: stored.manifestUrl };
 home();
