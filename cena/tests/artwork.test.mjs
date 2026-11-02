@@ -33,3 +33,23 @@ test('unavailable providers never remove a title or fabricate a working poster',
 test('a metadata response for a different film is rejected instead of putting the wrong poster on a card',async()=>{
   assert.equal(await catalogArtwork(item,async()=>response({...item,id:'tt0172495',poster})), '');
 });
+test('regional fallback matches the exact film IMDb and rejects cast portraits and landscape images',async()=>{
+  const film={id:'tt8646254',type:'movie',name:'45 do Segundo Tempo'};
+  const url='https://upload.wikimedia.org/wikipedia/pt/3/39/45_do_Segundo_Tempo.jpg';
+  const {regionalArtwork}=await import('../web/artwork.js');
+  const result=await regionalArtwork(film,async raw=>{
+    if(raw.includes('wikipedia.org'))return {ok:true,json:async()=>({query:{pages:{1:{pageprops:{wikibase_item:'Q1'},thumbnail:{source:poster,width:200,height:300}},2:{pageprops:{wikibase_item:'Q2'},thumbnail:{source:url,width:221,height:328}}}}})};
+    return {ok:true,json:async()=>({entities:{Q1:{claims:{P345:[{mainsnak:{datavalue:{value:'nm1234567'}}}]}},Q2:{claims:{P345:[{mainsnak:{datavalue:{value:film.id}}}]}}}})};
+  });
+  assert.equal(result,url);
+});
+test('a catalog search fallback requires exact identity, not merely a similar localized name',async()=>{
+  const {searchCatalogArtwork}=await import('../web/artwork.js');
+  assert.equal(await searchCatalogArtwork(item,async()=>({ok:true,json:async()=>({metas:[{id:'tt9999999',type:'movie',name:item.name,poster}]})})), '');
+  assert.equal(await searchCatalogArtwork(item,async()=>({ok:true,json:async()=>({metas:[{id:item.id,type:item.type,poster}]})})),poster);
+});
+test('queued artwork which has scrolled out of view is skipped without a failure cooldown',async()=>{
+  let calls=0;const resolver=new ArtworkResolver({storage:storage(),fetcher:async()=>{calls++;return response({...item,poster});},probe:async()=>true});
+  assert.equal(await resolver.resolve(item,{shouldLoad:()=>false}),'');assert.equal(calls,0);assert.equal(resolver.failures.size,0);
+  await new Promise(resolve=>setTimeout(resolve,0));assert.equal(await resolver.resolve(item),poster);assert.equal(calls,1);
+});
