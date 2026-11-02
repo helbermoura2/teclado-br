@@ -70,7 +70,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.7.0')
+                  expect(page.locator('#app-version')).to_contain_text('0.7.1')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -118,7 +118,7 @@ jobs:
                       {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
                       {id:'tt0903747',type:'series',name:'Breaking Bad',removed:false,temp:false},
                       {id:'kitsu:123',type:'series',name:'Anime custom ID',removed:false,temp:false}];
-                    window.CenaAndroid={appVersion:()=> '0.7.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
+                    window.CenaAndroid={appVersion:()=> '0.7.1',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
                       connectStremio:()=>window.CenaStremioResult({connected:false,pairing:true,library:[]}),
                       openStremioAuthorization:()=>window.stremioAuthorized=true,
                       readStremioLibrary:()=>window.CenaStremioResult({connected:true,pairing:false,account:'t***@example.org',lastRead:Date.now(),library:window.stremioRows}),
@@ -148,10 +148,13 @@ jobs:
                   expect(native_page.locator('#story-caption')).to_have_value('Já assisti ✓')
                   native_page.locator('#story-rating').fill('11')
                   expect(native_page.locator('#share-story')).to_be_disabled()
-                  native_page.locator('#story-rating').fill('8,5')
+                  native_page.locator('#story-rating').fill('8.53')
+                  expect(native_page.locator('#story-rating-error')).not_to_be_visible()
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-story-rating','8.53')
+                  native_page.locator('#story-rating').fill('8,53')
                   native_page.locator('#story-caption').fill('Uma história excelente, com atuações marcantes.')
                   native_page.locator('#story-title').fill('Sisu')
-                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-story-rating','8.5')
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-story-rating','8.53')
                   expect(native_page.locator('#story-canvas')).to_have_attribute('data-layout-version','2')
                   assert native_page.locator('#story-canvas').get_attribute('width')=='1080'
                   assert native_page.locator('#story-canvas').get_attribute('height')=='1920'
@@ -168,7 +171,7 @@ jobs:
                   native_page.evaluate('window.failStoryArtwork=true')
                   native_page.locator('#share-title').click()
                   expect(native_page.locator('#share-story')).to_be_disabled()
-                  expect(native_page.locator('#story-rating')).to_have_value('8,5')
+                  expect(native_page.locator('#story-rating')).to_have_value('8,53')
                   expect(native_page.locator('#story-caption')).to_have_value('Uma história excelente, com atuações marcantes.')
                   expect(native_page.locator('#story-status')).to_have_attribute('data-state','error')
                   expect(native_page.locator('#save-story')).to_be_disabled()
