@@ -2,15 +2,19 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+val cenaAbi = providers.gradleProperty("cenaAbi").orElse("arm64-v8a").get()
+require(cenaAbi in setOf("arm64-v8a", "x86_64")) { "Unsupported CENA ABI" }
 android {
     namespace = "app.cena"
+    ndkVersion = "28.0.13004108"
     compileSdk = 35
     defaultConfig {
         applicationId = "app.cena.mobile"
+        ndk { abiFilters += cenaAbi }
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "0.9.2"
+        versionCode = 19
+        versionName = "0.9.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     System.getenv("CENA_KEYSTORE_PATH")?.let { path ->
