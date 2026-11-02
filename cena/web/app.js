@@ -1,4 +1,4 @@
-import {renderStory} from './story-layout.js';
+import {renderStory,parseStoryRating} from './story-layout.js';
 import {storyMetadata} from './story-metadata.js';
 import {loadStoryPoster,receiveStoryArtwork} from './story-artwork.js';
 import {createStremioPanel} from './stremio-panel.js';
@@ -362,7 +362,7 @@ function localConnection() {
 
 // Render a 9:16 PNG locally. Photo captures never leave the device.
 async function story(item) {
-  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" placeholder="Ex.: 8,5" maxlength="4"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
+  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" placeholder="Ex.: 8,53 ou 8.53" maxlength="5"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
   const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
   let image=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
   const notesKey='cena.story.notes.v1',noteId=`${item.type}:${item.id}`;
@@ -370,7 +370,7 @@ async function story(item) {
   if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
   if(notes[noteId]){caption.value=String(notes[noteId].caption||'').slice(0,140);rating.value=String(notes[noteId].rating||'');if(notes[noteId].title)title.value=String(notes[noteId].title).slice(0,180);}
   let editedTitle=Boolean(notes[noteId]?.title);
-  const validRating=()=>rating.value.trim()===''||(/^\d{1,2}([.,]\d)?$/.test(rating.value.trim())&&Number(rating.value.replace(',','.'))>=0&&Number(rating.value.replace(',','.'))<=10);
+  const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
     renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value});
     ratingError.hidden=validRating();
