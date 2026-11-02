@@ -379,7 +379,7 @@ jobs:
                       selectNuvioProfile:id=>window.CenaNuvioResult({...window.nuvioFixture,profileId:id,scope:'account-a:'+id,profileName:'Perfil '+(id===1?'A':'B'),watched:id===1?window.nuvioFixture.watched:[],progress:id===1?window.nuvioFixture.progress:[],watchedCount:id===1?2:0}),syncNuvio:()=>window.CenaNuvioResult(window.nuvioFixture),refreshNuvioProfiles:()=>{},disconnectNuvio:()=>window.CenaNuvioResult({connected:false,active:false})};
                   """)
                   nuvio_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
-                  nuvio_page.wait_for_function("typeof window.CenaNativeResult === 'function'")
+                  expect(nuvio_page.locator('#main h1')).to_be_visible()
                   nuvio_page.locator('nav [data-tab="connect"]').click()
                   nuvio_page.locator('#nuvio-connect').click()
                   expect(nuvio_page.locator('#nuvio-panel .auth-code')).to_have_text('ABC123')
@@ -421,7 +421,7 @@ jobs:
                     ]));
                   """)
                   artwork_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
-                  artwork_page.wait_for_function("typeof window.CenaNativeResult === 'function'")
+                  expect(artwork_page.locator('#main h1')).to_be_visible()
                   artwork_page.locator('nav [data-tab="library"]').click()
                   artwork_page.locator('[data-filter="all"]').click()
                   cards=artwork_page.locator('#library-grid .poster-card')
