@@ -9,6 +9,8 @@
 #include <atomic>
 #include <cstdint>
 #include <cctype>
+#include <cstdio>
+#include <unistd.h>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -41,20 +43,28 @@ void ensure_current(std::uint64_t value){if(epoch.load()!=value)throw std::runti
 }
 extern "C" JNIEXPORT jlong JNICALL Java_app_cena_LocalAiNative_epoch(JNIEnv*,jclass){return static_cast<jlong>(epoch.load());}
 extern "C" JNIEXPORT void JNICALL Java_app_cena_LocalAiNative_cancel(JNIEnv*,jclass){epoch.fetch_add(1);}
-extern "C" JNIEXPORT jbyteArray JNICALL Java_app_cena_LocalAiNative_generate(JNIEnv *env,jclass,jbyteArray path_input,jbyteArray prompt_input,jlong request_epoch,jint output_limit){
+extern "C" JNIEXPORT jbyteArray JNICALL Java_app_cena_LocalAiNative_generate(JNIEnv *env,jclass,jint granted_descriptor,jbyteArray prompt_input,jlong request_epoch,jint output_limit){
     const auto ticket=static_cast<std::uint64_t>(request_epoch);
     std::lock_guard<std::mutex> serial(exclusive);
     const char *stage="INICIAR";
     try{
         ensure_current(ticket);
         std::call_once(initialized,[]{llama_log_set(model_log,nullptr);common_log_set_verbosity_thold(-1);common_log_set_jsonl(false);llama_backend_init();});
-        const auto path=read_bytes(env,path_input),prompt=read_bytes(env,prompt_input);
-        if(path.empty()||prompt.empty()||prompt.size()>24000)throw std::runtime_error("Pedido inválido ou muito longo.");
+        const auto prompt=read_bytes(env,prompt_input);
+        if(granted_descriptor<0||prompt.empty()||prompt.size()>24000)throw std::runtime_error("Pedido inválido ou muito longo.");
         stage="CARREGAR_MODELO";load_error.store(0);
         auto model_options=llama_model_default_params();model_options.n_gpu_layers=0;
         model_options.progress_callback=[](float,void *data){return epoch.load()==*static_cast<const std::uint64_t*>(data);};
         model_options.progress_callback_user_data=const_cast<std::uint64_t*>(&ticket);
-        std::unique_ptr<llama_model,decltype(&llama_model_free)> model(llama_model_load_from_file(path.c_str(),model_options),llama_model_free);
+        // SAF grants an open descriptor, not permission to reopen its underlying path.
+        // dup/fdopen preserve that grant; never reopen /proc/self/fd or copy the weights.
+        const int duplicate=dup(granted_descriptor);
+        if(duplicate<0)throw std::runtime_error("ARQUIVO");
+        FILE *opened=fdopen(duplicate,"rb");
+        if(!opened){close(duplicate);throw std::runtime_error("ARQUIVO");}
+        std::unique_ptr<FILE,decltype(&fclose)> file(opened,fclose);
+        if(fseek(file.get(),0,SEEK_SET)!=0)throw std::runtime_error("ARQUIVO");
+        std::unique_ptr<llama_model,decltype(&llama_model_free)> model(llama_model_load_from_file_ptr(file.get(),model_options),llama_model_free);
         ensure_current(ticket);if(!model)throw std::runtime_error(load_error.load()==1?"MEMORIA":load_error.load()==2?"INCOMPATIVEL":load_error.load()==3?"ARQUIVO":"CARGA");
         const auto vocabulary=llama_model_get_vocab(model.get());
         stage="TEMPLATE";
