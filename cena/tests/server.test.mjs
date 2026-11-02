@@ -101,3 +101,13 @@ test('TMDB title lookup resolves the IMDb ID required by the players', async t =
   assert.equal(body.items[0].year, '1999');
   assert.equal(calls.length, 2);
 });
+
+// Loading the module graph repeatedly must not exhaust the API request budget.
+test('static application modules and API traffic have independent rate limits',async t=>{
+ const app=await fixture(t);
+ for(let index=0;index<200;index++)assert.equal((await app.request('/nuvio-state.js')).status,200);
+ for(let index=0;index<180;index++)assert.equal((await app.request('/api/config')).status,200);
+ assert.equal((await app.request('/api/config')).status,429);
+ assert.equal((await app.request('/nuvio-panel.js')).status,200);
+ assert.equal((await app.request('/api/unknown.js')).status,429);
+});
