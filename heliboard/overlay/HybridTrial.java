@@ -257,7 +257,11 @@ public final class HybridTrial {
         test.clear();
         test.type("teste");
         test.aiClick("Adicionar palavra ao dicionário");
+        android.app.Instrumentation.ActivityMonitor monitor=test.addMonitor("helium314.keyboard.latin.ai.DictionaryActivity",null,false);
         test.aiClick("dictionary_manage");
+        android.app.Activity dictionary=monitor.waitForActivityWithTimeout(5000);
+        test.removeMonitor(monitor);
+        check(dictionary!=null,"Dictionary activity not observed");
         test.aiNode("dictionary_search");
         android.graphics.Rect titleBounds=new android.graphics.Rect(),backBounds=new android.graphics.Rect();
         test.aiNode("dictionary_title").getBoundsInScreen(titleBounds);
@@ -268,10 +272,13 @@ public final class HybridTrial {
         check(screen!=null,"Cannot inspect the screen frame");
         int screenHeight=screen.getHeight();
         screen.recycle();
-        int statusId=c.getResources().getIdentifier("status_bar_height","dimen","android");
-        int navId=c.getResources().getIdentifier("navigation_bar_height","dimen","android");
-        int top=statusId==0?0:c.getResources().getDimensionPixelSize(statusId);
-        int bottom=navId==0?0:c.getResources().getDimensionPixelSize(navId);
+        AtomicReference<android.graphics.Insets> actualBars=new AtomicReference<>();
+        test.runOnMainSync(()-> {
+            android.view.WindowInsets insets=dictionary.getWindow().getDecorView().getRootWindowInsets();
+            actualBars.set(insets.getInsets(android.view.WindowInsets.Type.systemBars()|android.view.WindowInsets.Type.displayCutout()));
+        });
+        check(actualBars.get()!=null,"Cannot inspect window insets");
+        int top=actualBars.get().top,bottom=actualBars.get().bottom;
         check(titleBounds.top>=top&&backBounds.bottom<=screenHeight-bottom,"Dictionary controls overlap system bars: title="+titleBounds+", back="+backBounds+", screen="+screenHeight+", status="+top+", nav="+bottom);
         test.shot("25-dicionario-e-backup");
         result.putString("hybrid_contract","PASS: HTTPS payload, explicit modes, quota/auth/server/malformed/timeout fallback, no network offline, cancellation without fallback, encrypted key, diff, dictionary backup, settings touch flow");
