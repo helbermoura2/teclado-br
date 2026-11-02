@@ -1,4 +1,5 @@
 name: CENA Android APK
+# Release only after the same source passes browser and actual Android GGUF tests.
 
 on:
   push:
@@ -115,7 +116,7 @@ jobs:
         run: |
           echo '### CENA Android' >> "$GITHUB_STEP_SUMMARY"
           echo 'Baixe o artefato CENA-Android-0.9.0 ao final desta página, extraia o ZIP no celular e abra CENA-0.9.0.apk.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Versão 0.9.0: Descobrir com recomendações locais, Suas séries com próximos episódios e consulta automática a cada 12 horas, câmera central entre cinco abas.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Versão 0.9.0: cinco semelhantes por título e refinamento opcional com GGUF local, sem baixar pesos no APK.' >> "$GITHUB_STEP_SUMMARY"
 
   publish-private-preview:
     needs: build
