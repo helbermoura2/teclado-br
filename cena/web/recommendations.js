@@ -46,7 +46,7 @@ export function rankRecommendations(items,candidates,{notes={},seeds=selectTaste
 }
 async function json(fetcher,url){const response=await fetcher(url,{signal:AbortSignal.timeout(12000),headers:{Accept:'application/json'}});if(!response.ok)throw Error('Catálogo indisponível.');return response.json();}
 export class RecommendationEngine {
- constructor({storage,fetcher=fetch,details=getTitleDetails,bridge,now=Date.now}={}){this.storage=storage;this.fetcher=fetcher;this.details=details;this.bridge=bridge;this.now=now;this.inFlight=null;}
+ constructor({storage,fetcher=fetch,details=getTitleDetails,bridge,now=Date.now}={}){this.storage=storage;this.fetcher=(...args)=>fetcher(...args);this.details=details;this.bridge=bridge;this.now=now;this.inFlight=null;}
  read(key,fallback){try{return JSON.parse(this.storage?.getItem(key)||'null')||fallback;}catch{return fallback;}}
  save(key,value){try{this.storage?.setItem(key,JSON.stringify(value));}catch{}}
  async catalog(force=false,preferred=[]){
