@@ -1,0 +1,34 @@
+name: CENA public Brazilian artwork contract
+on:
+  push:
+    branches: ['cena/**']
+    paths: ['.github/workflows/cena-artwork-contract.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Inspect public film metadata and regional poster sources
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.parse
+          def get(base,params=None):
+              url=base+('?' + urllib.parse.urlencode(params) if params else '')
+              try:
+                  req=urllib.request.Request(url,headers={'User-Agent':'CENA/0.7.2 (public artwork lookup)'})
+                  return json.load(urllib.request.urlopen(req,timeout=15))
+              except Exception as e: print('lookup error',type(e).__name__);return {}
+          for title in ['O Sequestro do Voo 375','45 do Segundo Tempo']:
+              print('TITLE',title)
+              for m in get('https://v3-cinemeta.strem.io/catalog/movie/top/search='+urllib.parse.quote(title,safe='')+'.json').get('metas',[])[:3]:
+                  print('CINEMETA',json.dumps({k:m.get(k) for k in ['id','name','poster','releaseInfo']},ensure_ascii=False))
+              data=get('https://pt.wikipedia.org/w/api.php',dict(action='query',format='json',generator='search',gsrsearch=title,gsrlimit=3,prop='pageprops|pageimages',piprop='thumbnail',pithumbsize=600,pilicense='any'))
+              for page in data.get('query',{}).get('pages',{}).values():
+                  qid=page.get('pageprops',{}).get('wikibase_item');print('WIKI',json.dumps(page,ensure_ascii=False))
+                  if qid:
+                      entity=get('https://www.wikidata.org/w/api.php',dict(action='wbgetentities',ids=qid,format='json',props='claims|labels',languages='pt|en')).get('entities',{}).get(qid,{})
+                      print('ENTITY',json.dumps({'qid':qid,'labels':entity.get('labels'),'claims':{k:[v.get('mainsnak',{}).get('datavalue',{}).get('value') for v in entity.get('claims',{}).get(k,[])] for k in ['P345','P4947','P18']}},ensure_ascii=False))
+          PY
