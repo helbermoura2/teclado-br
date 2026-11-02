@@ -18,6 +18,7 @@ import java.util.Locale
 
 fun configureTecladoBr(context: Context) {
     if (BuildConfig.BUILD_TYPE != "debugNoMinify") return
+    Typography.load(context)
     val prefs = context.prefs()
     if (!prefs.getBoolean("teclado_br_defaults_v2", false)) {
     val subtype = SettingsSubtype(Locale.forLanguageTag("pt-BR"), "")

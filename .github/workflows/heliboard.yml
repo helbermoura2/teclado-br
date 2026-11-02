@@ -148,9 +148,15 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/qwen-smoke.gguf
+          key: teclado-br-qwen-smoke-9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031
       - name: Baixar fixture sintética para teste offline
         run: |
-          curl --fail --location --retry 3 --output /tmp/qwen-smoke.gguf 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf?download=true'
+          if [ ! -f /tmp/qwen-smoke.gguf ]; then
+            curl --fail --location --retry 3 --output /tmp/qwen-smoke.gguf 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf?download=true'
+          fi
           echo '9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031  /tmp/qwen-smoke.gguf' | sha256sum -c -
       - uses: reactivecircus/android-emulator-runner@v2
         with:

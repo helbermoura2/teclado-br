@@ -1,24 +1,26 @@
 # Teclado BR
 
-## Versão atual: 0.7.3 com base HeliBoard
+## Versão 0.8.0 — IA híbrida e personalização
 
-Os símbolos secundários nos cantos das teclas têm o dobro do tamanho anterior
-(32% da altura da tecla, antes 16%) e contraste maior no tema Teclado BR escuro.
-Capturas no emulador conferidas; detalhes em [heliboard/README.md](heliboard/README.md).
+Assistente no próprio teclado, com modos Offline (padrão), Automático e Online.
+A integração online usa **Groq**, não Grok/xAI: configure uma chave do plano Free
+no aparelho. No modo Automático, falta de conexão, cota ou erro da API retorna
+para o modelo GGUF importado, incluindo Gemma 4 E2B. A digitação e o aprendizado
+continuam locais. Veja [configuração e limites](heliboard/HIBRIDO.md).
 
-O botão ＋ junto às sugestões cadastra a palavra digitada no dicionário pessoal,
-mesmo quando ela não aparece nas sugestões. O teclado aprende palavras recorrentes
-com o uso; as previsões de próxima palavra são atualizadas quando aprende.
-Detalhes e validação em [PERSONALIZACAO.md](heliboard/PERSONALIZACAO.md).
+Inclui comparação das alterações na revisão; tamanhos independentes de letras,
+símbolos e altura; prévia da palavra inteira ao segurar uma sugestão; gerenciamento
+e backup JSON do dicionário pessoal. A barra aberta manualmente permanece aberta
+até a próxima entrada de texto. O painel de configurações oferece medição sintética
+de tempo, memória e energia quando o aparelho fornece esse contador.
 
-Compilação, 142 testes unitários e interação Android aprovados no
-[run 41419040336](https://github.com/helbermoura2/teclado-br/actions/runs/41419040336).
-Os testes confirmaram inclusão, completamento por toque, próxima palavra e
-persistência após reinstalar, além das regressões de digitação, idiomas, pins e IA.
+A atualização preserva modelos, pins e preferências: instale por cima, sem desinstalar.
+A versão passa a declarar INTERNET para as tarefas online explicitamente solicitadas.
+Não inclui pesos, chave de API ou serviço pago. Uma conta/chave Groq é necessária
+para o modo online; a gratuidade depende do plano da conta e de seus limites.
 
-O assistente offline continua dentro do teclado, com revisão, estilos e Compositor.
-A atualização mantém modelos importados e os dados anteriores; não desinstalar.
-O APK não inclui pesos nem permissão INTERNET. A lupa flutuante continua pendente.
+Validação da 0.8.0 em andamento. Não foi usada uma chave real da Groq nem executada
+medição no Nothing Phone (1). A lupa flutuante com OCR continua pendente.
 
 A documentação abaixo preserva o histórico do aplicativo original 0.1–0.5.
 

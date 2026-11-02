@@ -1,39 +1,114 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package helium314.keyboard.latin.ai;
 import android.app.Service;
+import java.util.concurrent.atomic.AtomicLong;
 import android.content.Intent;
 import android.os.*;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.*;
-/** Private bound worker. The interface remains in the IME; inference stays in :writing. */
+/** The UI stays in the IME; routing and inference stay in a private worker process. */
 public final class WritingEngineService extends Service {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private volatile boolean busy,cancelled,loaded;
-    private final Messenger messenger=new Messenger(new Handler(Looper.getMainLooper()){
-        @Override public void handleMessage(Message m){
-            if(m.what==2){stopGeneration();return;}
-            if(m.what!=1)return;
-            Bundle b=m.getData();b.setClassLoader(WritingEngineService.class.getClassLoader());ResultReceiver receiver=b.getParcelable("receiver");
+    private volatile boolean busy,cancelled;
+    private volatile GroqClient online;
+    private volatile OfflineEngine offline;
+    private final Messenger messenger=new Messenger(new Handler(Looper.getMainLooper()) {
+        @Override public void handleMessage(Message message) {
+            if(message.what==2) {
+                stopGeneration();
+                return;
+            }
+            if(message.what!=1)return;
+            Bundle data=message.getData();
+            data.setClassLoader(WritingEngineService.class.getClassLoader());
+            ResultReceiver receiver=data.getParcelable("receiver");
             if(receiver==null)return;
-            if(busy){send(receiver,3,"Aguarde o cancelamento anterior terminar.",false);return;}
-            if(!ModelStore.model(WritingEngineService.this).isFile()){send(receiver,3,"Adicione um modelo nas configurações do assistente.",false);return;}
-            busy=true;cancelled=false;String prompt=b.getString("prompt","");int limit=b.getInt("limit",256);
-            worker.execute(()->{
-                try{
-                    OfflineNative.reset();loaded=true;if(cancelled)throw new IllegalStateException("Cancelado");
-                    byte[] bytes=OfflineNative.generate(OfflineNative.utf8(ModelStore.model(WritingEngineService.this).getAbsolutePath()),OfflineNative.utf8(prompt),part->{if(!cancelled)send(receiver,1,new String(part,StandardCharsets.UTF_8),false);},limit);
-                    String value=new String(bytes,StandardCharsets.UTF_8);
-                    if(cancelled)send(receiver,3,"Cancelado.",false);else send(receiver,2,value.substring(2),value.startsWith("T\n"));
-                }catch(Exception e){send(receiver,3,cancelled?"Cancelado.":e.getMessage(),false);}
-                catch(LinkageError e){send(receiver,3,"Motor indisponível nesta arquitetura.",false);}
-                catch(OutOfMemoryError e){send(receiver,3,"Memória insuficiente. Experimente um modelo menor.",false);}
-                finally{busy=false;}
+            if(busy) {
+                send(receiver,3,"Aguarde o cancelamento anterior terminar.",null);
+                return;
+            }
+            busy=true;
+            cancelled=false;
+            String prompt=data.getString("prompt","");
+            int limit=Math.max(16,Math.min(256,data.getInt("limit",256)));
+            boolean benchmark=data.getBoolean("benchmark",false);
+            worker.execute(()-> {
+                long start=SystemClock.elapsedRealtime();
+                final AtomicLong peak=new AtomicLong();
+                final BatteryManager battery=(BatteryManager)getSystemService(BATTERY_SERVICE);
+                final long energyBefore=benchmark&&battery!=null?battery.getLongProperty(BatteryManager.BATTERY_PROPERTY_ENERGY_COUNTER):-1;
+                ScheduledExecutorService sampler=benchmark?Executors.newSingleThreadScheduledExecutor():null;
+                if(sampler!=null)sampler.scheduleAtFixedRate(()-> {
+                    peak.accumulateAndGet(Debug.getPss(),Math::max);
+                },0,300,TimeUnit.MILLISECONDS);
+                try {
+                    String mode=AiPreferences.mode(WritingEngineService.this);
+                    boolean key=SecretStore.hasKey(WritingEngineService.this);
+                    offline=new OfflineEngine(WritingEngineService.this,()->cancelled);
+                    InferenceRouter.Backend remote=(p,n,partial)-> {
+                        String secret;
+                        try {
+                            secret=SecretStore.read(WritingEngineService.this);
+                        }
+                        catch(Exception e) {
+                            throw new GroqClient.Failure(401);
+                        }
+                        online=new GroqClient(secret,()->cancelled);
+                        return online.generate(p,n,partial);
+                    };
+                    InferenceResult result=InferenceRouter.run(mode,AiPreferences.connected(WritingEngineService.this),key,ModelStore.model(WritingEngineService.this).isFile(),prompt,limit,remote,offline,()->cancelled,s->send(receiver,4,s,null),s->send(receiver,1,s,null));
+                    Bundle extra=new Bundle();
+                    extra.putBoolean("truncated",result.truncated);
+                    extra.putString("backend",result.backend);
+                    extra.putLong("duration_ms",SystemClock.elapsedRealtime()-start);
+                    extra.putLong("peak_pss_kb",peak.get());
+                    long energyAfter=benchmark&&battery!=null?battery.getLongProperty(BatteryManager.BATTERY_PROPERTY_ENERGY_COUNTER):-1;
+                    extra.putLong("energy_nwh",energyBefore>0&&energyAfter>0&&energyBefore>=energyAfter?energyBefore-energyAfter:-1);
+                    send(receiver,2,result.text,extra);
+                }
+                catch(Exception e) {
+                    send(receiver,3,cancelled?"Cancelado.":safe(e),null);
+                }
+                catch(LinkageError e) {
+                    send(receiver,3,"Motor offline indisponível nesta arquitetura.",null);
+                }
+                catch(OutOfMemoryError e) {
+                    send(receiver,3,"Memória insuficiente. Experimente um modelo menor.",null);
+                }
+                finally {
+                    if(sampler!=null)sampler.shutdownNow();
+                    online=null;
+                    offline=null;
+                    busy=false;
+                }
             });
         }
     });
-    private static void send(ResultReceiver r,int code,String text,boolean truncated){Bundle b=new Bundle();b.putString("text",text);b.putBoolean("truncated",truncated);r.send(code,b);}
-    private void stopGeneration(){cancelled=true;if(loaded)OfflineNative.cancel();}
-    @Override public IBinder onBind(Intent i){return messenger.getBinder();}
-    @Override public boolean onUnbind(Intent i){stopGeneration();return false;}
-    @Override public void onDestroy(){stopGeneration();worker.shutdownNow();super.onDestroy();}
+    private static String safe(Exception e) {
+        if(e instanceof GroqClient.Failure||e instanceof IllegalStateException)return e.getMessage();
+        return "Não foi possível concluir a tarefa. Confira as configurações e tente novamente.";
+    }
+    private static void send(ResultReceiver receiver,int code,String text,Bundle extra) {
+        Bundle data=extra==null?new Bundle():extra;
+        data.putString("text",text);
+        receiver.send(code,data);
+    }
+    private void stopGeneration() {
+        cancelled=true;
+        GroqClient a=online;
+        if(a!=null)a.cancel();
+        OfflineEngine b=offline;
+        if(b!=null)b.cancel();
+    }
+    @Override public IBinder onBind(Intent i) {
+        return messenger.getBinder();
+    }
+    @Override public boolean onUnbind(Intent i) {
+        stopGeneration();
+        return false;
+    }
+    @Override public void onDestroy() {
+        stopGeneration();
+        worker.shutdownNow();
+        super.onDestroy();
+    }
 }

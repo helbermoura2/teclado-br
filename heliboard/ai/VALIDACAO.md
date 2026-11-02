@@ -76,3 +76,4 @@ não são necessárias para compilar o aplicativo.
 
 A lupa sobre outros aplicativos continua pendente. Esta versão oferece
 tradução do texto fornecido dentro do assistente.
+

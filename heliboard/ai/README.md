@@ -1,4 +1,4 @@
-# Assistente offline — painel no teclado (0.7.1)
+# Assistente híbrido — painel no teclado (0.8.0)
 
 Botão de brilho na barra do HeliBoard abre um painel na própria janela do teclado.
 O aplicativo e seu texto continuam visíveis acima. Só a inferência usa o processo
@@ -9,7 +9,8 @@ Prévia editável; copiar ou substituir explicitamente. A substituição exige q
 o campo original e seu texto ainda coincidam com o snapshot capturado.
 Campos de senha não são enviados ao assistente.
 
-O APK não recebe permissão INTERNET. Não há servidor, API nem inferência remota.
+O modo Offline é o padrão. A integração opcional Groq usa INTERNET somente para
+tarefas solicitadas no assistente; veja [HIBRIDO.md](../HIBRIDO.md).
 O usuário baixa um GGUF pelo navegador e o importa pelo seletor de arquivos.
 Importação faz cópia privada com verificação de formato e tamanho, registrando SHA-256;
 substituição atômica do modelo anterior. Modelos ficam fora dos backups.

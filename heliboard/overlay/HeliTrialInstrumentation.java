@@ -38,6 +38,9 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void expect(String value)throws Exception{long deadline=SystemClock.uptimeMillis()+12000;String actual="";do{actual=text();if(actual.equals(value))return;Thread.sleep(100);}while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("Expected: "+value+"; actual: "+actual);}
     void options(boolean caps,boolean correction){DeviceProtectedUtils.getSharedPreferences(getTargetContext()).edit().putBoolean(Settings.PREF_AUTO_CAP,caps).putBoolean(Settings.PREF_AUTO_CORRECTION,correction).commit();}
     void launch()throws Exception{
+        try{launchOnce();}catch(AssertionError error){if(!String.valueOf(error.getMessage()).contains("window did not settle"))throw error;result.putInt("editor_window_retries",result.getInt("editor_window_retries",0)+1);Thread.sleep(500);launchOnce();}
+    }
+    void launchOnce()throws Exception{
         getTargetContext().startActivity(new Intent(getTargetContext(),TrialEditor.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));Thread.sleep(2000);
         // Only dismiss an unrelated launcher ANR; never hide a keyboard/app ANR.
         AccessibilityNodeInfo launcher=find(n->n.getText()!=null&&n.getText().toString().contains("Quickstep")&&n.getText().toString().contains("respond"));
@@ -147,16 +150,17 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     String aiComplete()throws Exception {
         long until=SystemClock.uptimeMillis()+240000;
         String state;
-        do {state=aiText("ai_status");if(!state.startsWith("Processando"))break;Thread.sleep(300);}while(SystemClock.uptimeMillis()<until);
+        do {state=aiText("ai_status");if(aiNode("ai_edit_result").isEnabled())break;Thread.sleep(300);}while(SystemClock.uptimeMillis()<until);
         String response=aiText("ai_output");
-        check(state.startsWith("Revise")||state.startsWith("Limite de geração"),"Native generation did not finish: "+state);
+        check(state.contains("Revise")||state.startsWith("Limite de geração"),"Native generation did not finish: "+state);
         check(!response.trim().isEmpty(),"Native inference produced no final output");
         check(!response.contains("<think>")&&!response.contains("</think>")&&!response.contains("<|im_end|>"),"Control tokens leaked");return response;
     }
     void setOriginal(String value)throws Exception {Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);check(field().performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b),"Cannot update original");Thread.sleep(300);}
     void writing(boolean withModel)throws Exception {
         String[] permissions=getTargetContext().getPackageManager().getPackageInfo(getTargetContext().getPackageName(),android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions;
-        if(permissions!=null)for(String permission:permissions)check(!permission.equals("android.permission.INTERNET"),"Unexpected network permission");
+        if(permissions!=null)for(String permission:permissions)check(!permission.equals("android.permission.SEND_SMS"),"Unexpected messaging permission");
+        helium314.keyboard.latin.ai.AiPreferences.mode(getTargetContext(),helium314.keyboard.latin.ai.AiPreferences.OFFLINE);
         helium314.keyboard.latin.ai.WritingLauncher.syntheticTest=true;
         clear();type("texto original");toolbar(ToolbarKey.AI);aiNode("ai_review");expect("texto original");
         boolean imePanel=false;for(AccessibilityWindowInfo w:ui.getWindows())if(w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD){AccessibilityNodeInfo root=w.getRoot();if(root!=null&&panelNode(root)!=null)imePanel=true;}
@@ -167,7 +171,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         if(!withModel){aiClick("ai_back");toolbar(ToolbarKey.AI);aiNode("ai_missing_model");result.putString("model_path",new File(getTargetContext().getNoBackupFilesDir(),"offline-ai/model.gguf").getAbsolutePath());aiClick("ai_back");expect("texto original");return;}
         aiClick("ai_generate");String response=aiComplete();result.putString("offline_model_output",response);shot("17-ia-resposta-offline");
         aiClick("ai_edit_result");aiNode("ai_local_edit");type("ola");expect("texto original");aiSet("ai_local_edit","Texto revisado no aparelho.");aiClick("ai_done_edit");aiClick("ai_copy");aiClick("ai_replace");expect("Texto revisado no aparelho.");
-        clear();type("Eu nao sei oque fazer.");toolbar(ToolbarKey.AI);aiClick("ai_review");String reviewed=aiComplete();result.putString("offline_review_output",reviewed);shot("18-ia-revisao-no-teclado");
+        clear();type("Eu nao sei oque fazer.");toolbar(ToolbarKey.AI);aiClick("ai_review");String reviewed=aiComplete();result.putString("offline_review_output",reviewed);aiClick("ai_diff");aiNode("ai_original");check(aiText("ai_output").equals(reviewed),"Diff changed the result");shot("18-ia-revisao-no-teclado");aiClick("ai_diff");
         setOriginal("texto alterado");aiClick("ai_replace");check(aiText("ai_status").startsWith("O texto original mudou"),"Changed source was not rejected");check(aiText("ai_output").equals(reviewed),"Result lost");check(!aiNode("ai_replace").isEnabled(),"Stale replacement enabled");shot("19-ia-texto-alterado-protegido");aiClick("ai_back");expect("texto alterado");
         toolbar(ToolbarKey.AI);aiClick("ai_review");aiClick("ai_cancel");check(aiText("ai_status").startsWith("Cancelado"),"Cancellation failed");aiClick("ai_back");expect("texto alterado");
     }
@@ -202,6 +206,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         }
         check(dictionaryContains(CUSTOM_WORD),"Manual word was not persisted");predict("maravilhos",CUSTOM_WORD);shot("21-palavra-pessoal-sugerida");
         if(!restored){
+            clear();type("maravilhos");long wait=SystemClock.uptimeMillis()+15000;Rect candidate;do{candidate=personalCandidate(CUSTOM_WORD);if(candidate!=null)break;Thread.sleep(200);}while(SystemClock.uptimeMillis()<wait);check(candidate!=null,"Full word candidate missing");long down=SystemClock.uptimeMillis();event(down,MotionEvent.ACTION_DOWN,new int[]{0},new Rect[]{candidate});Thread.sleep(750);event(down,MotionEvent.ACTION_UP,new int[]{0},new Rect[]{candidate});check(aiText("suggestion_full_word").equalsIgnoreCase(CUSTOM_WORD),"Long word preview was abbreviated");shot("26-palavra-completa");aiClick("Usar palavra");
             check(Settings.getValues().mUsePersonalizedDicts,"Personalization disabled");check(Settings.getValues().mBigramPredictionEnabled,"Next word prediction disabled");
             for(int i=0;i<8;i++){clear();type("zunibravo cafezinho ");Thread.sleep(250);}
         }
@@ -219,6 +224,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         shots=new File(getTargetContext().getCacheDir(),"heli-shots");shots.mkdirs();
         shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");shell("ime set br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");
         Thread.sleep(10000);options(false,false);launch();
+        if(phase.equals("verify_hybrid")){HybridTrial.run(this,result);result.putString("result","PASS");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_dictionary")||phase.equals("verify_learning_persisted")){personalDictionary(phase.equals("verify_learning_persisted"));result.putString("result","PASS");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_ai")||phase.equals("verify_ai_missing")){writing(phase.equals("verify_ai"));result.putString("result","PASS");result.putString("coverage","Offline native generation, compositor prompt, editable result, safe replacement and cancellation; missing-model state");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_pins")){check(storedPinned(),"Stored pin lost after process restart");pinnedEntry(true);result.putString("result","PASS");result.putString("coverage","Pinned clipboard text survives app restart and reinstall with same certificate, and can be pasted");finish(Activity.RESULT_OK,result);return;}

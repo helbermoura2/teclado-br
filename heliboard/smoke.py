@@ -16,7 +16,10 @@ def run_phase(phase):
     print(log,flush=True)
     (out/(phase+'-results.txt')).write_text(log)
     return log,'result=PASS' in log and 'INSTRUMENTATION_CODE: -1' in log
-log,ok=run_phase('verify_dictionary')
+log,ok=run_phase('verify_hybrid')
+if ok:
+    dictionary,ok=run_phase('verify_dictionary')
+    log+='\nPERSONAL DICTIONARY\n'+dictionary
 if ok:
     apk=next(pathlib.Path('heli-package').rglob('*.apk'))
     subprocess.run(['adb','install','-r',str(apk)],check=True)
