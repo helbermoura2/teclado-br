@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.11.0' in index
+    assert 'v0.12.0' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
     identification = archive.read('assets/identify-cover.js').decode()
     assert 'compareCovers' in app and 'coverInput(result)' in app
@@ -32,10 +32,12 @@ with ZipFile(apk) as archive:
     assert 'assets/stremio-import.js' in archive.namelist()
     assert 'trakt-state.js' in '\n'.join(archive.namelist())
     assert '1080' in app and '1920' in app and 'Salvar imagem PNG' in app
+    assert 'assets/home-feed.js' in archive.namelist()
+    assert 'brand-triangle' in index and 'resume-dismiss' in app
     assert 'assets/watch-history.js' in archive.namelist()
     assert 'profile-shortcut' in index and 'Ano em que assistiu' in app
     assert 'assets/nuvio-state.js' in archive.namelist() and 'assets/nuvio-panel.js' in archive.namelist()
-    assert 'CenaNuvioResult' in app and 'Continuar assistindo · Nuvio' in app
+    assert 'CenaNuvioResult' in app and 'Continuar assistindo' in app
     assert 'assets/ratings.js' in archive.namelist()
     assert 'data-rating-key' in app
     assert 'assets/similar.js' in archive.namelist() and 'assets/local-ai.js' in archive.namelist()
@@ -52,6 +54,6 @@ tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.11.0'" in badging and "versionCode='21'" in badging
+assert "versionName='0.12.0'" in badging and "versionCode='22'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
