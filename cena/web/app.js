@@ -1,3 +1,5 @@
+import {applyNuvioState,nuvioContinue} from './nuvio-state.js';
+import {renderNuvioPanel} from './nuvio-panel.js';
 import {RatingsResolver,imdbLabel} from './ratings.js';
 import {SimilarEngine,buildLocalSelectionPrompt,validateLocalSelection} from './similar.js';
 import {createLocalAI} from './local-ai.js';
@@ -25,6 +27,7 @@ const localApi = createLocalApi(localStorage, { search: searchTolerantTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
 let seriesState={items:[],reading:false,pending:0,lastCheck:0};
 let discoveryResults=[],discoveryMode='recommend',discoveryFilter='all',discoveryInfo=null,discoveryFingerprint='';
+let nuvioState={connected:false,active:false,watched:[],progress:[]},deferredNuvioState=null,nuvioResults=[];
 let traktState = { connected:false, configured:false, pending:[] };
 let traktWasConnected = false;
 let traktInitialUploadRequested = false;
@@ -97,6 +100,22 @@ async function findSimilar(seed,includeSaved=true){
  }catch(error){if(ticket===similarTicket&&panel.isConnected)panel.innerHTML=`<p role="alert">${escape(error.message)}</p><button class="secondary" id="retry-similar">Tentar novamente</button>`;if($('#retry-similar'))$('#retry-similar').onclick=()=>findSimilar(seed,includeSaved);}
 }
 
+window.CenaNuvioResult=state=>{
+ if(!libraryReady){deferredNuvioState=state;return;}
+ if(JSON.stringify(state)===JSON.stringify(nuvioState))return;
+ nuvioState=state;const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
+ if(changed&&apiBase==='local'){items=merged;localStorage.setItem('cena.local.items.v1',JSON.stringify(items));}
+ if(tab==='connect'&&!document.querySelector('#nuvio-profile:focus')){const panel=$('#nuvio-panel');renderNuvioPanel(panel,state,window.CenaAndroid);}
+ if(!$('#detail').open){if(tab==='library'&&changed)patchLibrary();else if(tab==='home'&&changed){const y=window.scrollY;home();window.scrollTo(0,y);}}
+ renderNuvioSections();renderSeriesSections();
+};
+function renderNuvioSections(){
+ const section=$('#nuvio-home');if(!section)return;
+ const rows=nuvioContinue(items,nuvioState);nuvioResults=rows.map(row=>row.item);
+ section.innerHTML=!nuvioState.active?'':`<div class="section-heading"><h2>Continuar assistindo · Nuvio</h2><span class="count">${escape(nuvioState.profileName)}</span></div>${nuvioState.error?'<p class="notice">Consulta pendente. Mostrando a última informação recebida do Nuvio.</p>':''}${rows.length?`<div class="series-list">${rows.slice(0,6).map(({item,label})=>`<button class="series-card" data-nuvio-title="${escape(item.id)}" data-nuvio-type="${escape(item.type)}"><div class="series-cover">${poster(item)}</div><span><strong>${escape(item.name)}</strong>${scoreMarkup(item)}<small>${escape(label)}</small><small>Recebido do Nuvio</small></span></button>`).join('')}</div>`:'<p class="muted">Nenhuma reprodução em andamento recebida para este perfil.</p>'}`;
+ for(const button of section.querySelectorAll('[data-nuvio-title]'))button.onclick=()=>showDetail(nuvioResults.find(row=>row.id===button.dataset.nuvioTitle&&row.type===button.dataset.nuvioType));
+ wireImages();
+}
 window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSeriesSections();};
 const artworkModels = new Map();
 const artworkObserved = new WeakSet();
@@ -137,6 +156,7 @@ const artworkObserver = typeof IntersectionObserver==='function' ? new Intersect
 },{rootMargin:'200px'}) : null;
 
 function sendTraktInventory() {
+  if(apiBase==='local'&&typeof window.CenaAndroid?.nuvioInventory==='function')window.CenaAndroid.nuvioInventory(JSON.stringify(items.map(({id,type})=>({id,type}))));
   if (apiBase === 'local' && native && typeof window.CenaAndroid.traktInventory === 'function') window.CenaAndroid.traktInventory(JSON.stringify(items.map(({id,type})=>({id,type}))));
 }
 function sendTraktList() {
@@ -152,7 +172,7 @@ window.CenaTraktResult = state => {
   if(!state.connected) traktInitialUploadRequested=false;
   traktWasConnected = Boolean(state.connected); traktState = state;
   if(apiBase !== 'local') return;
-  const merged = applyTraktState(items,state);
+  const merged = applyTraktState(items,state,{preserveWatchState:nuvioState.active});
   const libraryChanged=JSON.stringify(merged)!==JSON.stringify(items);
   if(libraryChanged) { items=merged; localStorage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
@@ -167,7 +187,7 @@ window.CenaTraktResult = state => {
 };
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
-  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...items].find(item => item.id === card.dataset.id));
+  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...nuvioResults,...items].find(item => item.id === card.dataset.id));
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -221,11 +241,11 @@ function setTab(next) {
 }
 function home() {
   const pending = items.filter(i => i.status === 'watchlist');
-  main.innerHTML = `<div class="eyebrow">SEU CINEMA, DO SEU JEITO</div><h1>O que vamos<br>assistir hoje?</h1><section class="hero"><div class="hero-content"><span class="eyebrow">DA CAPA PARA SUA LISTA</span><h2>Sua próxima<br>grande história.</h2><p class="meta">Viu uma capa que chamou sua atenção?</p><button class="primary" id="hero-scan">▣ &nbsp; Fotografar capa</button></div></section><section id="series-home"></section><div class="section-heading"><h2>Quero assistir</h2><button id="see-all">${pending.length ? `Ver todos · ${pending.length}` : 'Seu catálogo'}</button></div>${pending.length ? grid(pending.slice(0, 8)) : empty()}${notice()}<div class="panel"><h2>Uma lista. Seu próximo play.</h2><p>Adicione no CENA e consulte seu catálogo no player compatível.</p><button class="link-button" id="connect-shortcut">Conectar minha lista →</button></div>`;
+  main.innerHTML = `<div class="eyebrow">SEU CINEMA, DO SEU JEITO</div><h1>O que vamos<br>assistir hoje?</h1><section class="hero"><div class="hero-content"><span class="eyebrow">DA CAPA PARA SUA LISTA</span><h2>Sua próxima<br>grande história.</h2><p class="meta">Viu uma capa que chamou sua atenção?</p><button class="primary" id="hero-scan">▣ &nbsp; Fotografar capa</button></div></section><section id="nuvio-home"></section><section id="series-home"></section><div class="section-heading"><h2>Quero assistir</h2><button id="see-all">${pending.length ? `Ver todos · ${pending.length}` : 'Seu catálogo'}</button></div>${pending.length ? grid(pending.slice(0, 8)) : empty()}${notice()}<div class="panel"><h2>Uma lista. Seu próximo play.</h2><p>Adicione no CENA e consulte seu catálogo no player compatível.</p><button class="link-button" id="connect-shortcut">Conectar minha lista →</button></div>`;
   $('#hero-scan').onclick = () => setTab('scan'); $('#see-all').onclick = () => setTab('library');
   $('#connect-shortcut').onclick = () => setTab('connect');
   if ($('#empty-search')) $('#empty-search').onclick = () => { setTab('library'); $('#query').focus(); };
-  wireCards(pending);renderSeriesSections();
+  wireCards(pending);renderSeriesSections();renderNuvioSections();
 }
 function library() {
   const rows = items.filter(i => filter === 'all' || i.status === filter);
@@ -282,6 +302,8 @@ function refreshCurrentView(){
 }
 function seriesRows(){return items.filter(item=>item.type==='series').map(item=>({item,state:seriesState.items?.find(row=>row.id===item.id)})).sort((a,b)=>(b.state?.newEpisodes||0)-(a.state?.newEpisodes||0)||(b.state?.available||0)-(a.state?.available||0));}
 function seriesContent(limit=Infinity){
+  if(nuvioState.active){const rows=items.filter(item=>item.type==='series'&&item.nuvioWatchedEpisodes>0);return `<p class="muted">Episódios confirmados pelo Nuvio. A continuação aparece em Continuar assistindo, no Início.</p>${rows.length?rows.slice(0,limit).map(item=>`<p><strong>${escape(item.name)}</strong> · ${item.nuvioWatchedEpisodes} episódios confirmados</p>`).join(''):'<p class="muted">Nenhum episódio confirmado recebido para os títulos desta lista.</p>'}`;}
+
   if(!traktState.connected)return '<div class="notice">Conecte a mesma conta Trakt usada no Nuvio para consultar os episódios vistos e disponíveis.</div>';
   const rows=seriesRows();
   return `<p class="muted">${seriesState.lastCheck?`Última consulta: ${new Date(seriesState.lastCheck).toLocaleString('pt-BR')}.`:'Aguardando a primeira consulta.'} Atualização automática a cada 12 horas; o Android pode adiar a execução.</p><div class="actions"><button class="secondary" data-series-refresh ${seriesState.reading?'disabled':''}>${seriesState.reading?'Consultando séries…':'Atualizar episódios'}</button></div>${seriesState.pending?`<p class="muted" role="status">${seriesState.pending} série(s) aguardam consulta. A lista é processada em lotes.</p>`:''}${seriesState.error?`<p class="notice">${escape(seriesState.error)}</p>`:''}${!rows.length?'<div class="empty"><p>Adicione uma série ao catálogo para acompanhar seus episódios.</p></div>':`<div class="series-list">${rows.slice(0,limit).map(({item,state})=>{const summary=seriesSummary(state);return `<button class="series-card" data-series-id="${escape(item.id)}"><div class="series-cover">${poster(item)}</div><span><strong>${escape(item.name)}</strong>${scoreMarkup(item)}<b class="series-status ${summary.state}">${escape(summary.headline)}</b><small>${escape(summary.detail)}</small>${state?.error?'<small class="error-text">Consulta pendente · dados podem estar desatualizados</small>':''}${state?.warning?`<small>${escape(state.warning)}</small>`:''}</span></button>`;}).join('')}</div>`}`;
@@ -421,7 +443,7 @@ function showDetail(item, enriched = false) {
   detailItem = item;
   if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver 5 semelhantes</button><div id="similar-panel"></div><div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver 5 semelhantes</button><div id="similar-panel"></div><div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
   if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
@@ -491,11 +513,11 @@ function localConnection() {
     <div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
     ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
     ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
-    <div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div>
+    <div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
-  stremioPanel.mount($('#stremio-panel'));renderLocalAI();
+  stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
   if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
   if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
@@ -578,7 +600,7 @@ $('#detail').addEventListener('close',()=>{similarTicket++;localAI.cancel();refr
 $('#detail').onclick = event => { if (event.target === $('#detail')) { const r = $('#detail').getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) $('#detail').close(); } };
 if (stored?.id && stored?.writeToken) connection = { id: stored.id, writeToken: stored.writeToken, manifestUrl: stored.manifestUrl };
 home();
-if (apiBase) refresh().then(() => { libraryReady=true; setTab(tab); sendTraktInventory(); if(deferredTraktState) { const state=deferredTraktState; deferredTraktState=null; window.CenaTraktResult(state); } }).catch(error => toast(error.message));
+if (apiBase) refresh().then(() => { libraryReady=true; setTab(tab); sendTraktInventory(); if(deferredNuvioState){const state=deferredNuvioState;deferredNuvioState=null;window.CenaNuvioResult(state);} if(deferredTraktState) { const state=deferredTraktState; deferredTraktState=null; window.CenaTraktResult(state); } }).catch(error => toast(error.message));
 else setTab('connect');
 
 if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready(); }
