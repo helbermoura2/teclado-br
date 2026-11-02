@@ -18,6 +18,11 @@ def run_phase(phase):
     return log,'result=PASS' in log and 'INSTRUMENTATION_CODE: -1' in log
 log,ok=run_phase('verify_dictionary')
 if ok:
+    apk=next(pathlib.Path('heli-package').rglob('*.apk'))
+    subprocess.run(['adb','install','-r',str(apk)],check=True)
+    persisted,ok=run_phase('verify_learning_persisted')
+    log+='\nPERSONAL LEARNING AFTER REINSTALL\n'+persisted
+if ok:
     third,ok=run_phase('verify_ai_missing')
     log+='\nAI MISSING MODEL\n'+third
 if ok:
@@ -44,9 +49,6 @@ if ok:
     subprocess.run(['adb','install','-r',str(apk)],check=True)
     second,ok=run_phase('verify_pins')
     log+='\nPROCESS RESTART / REINSTALL\n'+second
-if ok:
-    persisted,ok=run_phase('verify_learning_persisted')
-    log+='\nPERSONAL LEARNING AFTER REINSTALL\n'+persisted
 (out/'results.txt').write_text(log)
 files=subprocess.run(['adb','shell','run-as',package,'ls','cache/heli-shots'],capture_output=True,text=True).stdout.splitlines()
 for name in files:

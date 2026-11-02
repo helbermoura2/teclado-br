@@ -80,9 +80,13 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void shot(String name)throws Exception{Thread.sleep(600);Bitmap bitmap=ui.takeScreenshot();if(bitmap!=null){try(OutputStream out=new FileOutputStream(new File(shots,name+".png"))){bitmap.compress(Bitmap.CompressFormat.PNG,100,out);}bitmap.recycle();}}
     List<String> suggestions()throws Exception{List<String> words=new ArrayList<>();runOnMainSync(()->{View strip=KeyboardSwitcher.getInstance().getStripContainer();findView(strip,v->{if(v instanceof TextView){String s=((TextView)v).getText().toString();if(!s.isEmpty())words.add(s);}return false;});});return words;}
     void toolbar(ToolbarKey key)throws Exception{
-        runOnMainSync(()->{View strip=KeyboardSwitcher.getInstance().getStripContainer();SuggestionStripView s=(SuggestionStripView)findView(strip,v->v instanceof SuggestionStripView);check(s!=null,"No suggestion strip");s.setToolbarVisibility(true);});Thread.sleep(250);
-        View[] target={null};runOnMainSync(()->{target[0]=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key);check(target[0]!=null,"Missing shortcut "+key);target[0].requestRectangleOnScreen(new Rect(0,0,target[0].getWidth(),target[0].getHeight()),true);});Thread.sleep(250);
-        Rect r=new Rect();runOnMainSync(()->{check(target[0].isShown(),"Hidden shortcut "+key);int[] origin=new int[2];target[0].getLocationOnScreen(origin);r.set(origin[0],origin[1],origin[0]+target[0].getWidth(),origin[1]+target[0].getHeight());});tap(r);Thread.sleep(300);
+        long deadline=SystemClock.uptimeMillis()+10000;Rect previous=null;int stable=0;
+        do{
+            runOnMainSync(()->{View root=KeyboardSwitcher.getInstance().getStripContainer();SuggestionStripView strip=(SuggestionStripView)findView(root,v->v instanceof SuggestionStripView);if(strip!=null)strip.setToolbarVisibility(true);View target=findView(root,v->v.getTag()==key);if(target!=null)target.requestRectangleOnScreen(new Rect(0,0,target.getWidth(),target.getHeight()),true);});Thread.sleep(350);
+            Rect rect=new Rect();runOnMainSync(()->{View target=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key&&v.isShown());if(target!=null)target.getGlobalVisibleRect(rect);});
+            if(!rect.isEmpty()&&rect.equals(previous))stable++;else stable=0;
+            if(stable>=1){tap(rect);Thread.sleep(350);return;}previous=rect;Thread.sleep(100);
+        }while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("Visible shortcut missing after settling: "+key);
     }
     void tagged(ToolbarKey key)throws Exception{
         long deadline=SystemClock.uptimeMillis()+10000;
