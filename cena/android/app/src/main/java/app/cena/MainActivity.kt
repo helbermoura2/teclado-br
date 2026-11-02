@@ -79,6 +79,12 @@ class MainActivity : ComponentActivity() {
             emitStremio()
         }} catch(_:java.util.concurrent.RejectedExecutionException) {}
     }
+    private val localModelExecutor=Executors.newSingleThreadExecutor()
+    private val localModel by lazy {LocalModelStore(applicationContext)}
+    private val localAiClient:LocalAiClient by lazy {LocalAiClient(this){value->if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaLocalAiResult && window.CenaLocalAiResult($value)",null)}}
+    private fun emitLocalModel(){val value=localModel.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaLocalModelResult && window.CenaLocalModelResult($value)",null)}}
+    private fun localModelTask(action:()->Unit){try{localModelExecutor.execute{try{action()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui acessar o GGUF. Selecione o arquivo local completo em Downloads.")}};emitLocalModel()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
+    private val pickLocalModel=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)localModelTask{localModel.select(uri)}}
     private var pendingStory: ByteArray? = null
     private val saveStoryFile = registerForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
         val bytes=pendingStory; pendingStory=null
@@ -240,9 +246,18 @@ class MainActivity : ComponentActivity() {
         if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync();seriesTask(forceSeries) }
     }
 
-    override fun onPause() { traktVisible=false; super.onPause() }
+    override fun onPause() { traktVisible=false;localAiClient.cancel();super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun localModelState(){localModelTask{}}
+        @JavascriptInterface fun chooseLocalModel(){runOnUiThread{localAiClient.cancel();try{pickLocalModel.launch(arrayOf("*/*"))}catch(_:Exception){sendError("Não consegui abrir o seletor de arquivos.")}}}
+        @JavascriptInterface fun removeLocalModel(){runOnUiThread{localAiClient.cancel()};localModelTask{localModel.remove()}}
+        @JavascriptInterface fun cancelLocalAi(){runOnUiThread{localAiClient.cancel()}}
+        @JavascriptInterface fun generateLocalAi(requestId:String,prompt:String){
+            if(!Regex("[0-9]{1,10}").matches(requestId)||prompt.length>20000)return
+            localModelTask{val uri=localModel.uri();runOnUiThread{if(!isDestroyed)localAiClient.generate(requestId,uri,prompt)}}
+        }
+
         @JavascriptInterface fun seriesState(){try{seriesExecutor.execute{emitSeries()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
         @JavascriptInterface fun refreshSeries(){seriesTask(true)}
 
@@ -319,7 +334,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask() }
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{} }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -376,6 +391,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         stremio.cancelReading()
         stremioExecutor.shutdownNow()
+        localAiClient.cancel();localModelExecutor.shutdownNow()
         seriesExecutor.shutdownNow()
         storyExecutor.shutdownNow()
         traktExecutor.shutdownNow()
