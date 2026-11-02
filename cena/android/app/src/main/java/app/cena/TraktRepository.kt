@@ -43,7 +43,7 @@ class TraktVault(context: Context, private val namespace: String = "cena.trakt.v
     }
 }
 
-data class TraktResponse(val status: Int, val body: String, val pages: Int = 1, val retrySeconds: Long = 30)
+data class TraktResponse(val status: Int, val body: String, val pages: Int = 1, val retrySeconds: Long = 30, val itemCount:Long = -1)
 fun interface TraktTransport { fun request(method: String, path: String, body: JSONObject?, clientId: String, token: String?): TraktResponse }
 class TraktHttp : TraktTransport {
     override fun request(method: String, path: String, body: JSONObject?, clientId: String, token: String?): TraktResponse {
@@ -65,7 +65,7 @@ class TraktHttp : TraktTransport {
                 bytes.toString("UTF-8")
             } ?: ""
             return TraktResponse(code, text, (connection.getHeaderField("X-Pagination-Page-Count")?.toIntOrNull() ?: 1).coerceAtLeast(1),
-                (connection.getHeaderField("Retry-After")?.toLongOrNull() ?: 30).coerceIn(5,3600))
+                (connection.getHeaderField("Retry-After")?.toLongOrNull() ?: 30).coerceIn(5,3600), connection.getHeaderField("X-Pagination-Item-Count")?.toLongOrNull() ?: -1)
         } finally { connection.disconnect() }
     }
 }
@@ -121,7 +121,7 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         if(now() < s.optLong("nextPoll")) return@synchronized
         val r = transport.request("POST","/oauth/device/token",JSONObject().put("code",s.getString("deviceCode")).put("client_id",id(s)),id(s),null)
         when(r.status) {
-            200 -> { tokens(s,JSONObject(r.body)); clearGrant(s); s.put("queue",JSONArray()).put("synced",JSONArray()).put("watchlist",JSONArray()).put("watched",JSONArray()).put("lastSync",0).put("needsUpload",true); save(s) }
+            200 -> { tokens(s,JSONObject(r.body));s.remove("historyAccount");s.remove("historyUsername"); clearGrant(s); s.put("queue",JSONArray()).put("synced",JSONArray()).put("watchlist",JSONArray()).put("watched",JSONArray()).put("lastSync",0).put("needsUpload",true); save(s) }
             400 -> {
                 val error=try { JSONObject(r.body).optString("error") } catch(_:Exception) { "" }
                 if(error.isNotBlank() && error !in setOf("authorization_pending","pending")) { clearGrant(s); s.put("error","O Trakt recusou a autorização: $error. Confira o cadastro da integração.") }
@@ -156,6 +156,23 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         require(Regex("/shows/tt\\d{5,12}/progress/watched\\?hidden=false&specials=false&count_specials=false").matches(path)||Regex("/shows/tt\\d{5,12}/seasons/[1-9]\\d*/episodes/[1-9]\\d*\\?extended=full").matches(path))
         val state=load();check(connected(state)){"Conecte o Trakt."};check(now()>=state.optLong("retryAt")){"O Trakt pediu uma pausa."}
         JSONObject(api(state,"GET",path).body)
+    }
+    fun historySnapshot():JSONObject=synchronized(lock){val state=load();JSONObject().put("connected",connected(state)).put("account",state.optString("historyAccount")).put("username",state.optString("historyUsername",state.optString("username")))}
+    fun historyOwner():String=synchronized(lock){
+        val state=load();check(connected(state)){"Conecte o Trakt para importar seu histórico."}
+        val settings=JSONObject(api(state,"GET","/users/settings").body);val user=settings.getJSONObject("user");val ids=user.getJSONObject("ids")
+        val uuid=ids.optString("uuid").takeIf{it.matches(Regex("[A-Za-z0-9_-]{16,100}"))};val slug=ids.optString("slug").takeIf{it!="null"&&it.matches(Regex("[A-Za-z0-9_-]{1,150}"))};val owner=uuid?.let{"uuid:$it"}?:slug?.let{"slug:$it"}.orEmpty();check(owner.isNotBlank()){"Não consegui identificar a conta Trakt."}
+        state.put("historyAccount",owner).put("historyUsername",user.optString("username",owner));save(state);owner
+    }
+    fun historyRead(owner:String,kind:String,page:Int=1):TraktResponse=synchronized(lock){
+        val state=load();check(connected(state)&&state.optString("historyAccount")==owner){"A conta Trakt mudou. Inicie a importação novamente."}
+        check(now()>=state.optLong("retryAt")){"O Trakt pediu uma pausa. Tente novamente mais tarde."}
+        val path=when(kind){
+            "events"->{require(page in 1..1000);"/sync/history?page=$page&limit=500&extended=full"}
+            "activities"->"/sync/last_activities"
+            "stats"->"/users/me/stats"
+            else->throw IllegalArgumentException("Consulta de histórico inválida.")
+        };api(state,"GET",path)
     }
     fun initialUploadComplete() = synchronized(lock) { val s=load(); s.put("needsUpload",false); save(s) }
     fun inventory(raw: JSONArray) = synchronized(lock) {
