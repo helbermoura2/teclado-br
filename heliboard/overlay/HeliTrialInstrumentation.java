@@ -83,7 +83,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         long deadline=SystemClock.uptimeMillis()+10000;Rect previous=null;int stable=0;
         do{
             runOnMainSync(()->{View root=KeyboardSwitcher.getInstance().getStripContainer();SuggestionStripView strip=(SuggestionStripView)findView(root,v->v instanceof SuggestionStripView);if(strip!=null)strip.setToolbarVisibility(true);View target=findView(root,v->v.getTag()==key);if(target!=null)target.requestRectangleOnScreen(new Rect(0,0,target.getWidth(),target.getHeight()),true);});Thread.sleep(350);
-            Rect rect=new Rect();runOnMainSync(()->{View target=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key&&v.isShown());if(target!=null)target.getGlobalVisibleRect(rect);});
+            Rect rect=new Rect();runOnMainSync(()->{View target=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key&&v.isShown());if(target!=null){int[] xy=new int[2];target.getLocationOnScreen(xy);rect.set(xy[0],xy[1],xy[0]+target.getWidth(),xy[1]+target.getHeight());}});
             if(!rect.isEmpty()&&rect.equals(previous))stable++;else stable=0;
             if(stable>=1){tap(rect);Thread.sleep(350);return;}previous=rect;Thread.sleep(100);
         }while(SystemClock.uptimeMillis()<deadline);throw new AssertionError("Visible shortcut missing after settling: "+key);
