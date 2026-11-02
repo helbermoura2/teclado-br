@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private val recognizerDelegate = lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val recognizer by recognizerDelegate
     private val visionExecutor = Executors.newSingleThreadExecutor()
+    private val storyExecutor = Executors.newSingleThreadExecutor()
     private var visualMatcher: VisualMatcher? = null
     @Volatile private var visionInput: FloatArray? = null
     private val traktExecutor = Executors.newSingleThreadScheduledExecutor()
@@ -231,6 +232,27 @@ class MainActivity : ComponentActivity() {
     override fun onPause() { traktVisible=false; super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun loadStoryArtwork(requestId:String,raw:String){
+            if(isDestroyed||!Regex("[0-9]{1,10}").matches(requestId)||raw.length>18000)return
+            val input=try{JSONObject(raw)}catch(_:Exception){return}
+            if(!Regex("tt\\d{5,12}").matches(input.optString("id"))||input.optString("type") !in setOf("movie","series"))return
+            val urls=input.optJSONArray("urls")?:return
+            try{storyExecutor.execute {
+                val result=JSONObject().put("requestId",requestId).put("status","unavailable")
+                val deadline=android.os.SystemClock.elapsedRealtime()+25000
+                for(i in 0 until minOf(urls.length(),3)){
+                    if(isDestroyed||Thread.currentThread().isInterrupted)break
+                    val address=urls.optString(i)
+                    try{
+                        val bitmap=StoryArtwork.download(address,deadline=deadline)
+                        val data=try{StoryArtwork.dataUrl(bitmap)}finally{bitmap.recycle()}
+                        result.put("image",data).put("sourceUrl",address).put("status","ok");break
+                    }catch(_:Exception){}
+                }
+                runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaStoryArtworkResult && window.CenaStoryArtworkResult($result)",null)}
+            }}catch(_:java.util.concurrent.RejectedExecutionException){}
+        }
+
         @JavascriptInterface fun stremioState() {stremioTask {}}
         @JavascriptInterface fun connectStremio() {stremioTask {stremio.beginLink()}}
         @JavascriptInterface fun openStremioAuthorization() {stremioTask {
@@ -340,6 +362,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         stremio.cancelReading()
         stremioExecutor.shutdownNow()
+        storyExecutor.shutdownNow()
         traktExecutor.shutdownNow()
         visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
         visionExecutor.shutdown()
