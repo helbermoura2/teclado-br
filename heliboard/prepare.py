@@ -17,9 +17,9 @@ def replace(path, old, new):
     file.write_text(text.replace(old, new))
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 7010')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 7020')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.7.1-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.7.2-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -94,7 +94,8 @@ text = strip.read_text()
 start = text.index('    private fun onLongClickSuggestion(wordView: TextView): Boolean {')
 end = text.index('    private fun showMoreSuggestions(): Boolean {', start)
 text = text[:start] + '''    private fun onLongClickSuggestion(wordView: TextView): Boolean {
-        val word = wordView.text.toString().trim()
+        val wordIndex = wordView.tag as? Int
+        val word = if (wordIndex != null && wordIndex < suggestedWords.size()) suggestedWords.getInfo(wordIndex).mWord else wordView.text.toString().trim()
         if (word.isEmpty()) return false
         android.widget.PopupMenu(context, wordView).apply {
             menu.add("Adicionar ao dicionário").setOnMenuItemClickListener {
@@ -117,6 +118,19 @@ text = text[:start] + '''    private fun onLongClickSuggestion(wordView: TextVie
 
 ''' + text[end:]
 strip.write_text(text)
+
+# A visible editor-word action remains available even when the typed token is absent
+# from native candidates (e.g. elongated informal spellings).
+shutil.copyfile(here/'overlay/PersonalWords.java', root/'app/src/main/java/helium314/keyboard/latin/PersonalWords.java')
+replace('app/src/main/res/layout/suggestions_strip.xml',
+    '        <LinearLayout\n            android:id="@+id/pinned_keys"',
+    '\n        <TextView android:id="@+id/teclado_add_word" android:layout_width="40dp" android:layout_height="match_parent" android:gravity="center" android:text="＋" android:textSize="26sp" android:contentDescription="Adicionar palavra ao dicionário" android:focusable="true" android:clickable="true"/>\n        <LinearLayout\n            android:id="@+id/pinned_keys"')
+replace('app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt',
+    '        toolbarExpandKey.scaleX = (if (toolbarVisible && !locked) -1f else 1f) * direction',
+    '        findViewById<TextView>(R.id.teclado_add_word).apply {\n            isVisible = !locked && !toolbarVisible && !Settings.getValues().mIncognitoModeEnabled\n            setTextColor(Settings.getValues().mColors.get(ColorType.KEY_TEXT))\n            setOnClickListener { listener.onCodeInput(-11051, 0, 0, false) }\n        }\n        toolbarExpandKey.scaleX = (if (toolbarVisible && !locked) -1f else 1f) * direction')
+replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
+    '    public void onEvent(@NonNull final Event event) {',
+    '    public void onEvent(@NonNull final Event event) {\n        if (event.getKeyCode() == -11051) { PersonalWords.open(this, mInputView.findViewById(R.id.teclado_add_word)); return; }')
 
 # Materialize punctuation spacing immediately, rather than upstream phantom spacing.
 logic = root/'app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java'

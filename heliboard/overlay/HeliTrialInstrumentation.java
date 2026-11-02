@@ -167,11 +167,37 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         setOriginal("texto alterado");aiClick("ai_replace");check(aiText("ai_status").startsWith("O texto original mudou"),"Changed source was not rejected");check(aiText("ai_output").equals(reviewed),"Result lost");check(!aiNode("ai_replace").isEnabled(),"Stale replacement enabled");shot("19-ia-texto-alterado-protegido");aiClick("ai_back");expect("texto alterado");
         toolbar(ToolbarKey.AI);aiClick("ai_review");aiClick("ai_cancel");check(aiText("ai_status").startsWith("Cancelado"),"Cancellation failed");aiClick("ai_back");expect("texto alterado");
     }
+    static final String CUSTOM_WORD="maravilhosaaaa";
+    boolean dictionaryContains(String word)throws Exception {
+        try(Cursor rows=getTargetContext().getContentResolver().query(android.provider.UserDictionary.Words.CONTENT_URI,new String[]{android.provider.UserDictionary.Words.WORD},android.provider.UserDictionary.Words.WORD+" = ?",new String[]{word},null)){return rows!=null&&rows.moveToFirst();}
+    }
+    void predict(String prefix,String word)throws Exception {
+        clear();type(prefix);long deadline=SystemClock.uptimeMillis()+20000;List<String> values;
+        do{values=suggestions();if(values.stream().anyMatch(w->w.equalsIgnoreCase(word)))return;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
+        throw new AssertionError("Missing personal prediction for "+prefix+": "+values);
+    }
+    void personalDictionary(boolean restored)throws Exception {
+        if(!restored){
+            clear();type(CUSTOM_WORD);aiClick("Adicionar palavra ao dicionário");aiNode("Salvar palavra no dicionário");shot("20-adicionar-palavra");aiClick("Salvar palavra no dicionário");
+            long deadline=SystemClock.uptimeMillis()+10000;while(!dictionaryContains(CUSTOM_WORD)&&SystemClock.uptimeMillis()<deadline)Thread.sleep(200);
+        }
+        check(dictionaryContains(CUSTOM_WORD),"Manual word was not persisted");predict("maravilhos",CUSTOM_WORD);shot("21-palavra-pessoal-sugerida");
+        if(!restored){
+            check(Settings.getValues().mUsePersonalizedDicts,"Personalization disabled");check(Settings.getValues().mBigramPredictionEnabled,"Next word prediction disabled");
+            for(int i=0;i<8;i++){clear();type("zunibravo cafezinho ");Thread.sleep(250);}
+        }
+        predict("zuni","zunibravo");shot("22-palavra-aprendida");
+        clear();type("zunibravo ");long deadline=SystemClock.uptimeMillis()+20000;boolean predicted=false;List<String> words=new ArrayList<>();
+        do{words=suggestions();predicted=words.stream().anyMatch(w->w.equalsIgnoreCase("cafezinho"));if(predicted)break;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
+        check(predicted,"Learned next word missing: "+words);result.putString("learned_next_word",words.toString());shot("23-proxima-palavra-aprendida");
+        result.putString("dictionary_learning",restored?"Manual word, learned prefix and learned next word persisted after reinstall":"Explicit save of editor word, prefix completion and learning from repeated typing");
+    }
     @Override public void onStart(){try{
         ui=getUiAutomation();AccessibilityServiceInfo info=ui.getServiceInfo();info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;ui.setServiceInfo(info);
         shots=new File(getTargetContext().getCacheDir(),"heli-shots");shots.mkdirs();
         shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");shell("ime set br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");
         Thread.sleep(10000);options(false,false);launch();
+        if(phase.equals("verify_dictionary")||phase.equals("verify_learning_persisted")){personalDictionary(phase.equals("verify_learning_persisted"));result.putString("result","PASS");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_ai")||phase.equals("verify_ai_missing")){writing(phase.equals("verify_ai"));result.putString("result","PASS");result.putString("coverage","Offline native generation, compositor prompt, editable result, safe replacement and cancellation; missing-model state");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_pins")){check(storedPinned(),"Stored pin lost after process restart");pinnedEntry(true);result.putString("result","PASS");result.putString("coverage","Pinned clipboard text survives app restart and reinstall with same certificate, and can be pasted");finish(Activity.RESULT_OK,result);return;}
         check(bounds('a',false).left>bounds('q',false).left,"A-L row must be centered");

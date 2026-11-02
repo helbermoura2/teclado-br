@@ -85,6 +85,15 @@ fun configureTecladoBr(context: Context) {
             .putBoolean("teclado_br_typing_v1", true)
             .commit()
     }
+    if (!prefs.getBoolean("teclado_br_learning_v2", false)) {
+        prefs.edit()
+            .putBoolean(Settings.PREF_SHOW_SUGGESTIONS, true)
+            .putBoolean(Settings.PREF_BIGRAM_PREDICTIONS, true)
+            .putBoolean(Settings.PREF_KEY_USE_PERSONALIZED_DICTS, true)
+            .putBoolean(Settings.PREF_ADD_TO_PERSONAL_DICTIONARY, true)
+            .putBoolean("teclado_br_learning_v2", true)
+            .commit()
+    }
     if (!prefs.getBoolean("teclado_br_offline_ai_v1", false)) {
         val keys = prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS)!!
             .split("|").filterNot { it.startsWith("AI:") }
