@@ -1,17 +1,20 @@
 # Teclado BR
 
-## Versão atual: 0.7.1 com base HeliBoard
+## Versão atual: 0.7.2 com base HeliBoard
 
-O botão de brilho abre o assistente dentro da área do teclado, mantendo o
-aplicativo visível acima. Menu em cartões, revisão com Editar/Copiar/Substituir,
-cinco estilos e Compositor com prompt digitado nas teclas nativas. Importação de
-GGUF fica na engrenagem. Modelos importados na 0.7.0 são preservados ao atualizar.
+O botão ＋ junto às sugestões cadastra a palavra digitada no dicionário pessoal,
+mesmo quando ela não aparece nas sugestões. O teclado aprende palavras recorrentes
+com o uso; as previsões de próxima palavra são atualizadas quando aprende.
+Detalhes e validação em [PERSONALIZACAO.md](heliboard/PERSONALIZACAO.md).
 
-Compilação, 142 testes unitários e interação por toques no Android aprovados no
-[run 41348374690](https://github.com/helbermoura2/teclado-br/actions/runs/41348374690).
-Detalhes, hashes e limites em [PAINEL-0.7.1.md](heliboard/ai/PAINEL-0.7.1.md).
-O APK não inclui pesos nem permissão INTERNET. A lupa flutuante está pendente;
-a qualidade e velocidade da Gemma 4 no Nothing Phone (1) ainda não foram medidas.
+Compilação, 142 testes unitários e interação Android aprovados no
+[run 41409012543](https://github.com/helbermoura2/teclado-br/actions/runs/41409012543).
+Os testes confirmaram inclusão, completamento por toque, próxima palavra e
+persistência após reinstalar, além das regressões de digitação, idiomas, pins e IA.
+
+O assistente offline continua dentro do teclado, com revisão, estilos e Compositor.
+A atualização mantém modelos importados e os dados anteriores; não desinstalar.
+O APK não inclui pesos nem permissão INTERNET. A lupa flutuante continua pendente.
 
 A documentação abaixo preserva o histórico do aplicativo original 0.1–0.5.
 
