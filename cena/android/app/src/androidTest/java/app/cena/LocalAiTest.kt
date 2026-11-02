@@ -18,6 +18,12 @@ class LocalAiTest {
   try{assertTrue(store.status().getBoolean("configured"));assertFalse(store.status().has("uri"));assertEquals(uri.toString(),store.uri())}finally{store.remove()}
   assertTrue(file.exists());file.delete()
  }
+ @Test fun failuresGiveSafeActionableDiagnostics(){
+  assertTrue(localAiFailure(SecurityException("content://private/model")).contains("[ACESSO]"))
+  assertTrue(localAiFailure(IllegalStateException("CARREGAR_MODELO:INCOMPATIVEL")).contains("não suportada"))
+  assertTrue(localAiFailure(IllegalStateException("CONTEXTO:PEDIDO_LONGO")).contains("excedeu"))
+  assertFalse(localAiFailure(IllegalStateException("/private/model and private prompt")).contains("private"))
+ }
  @Test(timeout=180000) fun realGgufRunsThroughSeparateProcessAndCanBeCancelled(){
   val instrumentation=InstrumentationRegistry.getInstrumentation();val context=instrumentation.targetContext
   val file=File(context.cacheDir,"local-ai-tests/smoke.gguf");assertTrue("CI must provide verified small GGUF",file.length()>100000000)
