@@ -55,14 +55,14 @@ function renderLocalAI(){
  if($('#choose-model'))$('#choose-model').onclick=()=>localAI.select();
  if($('#forget-model'))$('#forget-model').onclick=()=>localAI.remove();
 }
-async function findSimilar(seed,includeSaved=false){
+async function findSimilar(seed,includeSaved=true){
  localAI.cancel();const ticket=++similarTicket,panel=$('#similar-panel');
  panel.innerHTML='<p role="status">Buscando cinco títulos semelhantes…</p>';
  try{
   const result=await similarEngine.find(seed,{existing:items,includeSaved});
   if(ticket!==similarTicket||!panel.isConnected)return;
   similarResults=result.items;
-  panel.innerHTML=`<h3>Semelhantes a ${escape(result.seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><p id="similar-status" class="muted" role="status">${result.items.length===5?'Cinco opções por temas, gêneros e elenco.':`Encontrei ${result.items.length} opções com os dados disponíveis.`}</p><div id="similar-grid">${grid(similarResults)}</div><div id="similar-reasons">${similarResults.map(item=>`<p class="muted"><strong>${escape(item.name)}:</strong> ${escape(item.recommendationReason)}</p>`).join('')}</div>${localAI.state.configured&&localAI.state.supported&&result.candidates.length>=5?'<label for="similar-preference">Preferência opcional para a IA</label><input id="similar-preference" maxlength="200" placeholder="Mais ação e fantasia, por exemplo"><button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
+  panel.innerHTML=`<h3>Semelhantes a ${escape(result.seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><p id="similar-status" class="muted" role="status">${result.items.length===5?'Cinco opções pelos temas e dados do catálogo.':`Encontrei ${result.items.length} opções com o tema identificado. Não completei com filmes de gênero genérico.${!includeSaved?' Marque a opção acima para incluir títulos da sua lista.':''}`}</p>${result.partial?'<p class="muted">Algumas buscas temáticas não responderam. Toque em Ver 5 semelhantes para tentar novamente.</p>':''}<div id="similar-grid">${grid(similarResults)}</div><div id="similar-reasons">${similarResults.map(item=>`<p class="muted"><strong>${escape(item.name)}:</strong> ${escape(item.recommendationReason)}</p>`).join('')}</div>${localAI.state.configured&&localAI.state.supported&&result.candidates.length>=5?'<label for="similar-preference">Preferência opcional para a IA</label><input id="similar-preference" maxlength="200" placeholder="Mais ação e fantasia, por exemplo"><button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
   wireImages();
   panel.querySelectorAll('button.poster-card[data-id]').forEach(button=>button.onclick=()=>showDetail(similarResults.find(item=>item.id===button.dataset.id)));
   $('#similar-saved').onchange=event=>findSimilar(result.seed,event.target.checked);
