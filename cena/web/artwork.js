@@ -56,7 +56,7 @@ function probeImage(url) {
 export class ArtworkResolver {
   constructor({storage,fetcher=fetch,probe=probeImage,now=Date.now,concurrency=2}={}) {
     this.storage=storage;this.fetcher=fetcher;this.probe=probe;this.now=now;this.concurrency=concurrency;
-    this.active=0;this.queue=[];this.jobs=new Map();this.failures=new Map();this.cache={};
+    this.active=0;this.queue=[];this.jobs=new Map();this.interests=new Map();this.failures=new Map();this.cache={};
     try { this.cache=JSON.parse(storage?.getItem('cena.artwork.v1')||'{}'); } catch {}
     if(!this.cache || Array.isArray(this.cache) || typeof this.cache!=='object')this.cache={};
   }
@@ -71,15 +71,22 @@ export class ArtworkResolver {
   resolve(item,{shouldLoad}={}){
     if(!safeId(item))return Promise.resolve('');
     const key=this.key(item);
-    if(this.jobs.has(key))return this.jobs.get(key);
+    if(this.jobs.has(key)){this.interests.get(key)?.push(shouldLoad);return this.jobs.get(key);}
     if(this.failures.has(key) && this.now()-this.failures.get(key)<60000)return Promise.resolve('');
-    const task=new Promise(resolve=>this.queue.push({item:{...item},resolve,shouldLoad}));this.jobs.set(key,task);this.pump();return task;
+    const task={item:{...item},interests:[shouldLoad]};
+    const promise=new Promise(resolve=>{task.resolve=resolve;});task.promise=promise;
+    this.interests.set(key,task.interests);this.jobs.set(key,promise);this.queue.push(task);this.pump();return promise;
   }
   pump(){
     while(this.active<this.concurrency && this.queue.length){
-      const task=this.queue.shift();this.active++;
-      const work=task.shouldLoad&&!task.shouldLoad()?Promise.resolve(''):this.find(task.item);
-      work.then(task.resolve,()=>task.resolve('')).finally(()=>{this.active--;this.jobs.delete(this.key(task.item));this.pump();});
+      const task=this.queue.shift(),key=this.key(task.item);
+      if(!task.interests.some(condition=>!condition||condition())){
+        if(this.jobs.get(key)===task.promise){this.jobs.delete(key);this.interests.delete(key);}task.resolve('');continue;
+      }
+      this.active++;
+      this.find(task.item).then(task.resolve,()=>task.resolve('')).finally(()=>{
+        this.active--;if(this.jobs.get(key)===task.promise){this.jobs.delete(key);this.interests.delete(key);}this.pump();
+      });
     }
   }
   async find(item){
