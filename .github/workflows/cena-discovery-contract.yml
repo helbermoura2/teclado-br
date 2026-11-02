@@ -13,10 +13,10 @@ jobs:
       - run: |
           python3 - <<'PY'
           import urllib.request,json
-          for resource in ['movie/top.json','series/top.json','movie/top/genre=Drama.json','series/top/genre=Drama.json']:
+          for resource in ['movie/top/skip=0.json','series/top/skip=0.json','movie/top/genre=Drama&skip=0.json','series/top/genre=Drama&skip=0.json']:
               try:
-                  data=json.load(urllib.request.urlopen('https://v3-cinemeta.strem.io/catalog/'+resource,timeout=20))
+                  data=json.load(urllib.request.urlopen(urllib.request.Request('https://v3-cinemeta.strem.io/catalog/'+resource,headers={'User-Agent':'CENA/0.8.0'}),timeout=20))
                   rows=data.get('metas',[])
                   print(resource,len(rows),list(rows[0]) if rows else [],json.dumps({k:rows[0].get(k) for k in ['id','type','name','genres','genre']} if rows else {}))
-              except Exception as e:print(resource,type(e).__name__)
+              except Exception as e:print(resource,type(e).__name__,str(e)[:180])
           PY
