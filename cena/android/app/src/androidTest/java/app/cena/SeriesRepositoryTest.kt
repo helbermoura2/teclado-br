@@ -42,7 +42,7 @@ class SeriesRepositoryTest {
         val prior=repo.status().getJSONArray("items").getJSONObject(0).getInt("available")
         fail=true;clock+=SeriesProgress.INTERVAL+1;repo.refresh();val row=repo.status().getJSONArray("items").getJSONObject(0)
         assertEquals(prior,row.getInt("available"));assertTrue(row.getString("error").isNotBlank());assertFalse(repo.status().getBoolean("reading"))
-        connected=false;repo.refresh();assertEquals(0,repo.status().getJSONArray("items").length())
+        connected=false;repo.refresh();assertEquals(0,repo.status().getJSONArray("items").length());assertFalse(context.getSharedPreferences("cena.series.v1",Context.MODE_PRIVATE).contains("sealed"))
     }
     @Test fun largeLibrariesContinueInBatchesAndAnAccountSwitchClearsThePreviousSeries(){
         var calls=0;var account="first";var ids=(0 until 25).map{"tt${1000000+it}"}
