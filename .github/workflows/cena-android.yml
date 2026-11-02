@@ -1,4 +1,5 @@
 name: CENA Android APK
+# Direct Nuvio playback imports are read-only and isolated by account/profile.
 # The protected-file fixture runs in an independent platform-only provider.
 # Release only after the same source passes browser and actual Android GGUF tests.
 
