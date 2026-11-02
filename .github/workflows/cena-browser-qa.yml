@@ -70,7 +70,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.5.1')
+                  expect(page.locator('#app-version')).to_contain_text('0.6.0')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -112,7 +112,17 @@ jobs:
                   native_page.add_init_script("""
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
                     localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt14846026',type:'movie',name:'Sisu',year:'2022',status:'watchlist'}]));
-                    window.CenaAndroid={appVersion:()=> '0.5.1',ready:()=>{},traktInventory:()=>{},queueTraktBatch:()=>{},queueTrakt:()=>{},
+                    window.traktBatches=[];window.stremioAuthorized=false;
+                    window.stremioRows=[
+                      {id:'tt14846026',type:'movie',name:'Sisu',removed:false,temp:false},
+                      {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
+                      {id:'tt0903747',type:'series',name:'Breaking Bad',removed:false,temp:false},
+                      {id:'kitsu:123',type:'series',name:'Anime custom ID',removed:false,temp:false}];
+                    window.CenaAndroid={appVersion:()=> '0.6.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
+                      connectStremio:()=>window.CenaStremioResult({connected:false,pairing:true,library:[]}),
+                      openStremioAuthorization:()=>window.stremioAuthorized=true,
+                      readStremioLibrary:()=>window.CenaStremioResult({connected:true,pairing:false,account:'t***@example.org',lastRead:Date.now(),library:window.stremioRows}),
+                      disconnectStremio:()=>window.CenaStremioResult({connected:false,pairing:false,library:[]}),cancelStremioReading:()=>{},
                       configureTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[]}),
                       connectTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[],userCode:'CENA-CODE',verificationUrl:'https://trakt.tv/activate'}),
                       saveStory:value=>window.savedStory=value,shareStory:value=>window.sharedStory=value};
@@ -141,6 +151,41 @@ jobs:
                   Path('qa/CENA-Story.png').write_bytes(png)
                   native_page.locator('#share-story').click()
                   native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
+                  native_page.locator('#detail .close').click()
+                  native_page.locator('nav [data-tab="connect"]').click()
+                  native_page.locator('#stremio-connect').click()
+                  expect(native_page.locator('#stremio-authorize')).to_be_visible()
+                  native_page.locator('#stremio-authorize').click()
+                  assert native_page.evaluate('window.stremioAuthorized') is True
+                  native_page.evaluate("window.CenaStremioResult({connected:true,account:'t***@example.org',library:[]})")
+                  native_page.locator('#stremio-read').click()
+                  expect(native_page.locator('#stremio-summary')).to_have_text('2 novos · 1 já no CENA · 1 sem identificador compatível.')
+                  expect(native_page.locator('#stremio-trakt')).not_to_be_checked()
+                  native_page.locator('#stremio-filter').fill('breaking')
+                  expect(native_page.locator('#stremio-rows .stremio-row')).to_have_count(1)
+                  native_page.locator('#stremio-filter').fill('')
+                  native_page.locator('#stremio-import').click()
+                  expect(native_page.locator('#stremio-summary')).to_have_text('0 novos · 3 já no CENA · 1 sem identificador compatível.')
+                  imported=native_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert len(imported)==3
+                  assert next(item for item in imported if item['id']=='tt14846026')['status']=='watched'
+                  assert next(item for item in imported if item['id']=='tt0903747')['status']=='watchlist'
+                  assert native_page.evaluate('window.traktBatches.length')==0, 'Import must not silently send the whole library to Trakt'
+                  expect(native_page.locator('#stremio-import')).to_be_disabled()
+                  native_page.locator('#stremio-read').click()
+                  expect(native_page.locator('#stremio-import')).to_be_disabled()
+                  native_page.evaluate("window.stremioRows.push({id:'tt0120873',type:'movie',name:'U.S. Marshals',removed:false,temp:false})")
+                  native_page.locator('#stremio-read').click()
+                  expect(native_page.locator('#stremio-summary')).to_contain_text('1 novos')
+                  native_page.locator('#stremio-trakt').check()
+                  native_page.locator('#stremio-import').click()
+                  native_page.wait_for_function('window.traktBatches.length===1')
+                  assert native_page.evaluate('window.traktBatches[0]')==[{'id':'tt0120873','type':'movie','action':'add'}]
+                  native_page.screenshot(path='qa/stremio-import.png',full_page=True)
+                  native_page.locator('#stremio-disconnect').click()
+                  expect(native_page.locator('#stremio-connect')).to_be_visible()
+                  assert len(native_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))"))==4
+                  print('Stremio preview and selected import preserve watched records, deduplicate, keep custom IDs visible, and only send new titles to Trakt when explicitly checked. Provider authorization is mocked in this browser test.')
                   native_page.close()
                   artwork_page = browser.new_page(viewport={'width':412,'height':915})
                   artwork_page.on('pageerror',lambda error: errors.append(str(error)))
@@ -191,3 +236,4 @@ jobs:
           name: CENA-SISU-browser-QA
           path: cena/qa/*
           if-no-files-found: error
+
