@@ -70,7 +70,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.6.0')
+                  expect(page.locator('#app-version')).to_contain_text('0.6.1')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -118,13 +118,18 @@ jobs:
                       {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
                       {id:'tt0903747',type:'series',name:'Breaking Bad',removed:false,temp:false},
                       {id:'kitsu:123',type:'series',name:'Anime custom ID',removed:false,temp:false}];
-                    window.CenaAndroid={appVersion:()=> '0.6.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
+                    window.CenaAndroid={appVersion:()=> '0.6.1',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
                       connectStremio:()=>window.CenaStremioResult({connected:false,pairing:true,library:[]}),
                       openStremioAuthorization:()=>window.stremioAuthorized=true,
                       readStremioLibrary:()=>window.CenaStremioResult({connected:true,pairing:false,account:'t***@example.org',lastRead:Date.now(),library:window.stremioRows}),
                       disconnectStremio:()=>window.CenaStremioResult({connected:false,pairing:false,library:[]}),cancelStremioReading:()=>{},
                       configureTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[]}),
                       connectTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[],userCode:'CENA-CODE',verificationUrl:'https://trakt.tv/activate'}),
+                      loadStoryArtwork:(requestId)=>setTimeout(()=>{
+                        if(window.failStoryArtwork){window.CenaStoryArtworkResult({requestId,status:'unavailable'});return;}
+                        const canvas=document.createElement('canvas');canvas.width=300;canvas.height=450;const ctx=canvas.getContext('2d');ctx.fillStyle='#1b6587';ctx.fillRect(0,0,300,450);ctx.fillStyle='#e7b878';ctx.fillRect(40,70,180,250);
+                        window.CenaStoryArtworkResult({requestId,status:'ok',image:canvas.toDataURL('image/jpeg'),sourceUrl:'https://images.metahub.space/poster/medium/tt14846026/img'});
+                      },200),
                       saveStory:value=>window.savedStory=value,shareStory:value=>window.sharedStory=value};
                   """)
                   native_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
@@ -143,6 +148,8 @@ jobs:
                   expect(native_page.locator('#story-caption')).to_have_value('Já assisti ✓')
                   assert native_page.locator('#story-canvas').get_attribute('width')=='1080'
                   assert native_page.locator('#story-canvas').get_attribute('height')=='1920'
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','ready')
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-poster-loaded','true')
                   native_page.locator('#save-story').click()
                   native_page.wait_for_function('window.savedStory && window.savedStory.length > 100')
                   import struct
@@ -151,6 +158,18 @@ jobs:
                   Path('qa/CENA-Story.png').write_bytes(png)
                   native_page.locator('#share-story').click()
                   native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
+                  native_page.evaluate('window.failStoryArtwork=true')
+                  native_page.locator('#share-title').click()
+                  expect(native_page.locator('#share-story')).to_be_disabled()
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','error')
+                  expect(native_page.locator('#save-story')).to_be_disabled()
+                  expect(native_page.locator('#story-without-poster')).to_be_visible()
+                  native_page.locator('#story-without-poster').click()
+                  expect(native_page.locator('#share-story')).to_be_enabled()
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','title-only')
+                  native_page.evaluate('window.failStoryArtwork=false')
+                  native_page.locator('#retry-story').click()
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','ready')
                   native_page.locator('#detail .close').click()
                   native_page.locator('nav [data-tab="connect"]').click()
                   native_page.locator('#stremio-connect').click()
