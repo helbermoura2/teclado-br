@@ -86,8 +86,9 @@ jobs:
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             mkdir -p ../qa
             adb push /tmp/cena-smoke.gguf /data/local/tmp/cena-smoke.gguf
-            adb shell run-as app.cena.mobile mkdir -p cache/local-ai-tests
-            adb shell run-as app.cena.mobile cp /data/local/tmp/cena-smoke.gguf cache/local-ai-tests/smoke.gguf
+            adb shell run-as app.cena.mobile.test mkdir -p files
+            adb shell run-as app.cena.mobile.test cp /data/local/tmp/cena-smoke.gguf files/smoke.gguf
+            adb shell content query --uri content://app.cena.mobile.test.model/model
             timeout 420s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest,app.cena.LocalAiTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
             adb shell dumpsys activity lastanr > ../qa/native-last-anr.txt
             if ! grep -F 'OK (18 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
