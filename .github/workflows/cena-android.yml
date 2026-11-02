@@ -82,20 +82,20 @@ jobs:
           SOURCE_DIRECTORY: ${{ steps.source.outputs.directory }}
         run: |
           mkdir -p entrega
-          cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-0.5.1.apk
+          cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-0.6.0.apk
           cd entrega
-          sha256sum CENA-0.5.1.apk > CENA-0.5.1.apk.sha256
+          sha256sum CENA-0.6.0.apk > CENA-0.6.0.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: CENA-Android-0.5.1
+          name: CENA-Android-0.6.0
           path: entrega/*
           retention-days: 30
           if-no-files-found: error
       - name: Download instructions
         run: |
           echo '### CENA Android' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Baixe o artefato CENA-Android-0.5.1 ao final desta página, extraia o ZIP no celular e abra CENA-0.5.1.apk.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Versão 0.5.1: IA visual local, identificação tolerante a erros e pistas do elenco, sem chave de API ou cobrança por imagem. A integração dos players depende de servidor hospedado.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Baixe o artefato CENA-Android-0.6.0 ao final desta página, extraia o ZIP no celular e abra CENA-0.6.0.apk.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Versão 0.6.0: importação da biblioteca Stremio com autorização pelo navegador, prévia e seleção; envio opcional dos novos ao Trakt para o Nuvio.' >> "$GITHUB_STEP_SUMMARY"
 
   publish-private-preview:
     needs: build
@@ -108,25 +108,26 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for attempt in $(seq 1 30); do
-            result=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=30" --jq '.workflow_runs[] | select(.name == "CENA local visual AI on Android") | [.status, (.conclusion // "pending")] | join(" ")' | head -n 1)
-            if [ "$result" = 'completed success' ]; then exit 0; fi
-            if [[ "$result" == completed* ]]; then echo "Android validation: $result"; exit 1; fi
+            result=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=30" --jq '.workflow_runs[] | select(.name == "CENA local visual AI on Android" or .name == "CENA live mobile browser QA") | [.status, (.conclusion // "pending")] | join(" ")')
+            if [ "$(printf '%s\n' "$result" | grep -c '^completed success$')" = 2 ]; then exit 0; fi
+            if printf '%s\n' "$result" | grep -Eq '^completed (failure|cancelled|timed_out|action_required)$'; then echo "Validation: $result"; exit 1; fi
             sleep 15
           done
           echo 'Android validation did not finish in time.'
           exit 1
       - uses: actions/download-artifact@v4
         with:
-          name: CENA-Android-0.5.1
+          name: CENA-Android-0.6.0
           path: entrega
       - name: Publish direct APK download in the private repository
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           test "$(gh repo view "$GITHUB_REPOSITORY" --json isPrivate --jq .isPrivate)" = true
-          if ! gh release view cena-v0.5.1 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create cena-v0.5.1 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'CENA 0.5.1 — atualização de teste' --notes-file cena/docs/CENA-0.5.1.md
+          if ! gh release view cena-v0.6.0 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create cena-v0.6.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'CENA 0.6.0 — atualização de teste' --notes-file cena/docs/CENA-0.6.0.md
           fi
-          gh release upload cena-v0.5.1 entrega/CENA-0.5.1.apk entrega/CENA-0.5.1.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload cena-v0.6.0 entrega/CENA-0.6.0.apk entrega/CENA-0.6.0.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+
 
 
