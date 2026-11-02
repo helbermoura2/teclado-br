@@ -1,4 +1,5 @@
 name: CENA Android APK
+# Home QA scrolls horizontal shelves before validating lazily loaded artwork and scores.
 # Static module traffic has its own budget; authenticated API limits remain intact.
 # Browser QA waits on rendered UI while retaining the strict app CSP.
 # Direct Nuvio playback imports are read-only and isolated by account/profile.
