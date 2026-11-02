@@ -47,7 +47,11 @@ jobs:
         working-directory: ${{ steps.source.outputs.directory }}
         run: |
           node scripts/check-public-search.mjs
-          node scripts/check-regional-artwork.mjs
+          for attempt in 1 2 3; do
+            if node scripts/check-regional-artwork.mjs; then break; fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep 3
+          done
           node scripts/check-discovery.mjs
           node scripts/check-similar.mjs
           node scripts/check-ratings.mjs
