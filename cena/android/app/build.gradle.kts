@@ -9,8 +9,8 @@ android {
         applicationId = "app.cena.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "0.9.1"
+        versionCode = 18
+        versionName = "0.9.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     System.getenv("CENA_KEYSTORE_PATH")?.let { path ->
