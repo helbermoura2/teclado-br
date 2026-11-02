@@ -26,8 +26,16 @@ class LocalAiTest {
  }
  @Test(timeout=180000) fun realGgufRunsThroughSeparateProcessAndCanBeCancelled(){
   val instrumentation=InstrumentationRegistry.getInstrumentation();val context=instrumentation.targetContext
-  val file=File(context.cacheDir,"local-ai-tests/smoke.gguf");assertTrue("CI must provide verified small GGUF",file.length()>100000000)
-  val uri=FileProvider.getUriForFile(context,"${context.packageName}.files",file)
+  // The test APK owns this private file under a different Linux UID.
+  // The app can read the granted FD but cannot reopen the private underlying path.
+  val file=File("/data/user/0/app.cena.mobile.test/files/smoke.gguf")
+  assertFalse("Fixture must remain inaccessible by path to the target app",file.canRead())
+  val uri=android.net.Uri.parse("content://app.cena.mobile.test.model/model")
+  context.contentResolver.openFileDescriptor(uri,"r")!!.use{fd->
+   assertTrue(fd.statSize>100000000)
+   var reopened=false;try{java.io.FileInputStream("/proc/self/fd/${fd.fd}").use{reopened=true}}catch(_:Exception){}
+   assertFalse("Fixture must reproduce Android's descriptor-only access",reopened)
+  }
   val done=CountDownLatch(1);var response=JSONObject();lateinit var client:LocalAiClient
   instrumentation.runOnMainSync{client=LocalAiClient(context){response=it;done.countDown()};client.generate("1",uri.toString(),"Return only the word cinema.",64)}
   assertTrue("Actual GGUF inference timed out",done.await(155,TimeUnit.SECONDS));assertEquals(response.toString(),"ok",response.optString("status"));assertTrue(response.optString("text").isNotBlank())
