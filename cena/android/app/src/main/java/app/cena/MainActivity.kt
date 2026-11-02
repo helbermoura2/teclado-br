@@ -54,10 +54,17 @@ class MainActivity : ComponentActivity() {
     private fun emitTrakt() {
         val state=trakt.status()
         traktWaitingAuth=state.optString("userCode").isNotBlank()
+        val fingerprint=state.optBoolean("connected").toString()+state.optString("username")+state.optJSONArray("progress").toString()
+        if(fingerprint!=seriesFingerprint){seriesFingerprint=fingerprint;if(state.optBoolean("connected"))seriesTask()else{series.clear();emitSeries()}}
         runOnUiThread { if(!isDestroyed && pageReady) web.evaluateJavascript("window.CenaTraktResult && window.CenaTraktResult($state)",null) }
     }
     @Volatile private var traktVisible = false
     @Volatile private var traktWaitingAuth = false
+    private val seriesExecutor=Executors.newSingleThreadScheduledExecutor()
+    private val series:SeriesRepository by lazy {SeriesRepository(applicationContext,changed={emitSeries()})}
+    private var seriesFingerprint=""
+    private fun emitSeries(){val state=series.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaSeriesResult && window.CenaSeriesResult($state)",null)}}
+    private fun seriesTask(force:Boolean=false){try{seriesExecutor.execute{if(series.refresh(force))SeriesWorker.schedule(applicationContext);emitSeries()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
     private val stremioExecutor = Executors.newSingleThreadScheduledExecutor()
     @Volatile private var stremioWaitingAuth = false
     private val stremio by lazy { StremioRepository(applicationContext, changed={emitStremio()}) }
@@ -215,6 +222,7 @@ class MainActivity : ComponentActivity() {
         })
         web.loadUrl("https://appassets.androidplatform.net${assetPrefix}index.html")
         receiveImage(intent)
+        seriesExecutor.scheduleWithFixedDelay({try{if(traktVisible)emitSeries()}catch(_:Exception){}},5,5,java.util.concurrent.TimeUnit.SECONDS)
         stremioExecutor.scheduleWithFixedDelay({
             try {if(stremioWaitingAuth){stremio.pollLink();emitStremio()}}catch(_:Exception){}
         },5,5,java.util.concurrent.TimeUnit.SECONDS)
@@ -225,13 +233,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         traktVisible=true
-        if(::web.isInitialized) stremioTask {stremio.pollLink()}
+        if(::web.isInitialized) {stremioTask {stremio.pollLink()};seriesTask()}
         if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync() }
     }
 
     override fun onPause() { traktVisible=false; super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun seriesState(){try{seriesExecutor.execute{emitSeries()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
+        @JavascriptInterface fun refreshSeries(){seriesTask(true)}
+
         @JavascriptInterface fun loadStoryArtwork(requestId:String,raw:String){
             if(isDestroyed||!Regex("[0-9]{1,10}").matches(requestId)||raw.length>18000)return
             val input=try{JSONObject(raw)}catch(_:Exception){return}
@@ -272,8 +283,8 @@ class MainActivity : ComponentActivity() {
             runOnUiThread { try { startActivity(Intent(Intent.ACTION_VIEW,uri)) } catch(_:Exception) { sendError("Abra o endereço de autorização no navegador.") } }
         } }
         @JavascriptInterface fun syncTrakt() { traktTask { trakt.sync(true) } }
-        @JavascriptInterface fun disconnectTrakt() { traktTask { trakt.disconnect(); TraktWorker.cancel(applicationContext) } }
-        @JavascriptInterface fun traktInventory(raw: String) { if(raw.length<=300000) traktTask { trakt.inventory(JSONArray(raw)) } }
+        @JavascriptInterface fun disconnectTrakt() { traktTask { trakt.disconnect();TraktWorker.cancel(applicationContext);series.clear();emitSeries() } }
+        @JavascriptInterface fun traktInventory(raw: String) { if(raw.length<=300000) traktTask { trakt.inventory(JSONArray(raw));seriesTask() } }
         @JavascriptInterface fun queueTraktBatch(raw: String) { if(raw.length<=300000) traktTask {
             val values=JSONArray(raw); require(values.length()<=2000)
             for(i in 0 until values.length()) trakt.enqueue(values.getJSONObject(i))
@@ -305,7 +316,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { } }
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask() }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -362,6 +373,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         stremio.cancelReading()
         stremioExecutor.shutdownNow()
+        seriesExecutor.shutdownNow()
         storyExecutor.shutdownNow()
         traktExecutor.shutdownNow()
         visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
