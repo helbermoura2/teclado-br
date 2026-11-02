@@ -53,3 +53,11 @@ test('queued artwork which has scrolled out of view is skipped without a failure
   assert.equal(await resolver.resolve(item,{shouldLoad:()=>false}),'');assert.equal(calls,0);assert.equal(resolver.failures.size,0);
   await new Promise(resolve=>setTimeout(resolve,0));assert.equal(await resolver.resolve(item),poster);assert.equal(calls,1);
 });
+test('a new visible card keeps a shared queued image request alive when the previous screen disappeared',async()=>{
+  let release;const gate=new Promise(resolve=>release=resolve);let calls=0;
+  const resolver=new ArtworkResolver({storage:storage(),concurrency:1,fetcher:async url=>{calls++;if(calls===1)await gate;return response({...item,id:url.match(/(tt\d+)\.json/)[1],poster});},probe:async()=>true});
+  const first=resolver.resolve({...item,id:'tt1111111'});
+  const old=resolver.resolve(item,{shouldLoad:()=>false});
+  const visible=resolver.resolve(item,{shouldLoad:()=>true});release();
+  const values=await Promise.all([first,old,visible]);assert.ok(values.every(value=>value===poster));assert.equal(calls,2);
+});
