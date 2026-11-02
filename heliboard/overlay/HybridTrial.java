@@ -259,6 +259,16 @@ public final class HybridTrial {
         test.aiClick("Adicionar palavra ao dicionário");
         test.aiClick("dictionary_manage");
         test.aiNode("dictionary_search");
+        android.graphics.Rect titleBounds=new android.graphics.Rect(),backBounds=new android.graphics.Rect();
+        test.aiNode("dictionary_title").getBoundsInScreen(titleBounds);
+        test.aiNode("dictionary_back").getBoundsInScreen(backBounds);
+        android.util.DisplayMetrics display=new android.util.DisplayMetrics();
+        ((android.view.WindowManager)c.getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay().getRealMetrics(display);
+        int statusId=c.getResources().getIdentifier("status_bar_height","dimen","android");
+        int navId=c.getResources().getIdentifier("navigation_bar_height","dimen","android");
+        int top=statusId==0?0:c.getResources().getDimensionPixelSize(statusId);
+        int bottom=navId==0?0:c.getResources().getDimensionPixelSize(navId);
+        check(titleBounds.top>=top&&backBounds.bottom<=display.heightPixels-bottom,"Dictionary controls overlap system bars");
         test.shot("25-dicionario-e-backup");
         result.putString("hybrid_contract","PASS: HTTPS payload, explicit modes, quota/auth/server/malformed/timeout fallback, no network offline, cancellation without fallback, encrypted key, diff, dictionary backup, settings touch flow");
     }

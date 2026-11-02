@@ -39,10 +39,10 @@ public final class DictionaryActivity extends Activity {
         root=new LinearLayout(this);
         root.setOrientation(1);
         float density=getResources().getDisplayMetrics().density;
-        root.setPadding((int)(20*density),(int)(20*density),(int)(20*density),(int)(16*density));
+        SettingsLayout.insets(root,(int)(20*density));
         root.setBackgroundColor(0xff17191e);
         setContentView(root);
-        label("Dicionário pessoal",24);
+        label("Dicionário pessoal",24).setContentDescription("dictionary_title");
         label("Palavras pessoais do Android. Remova uma entrada indesejada ou faça uma cópia para guardar.",14);
         search=new EditText(this);
         search.setSingleLine(true);
@@ -69,7 +69,7 @@ public final class DictionaryActivity extends Activity {
         rows.setOrientation(1);
         scroll.addView(rows);
         root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        button("Voltar",this::finish);
+        button("Voltar",this::finish).setContentDescription("dictionary_back");
         reload();
     }
     private void reload() {

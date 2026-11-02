@@ -46,10 +46,11 @@ public final class ModelSettingsActivity extends Activity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
         scroll.setBackgroundColor(0xff17191e);
         root=new LinearLayout(this);
         root.setOrientation(1);
-        root.setPadding(dp(20),dp(20),dp(20),dp(20));
+        SettingsLayout.insets(root,dp(20));
         scroll.addView(root);
         setContentView(scroll);
         label("Assistente · configurações",24);

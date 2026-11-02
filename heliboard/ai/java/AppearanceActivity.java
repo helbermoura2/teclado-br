@@ -50,9 +50,10 @@ public final class AppearanceActivity extends Activity {
         super.onCreate(state);
         prefs=DeviceProtectedUtils.getSharedPreferences(this);
         ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
         root=new LinearLayout(this);
         root.setOrientation(1);
-        root.setPadding(dp(20),dp(20),dp(20),dp(20));
+        SettingsLayout.insets(root,dp(20));
         root.setBackgroundColor(0xff17191e);
         scroll.addView(root);
         setContentView(scroll);
