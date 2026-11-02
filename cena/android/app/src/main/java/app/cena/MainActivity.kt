@@ -293,7 +293,7 @@ class MainActivity : ComponentActivity() {
             for(i in 0 until values.length()) trakt.enqueue(values.getJSONObject(i))
             trakt.initialUploadComplete(); TraktWorker.schedule(applicationContext); trakt.sync()
         } }
-        @JavascriptInterface fun queueTrakt(raw: String) { if(raw.length<=2000) traktTask { trakt.enqueue(JSONObject(raw)); TraktWorker.schedule(applicationContext); trakt.sync();seriesTask(forceSeries) } }
+        @JavascriptInterface fun queueTrakt(raw: String) { if(raw.length<=2000) traktTask { trakt.enqueue(JSONObject(raw)); TraktWorker.schedule(applicationContext); trakt.sync();seriesTask() } }
         @JavascriptInterface fun saveStory(encoded: String) {
             if(encoded.length>12_000_000) return
             val bytes=try { Base64.decode(encoded,Base64.DEFAULT) } catch(_:Exception) { return }
