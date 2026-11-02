@@ -10,7 +10,7 @@ permissions:
 jobs:
   local-model:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -30,6 +30,22 @@ jobs:
         with:
           gradle-version: '8.11.1'
           cache-read-only: false
+      - name: Prepare pinned local GGUF runtime
+        run: |
+          sdkmanager 'ndk;28.0.13004108'
+          git clone --filter=blob:none --no-checkout https://github.com/ggml-org/llama.cpp.git /tmp/cena-llama
+          git -C /tmp/cena-llama fetch --depth 1 origin 0ec4027a2a0183de87c007069adddc06e665f7de
+          git -C /tmp/cena-llama checkout --detach FETCH_HEAD
+          mkdir -p cena/android/app/src/main/assets/licenses
+          cp /tmp/cena-llama/LICENSE cena/android/app/src/main/assets/licenses/llama.cpp.txt
+      - uses: actions/cache@v4
+        id: local-runtime
+        with:
+          path: cena/android/app/src/main/jniLibs
+          key: cena-llama-b12020-ndk28-${{ hashFiles('cena/android/app/src/main/cpp/**', 'cena/scripts/build-local-ai.sh') }}
+      - name: Compile local CPU engine for Android
+        if: steps.local-runtime.outputs.cache-hit != 'true'
+        run: bash cena/scripts/build-local-ai.sh cena /tmp/cena-llama
       - name: Restore the same persistent signing identity as delivery
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,6 +60,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release download cena-v0.7.2 --repo "$GITHUB_REPOSITORY" --pattern CENA-0.7.2.apk --dir /tmp/cena-previous
+      - name: Download verified runtime test model (never bundled)
+        run: |
+          curl -fL --retry 3 'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf?download=true' -o /tmp/cena-smoke.gguf
+          echo '9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031  /tmp/cena-smoke.gguf' | sha256sum -c -
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -55,7 +75,7 @@ jobs:
           arch: x86_64
           target: google_apis
           emulator-boot-timeout: 180
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 2048 -partition-size 2048
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -memory 4096 -partition-size 4096
           disable-animations: true
           working-directory: cena/android
           script: |
@@ -65,10 +85,13 @@ jobs:
             adb install -r app/build/outputs/apk/debug/app-debug.apk
             adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             mkdir -p ../qa
-            timeout 240s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
+            adb push /tmp/cena-smoke.gguf /data/local/tmp/cena-smoke.gguf
+            adb shell run-as app.cena.mobile mkdir -p cache/local-ai-tests
+            adb shell run-as app.cena.mobile cp /data/local/tmp/cena-smoke.gguf cache/local-ai-tests/smoke.gguf
+            timeout 420s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest,app.cena.LocalAiTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
             adb shell dumpsys activity lastanr > ../qa/native-last-anr.txt
-            if ! grep -F 'OK (15 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
-            grep -F 'OK (15 tests)' /tmp/cena-instrumentation.txt
+            if ! grep -F 'OK (17 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
+            grep -F 'OK (17 tests)' /tmp/cena-instrumentation.txt
             adb shell run-as app.cena.mobile cat files/legacy-update-marker.txt | grep -x update
             mkdir -p ../qa
             adb exec-out run-as app.cena.mobile cat files/native-ocr.json > ../qa/native-ocr.json
