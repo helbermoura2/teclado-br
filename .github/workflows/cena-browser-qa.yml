@@ -458,3 +458,5 @@ jobs:
           path: cena/qa/*
           if-no-files-found: error
 
+
+# Validate module loading after repeated page contexts without exhausting the API budget.
