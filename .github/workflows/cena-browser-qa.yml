@@ -1,4 +1,5 @@
 name: CENA live mobile browser QA
+# Includes title-specific similarity and optional local-model UI validation.
 on:
   push:
     branches: ['cena/**']
