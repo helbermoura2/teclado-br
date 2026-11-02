@@ -36,7 +36,7 @@ class StremioRepositoryTest {
         val repo=StremioRepository(context,transport,{clock})
         TraktVault(context).write(JSONObject().put("isolationMarker","keep-existing-trakt"))
         repo.beginLink();clock+=5000;repo.pollLink()
-        assertTrue(repo.status().getBoolean("pairing"));assertFalse(repo.status().getBoolean("connected"))
+        assertTrue(repo.status().getBoolean("pairing"));assertFalse(repo.status().getBoolean("connected"));assertFalse(repo.status().toString().contains("PAIR"))
         pending=false;clock+=5000;repo.pollLink()
         val state=repo.status().toString();assertTrue(repo.status().getBoolean("connected"));assertFalse(state.contains("private-stremio-session-test"));assertFalse(repo.status().has("pairCode"));assertFalse(repo.status().has("pairLink"))
         val sealed=context.getSharedPreferences("cena.stremio.v1",Context.MODE_PRIVATE).getString("sealed","")!!
