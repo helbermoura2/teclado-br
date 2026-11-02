@@ -79,6 +79,15 @@ class MainActivity : ComponentActivity() {
             emitStremio()
         }} catch(_:java.util.concurrent.RejectedExecutionException) {}
     }
+    private val nuvioExecutor=Executors.newSingleThreadScheduledExecutor()
+    private val nuvio by lazy {NuvioRepository(applicationContext)}
+    @Volatile private var nuvioVisible=false
+    private var nuvioLoop=false
+    private var lastNuvioLoopSync=0L
+    private var lastNuvioOpening=0L
+    private fun emitNuvio(){val state=nuvio.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaNuvioResult && window.CenaNuvioResult($state)",null)}}
+    private fun nuvioTask(action:()->Unit={}){try{nuvioExecutor.execute{try{action()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui consultar o Nuvio. Confira a conexão e tente novamente.")}};emitNuvio()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
+    private fun startNuvioLoop(){if(nuvioLoop)return;nuvioLoop=true;nuvioExecutor.scheduleWithFixedDelay({if(nuvioVisible&&!isDestroyed){try{if(nuvio.pairing()){nuvio.poll();emitNuvio()}else if(nuvio.enabled()&&System.currentTimeMillis()-lastNuvioLoopSync>=300000){nuvio.sync();lastNuvioLoopSync=System.currentTimeMillis();emitNuvio()}}catch(_:Exception){}}},3,5,java.util.concurrent.TimeUnit.SECONDS)}
     private val localModelExecutor=Executors.newSingleThreadExecutor()
     private val localModel by lazy {LocalModelStore(applicationContext)}
     private val localAiClient:LocalAiClient by lazy {LocalAiClient(this){value->if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaLocalAiResult && window.CenaLocalAiResult($value)",null)}}
@@ -239,6 +248,8 @@ class MainActivity : ComponentActivity() {
     }
     override fun onResume() {
         super.onResume()
+        nuvioVisible=true
+        if(pageReady){val current=System.currentTimeMillis();val force=current-lastNuvioOpening>60000;lastNuvioOpening=current;nuvioTask{nuvio.poll();nuvio.sync(force)}}
         traktVisible=true
         if(::web.isInitialized) stremioTask {stremio.pollLink()}
         val forceSeries=System.currentTimeMillis()-lastSeriesOpening>=15*60*1000L
@@ -246,9 +257,17 @@ class MainActivity : ComponentActivity() {
         if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync();seriesTask(forceSeries) }
     }
 
-    override fun onPause() { traktVisible=false;localAiClient.cancel();super.onPause() }
+    override fun onPause() { nuvioVisible=false;traktVisible=false;localAiClient.cancel();super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun nuvioState(){nuvioTask()}
+        @JavascriptInterface fun connectNuvio(){nuvioTask{nuvio.begin()}}
+        @JavascriptInterface fun refreshNuvioProfiles(){nuvioTask{nuvio.profiles()}}
+        @JavascriptInterface fun selectNuvioProfile(id:Int){nuvioTask{nuvio.selectProfile(id);NuvioWorker.schedule(applicationContext)}}
+        @JavascriptInterface fun syncNuvio(){nuvioTask{nuvio.sync(true)}}
+        @JavascriptInterface fun nuvioInventory(raw:String){if(raw.length<250000)nuvioTask{nuvio.inventory(raw)}}
+        @JavascriptInterface fun disconnectNuvio(){nuvioTask{nuvio.disconnect();NuvioWorker.cancel(applicationContext)}}
+        @JavascriptInterface fun openNuvioVerification(){nuvioTask{val value=nuvio.status().optString("verificationUrl");if(value.startsWith("https://nuvio.tv/")||value.startsWith("https://www.nuvio.tv/"))runOnUiThread{try{startActivity(Intent(Intent.ACTION_VIEW,android.net.Uri.parse(value)))}catch(_:Exception){sendError("Abra https://nuvio.tv/link no navegador e informe o código exibido.")}}}}
         @JavascriptInterface fun localModelState(){localModelTask{}}
         @JavascriptInterface fun chooseLocalModel(){runOnUiThread{localAiClient.cancel();try{pickLocalModel.launch(arrayOf("*/*"))}catch(_:Exception){sendError("Não consegui abrir o seletor de arquivos.")}}}
         @JavascriptInterface fun removeLocalModel(){runOnUiThread{localAiClient.cancel()};localModelTask{localModel.remove()}}
@@ -334,7 +353,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{} }
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();nuvioTask{nuvio.poll();nuvio.sync()} }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -391,7 +410,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         stremio.cancelReading()
         stremioExecutor.shutdownNow()
-        localAiClient.cancel();localModelExecutor.shutdownNow()
+        localAiClient.cancel();localModelExecutor.shutdownNow();nuvioVisible=false;nuvioExecutor.shutdownNow()
         seriesExecutor.shutdownNow()
         storyExecutor.shutdownNow()
         traktExecutor.shutdownNow()
