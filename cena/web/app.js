@@ -1,3 +1,4 @@
+import {createStremioPanel} from './stremio-panel.js';
 import { ArtworkResolver, trustedArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
 import { getTitleDetails } from './search-public.js';
@@ -19,6 +20,17 @@ let traktInitialUploadRequested = false;
 let libraryReady=false, deferredTraktState=null;
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
+const stremioPanel=createStremioPanel({
+  bridge:window.CenaAndroid,getItems:()=>items,traktConnected:()=>Boolean(traktState.connected),toast,
+  onImport:async(result,sendToTrakt)=>{
+    if(apiBase!=='local'||!libraryReady)throw Error('Aguarde sua lista local carregar.');
+    localStorage.setItem('cena.local.items.v1',JSON.stringify(result.items));items=result.items;
+    sendTraktInventory();
+    if(sendToTrakt&&typeof window.CenaAndroid?.queueTraktBatch==='function')window.CenaAndroid.queueTraktBatch(JSON.stringify(result.added.map(({id,type})=>({id,type,action:'add'}))));
+  }
+});
+window.CenaStremioResult=state=>stremioPanel.update(state);
+
 const artworkResolver = new ArtworkResolver({storage:localStorage});
 const artworkModels = new Map();
 const artworkObserved = new WeakSet();
@@ -75,7 +87,7 @@ window.CenaTraktResult = state => {
   if(JSON.stringify(merged)!==JSON.stringify(items)) { items=merged; localStorage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
   if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
-  if(tab==='connect' && !document.querySelector('#trakt-client-id:focus')) localConnection();
+  if(tab==='connect' && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus')) localConnection();
   else if(!$('#detail').open && (tab==='home'||tab==='library')) setTab(tab);
   const label=$('#trakt-item-state'); if(label && detailItem) label.textContent=traktItemLabel(detailItem,state);
 };
@@ -325,9 +337,11 @@ function localConnection() {
     <div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
     ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
     ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
+    <div class="panel" id="stremio-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">O Android pode adiar tarefas em segundo plano. Ao abrir o CENA, a consulta é retomada.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
+  stremioPanel.mount($('#stremio-panel'));
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
   if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
   if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
