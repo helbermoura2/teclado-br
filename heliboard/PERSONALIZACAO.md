@@ -10,7 +10,9 @@ completamentos e correções. Segurar uma sugestão continua oferecendo o menu.
 A migração ativa sugestões, personalização, próxima palavra e inclusão automática
 de palavras recorrentes no dicionário pessoal. O mecanismo nativo aprende
 frequência e contexto das palavras confirmadas, com ganho gradual; não é uma
-promessa de completar todas as frases. Não grava tudo como um histórico de
+promessa de completar todas as frases. O cache de próximas palavras é invalidado a cada palavra aprendida e não guarda
+resultados vazios, evitando previsões desatualizadas dentro do mesmo campo.
+Não grava tudo como um histórico de
 mensagens. Apagar/corrigir palavras também fornece sinais ao motor nativo.
 
 Campos de senha, modo anônimo e campos com NO_PERSONALIZED_LEARNING continuam

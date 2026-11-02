@@ -132,6 +132,18 @@ replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
     '    public void onEvent(@NonNull final Event event) {',
     '    public void onEvent(@NonNull final Event event) {\n        if (event.getKeyCode() == -11051) { PersonalWords.open(this, mInputView.findViewById(R.id.teclado_add_word)); return; }')
 
+# Predictions must be invalidated when the local language model learns a word.
+# Otherwise an empty result cached before the phrase was learned survives the whole field session.
+replace('app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java',
+    '        mDictionaryFacilitator.addToUserHistory(word, wasAutoCapitalized, ngramContext,\n                timeStampInSeconds, settingsValues.mBlockPotentiallyOffensive);',
+    '        mDictionaryFacilitator.addToUserHistory(word, wasAutoCapitalized, ngramContext,\n                timeStampInSeconds, settingsValues.mBlockPotentiallyOffensive);\n        mSuggest.clearNextWordSuggestionsCache();')
+replace('app/src/main/java/helium314/keyboard/latin/Suggest.kt',
+    'private val nextWordSuggestionsCache = HashMap<NgramContext, SuggestionResults>()',
+    'private val nextWordSuggestionsCache = java.util.concurrent.ConcurrentHashMap<NgramContext, SuggestionResults>()')
+replace('app/src/main/java/helium314/keyboard/latin/Suggest.kt',
+    '        nextWordSuggestionsCache[ngramContext] = newResults',
+    '        if (!newResults.isEmpty()) nextWordSuggestionsCache[ngramContext] = newResults')
+
 # Materialize punctuation spacing immediately, rather than upstream phantom spacing.
 logic = root/'app/src/main/java/helium314/keyboard/latin/inputlogic/InputLogic.java'
 text = logic.read_text()
