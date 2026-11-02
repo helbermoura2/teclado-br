@@ -146,6 +146,16 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         check(r.status in 200..299) { "O Trakt não concluiu a sincronização (${r.status}). Sua lista local foi preservada." }
         return r
     }
+    fun seriesSnapshot():JSONObject=synchronized(lock){
+        val state=load();val progress=records(state.optJSONArray("progress")).associateBy{it.optString("id")}
+        val tracked=(records(state.optJSONArray("inventory"))+records(state.optJSONArray("watchlist"))).filter{it.optString("type")=="series"&&valid(it)}.distinctBy{it.getString("id")}
+        JSONObject().put("connected",connected(state)).put("account",state.optString("account")).put("series",JSONArray(tracked.map{row->val old=progress[row.getString("id")];JSONObject().put("id",row.getString("id")).put("episodes",old?.optInt("episodes")?:0).put("watchedAt",old?.optString("watchedAt")?:"")}))
+    }
+    fun seriesRead(path:String):JSONObject=synchronized(lock){
+        require(Regex("/shows/tt\\d{5,12}/progress/watched\\?hidden=false&specials=false&count_specials=false").matches(path)||Regex("/shows/tt\\d{5,12}/seasons/[1-9]\\d*/episodes/[1-9]\\d*\\?extended=full").matches(path))
+        val state=load();check(connected(state)){"Conecte o Trakt."};check(now()>=state.optLong("retryAt")){"O Trakt pediu uma pausa."}
+        JSONObject(api(state,"GET",path).body)
+    }
     fun initialUploadComplete() = synchronized(lock) { val s=load(); s.put("needsUpload",false); save(s) }
     fun inventory(raw: JSONArray) = synchronized(lock) {
         require(raw.length() <= 2000)
@@ -210,7 +220,7 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
                 val imdbId=row.optJSONObject("show")?.optJSONObject("ids")?.optString("imdb") ?: continue
                 if(imdbId !in tracked) continue
                 val completed=records(row.optJSONArray("seasons")).filter { it.optInt("number") > 0 }.sumOf { season -> records(season.optJSONArray("episodes")).count { it.optInt("plays") > 0 } }
-                progress.add(JSONObject().put("id",imdbId).put("type","series").put("episodes",completed))
+                progress.add(JSONObject().put("id",imdbId).put("type","series").put("episodes",completed).put("watchedAt",row.optString("last_watched_at")))
             }
             s.put("watchlist",JSONArray(remote)).put("watched",JSONArray(watched)).put("progress",JSONArray(progress)).put("lastSync",now()).put("error",if(s.optBoolean("blocked")) s.optString("queueError") else "").put("failures",0).put("retryAt",0); save(s)
         } catch(e: Exception) {
