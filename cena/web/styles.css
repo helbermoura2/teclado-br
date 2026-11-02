@@ -23,3 +23,5 @@ nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}nav button{
 #similar-panel{margin-top:24px}#similar-panel input[type=checkbox]{width:auto;margin-right:8px}#similar-panel .poster-grid{margin-top:18px}#similar-panel button.wide{margin-top:14px}#local-ai-panel button{margin:6px 4px 6px 0}
 
 .imdb-score{display:block;min-height:20px;line-height:20px;font-size:10px;font-weight:650;white-space:nowrap;font-variant-numeric:tabular-nums;color:#f0cc67}.imdb-score.unrated{color:#aaa2b5;font-weight:400}.detail-top .imdb-score{font-size:13px;margin:10px 0 6px}.detail-top .meta{display:block}.series-card .imdb-score{font-size:12px;margin-top:4px}@media(min-width:600px){.poster-card .imdb-score{font-size:12px}}
+
+#nuvio-panel select{width:100%;padding:13px;background:#20202d;color:white;border:1px solid #534563;border-radius:12px}#nuvio-panel .wide{margin-top:12px}
