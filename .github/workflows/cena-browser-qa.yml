@@ -277,7 +277,7 @@ jobs:
                   expect(discovery_page.locator('#series-home')).to_contain_text('1 novo episódio')
                   discovery_page.locator('nav [data-tab="discover"]').click()
                   expect(discovery_page.locator('#recommendation-grid .poster-card')).to_have_count(2,timeout=30000)
-                  expect(discovery_page.locator('#recommendation-grid')).not_to_contain_text('Favorito policial')
+                  expect(discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000001"]')).to_have_count(0)
                   expect(discovery_page.locator('#recommendation-grid')).to_contain_text('em comum')
                   discovery_page.locator('[data-discovery-filter="series"]').click()
                   expect(discovery_page.locator('#recommendation-grid .poster-card')).to_have_count(1)
