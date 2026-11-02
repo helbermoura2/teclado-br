@@ -1,13 +1,18 @@
 // All coordinates are export pixels. Keep important content inside Instagram's UI margins.
 const backgrounds=new WeakMap();
 export const storyLayout={width:1080,height:1920,poster:{x:280,y:220,width:520,height:780},safe:{top:220,bottom:1660,left:100,right:980}};
+export function parseStoryRating(value){
+  const raw=String(value??'').trim();
+  if(!/^\d{1,2}([.,]\d{1,2})?$/.test(raw))return null;
+  const score=Number(raw.replace(',','.'));return Number.isFinite(score)&&score>=0&&score<=10?score:null;
+}
 export function storyOpinion(text,rating=''){
   let opinion=String(text||'').trim();
-  const suffix=opinion.match(/(?:[,;—–-]?\s*)(?<![\d.,])(10|[0-9])(?:[.,]([0-9]))?\s*\/\s*10[.!]?\s*$/);
+  const suffix=opinion.match(/(?:[,;—–-]?\s*)(?<![\d.,])(10|[0-9])(?:[.,]([0-9]{1,2}))?\s*\/\s*10[.!]?\s*$/);
   const raw=String(rating??'').trim().replace(',','.');
-  const explicit=raw!==''?Number(raw):NaN;
+  const explicit=parseStoryRating(raw);
   const embedded=suffix?Number(suffix[1]+'.'+(suffix[2]||'0')):NaN;
-  const score=Number.isFinite(explicit)&&explicit>=0&&explicit<=10?explicit:raw===''&&embedded>=0&&embedded<=10?embedded:null;
+  const score=explicit!==null?explicit:raw===''&&embedded>=0&&embedded<=10?embedded:null;
   if(suffix&&score!==null)opinion=opinion.slice(0,suffix.index).trim().replace(/[,;—–-]$/,'').trim();
   return {opinion,score};
 }
@@ -58,10 +63,10 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const opinionTop=Math.min(1420,Math.max(cursor,1370));
   const opinion=fitText(ctx,review.opinion,860,3,44,32);ctx.fillStyle='#fff';
   opinion.lines.forEach((line,i)=>ctx.fillText(line,540,opinionTop+i*(opinion.size+10)));
-  // Geometric A: the triangle is the final letter of CENA, not a detached symbol.
-  ctx.font='800 32px sans-serif';const wordWidth=ctx.measureText('CEN').width,total=wordWidth+34;const start=(1080-total)/2;
-  ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#e1dbea';ctx.fillText('CEN',start,1624);
-  const x=start+wordWidth+4;ctx.strokeStyle='#b781fa';ctx.lineWidth=5;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();ctx.moveTo(x,1624);ctx.lineTo(x+14,1598);ctx.lineTo(x+28,1624);ctx.moveTo(x+6,1614);ctx.lineTo(x+22,1614);ctx.stroke();
+  // The app signature uses the original filled purple triangle as its final glyph.
+  ctx.font='800 52px sans-serif';const wordWidth=ctx.measureText('CEN').width,total=wordWidth+52;const start=(1080-total)/2;
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#eee9f6';ctx.fillText('CEN',start,1636);
+  const x=start+wordWidth+6;ctx.fillStyle='#b781fa';ctx.beginPath();ctx.moveTo(x,1636);ctx.lineTo(x+23,1594);ctx.lineTo(x+46,1636);ctx.closePath();ctx.fill();
   canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='2';
   return {titleLines:heading.lines,opinionLines:opinion.lines,opinionBottom:opinionTop+opinion.lines.length*(opinion.size+10),score:review.score};
 }
