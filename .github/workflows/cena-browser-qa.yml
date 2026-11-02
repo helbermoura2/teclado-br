@@ -70,7 +70,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.7.1')
+                  expect(page.locator('#app-version')).to_contain_text('0.7.2')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -118,7 +118,7 @@ jobs:
                       {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
                       {id:'tt0903747',type:'series',name:'Breaking Bad',removed:false,temp:false},
                       {id:'kitsu:123',type:'series',name:'Anime custom ID',removed:false,temp:false}];
-                    window.CenaAndroid={appVersion:()=> '0.7.1',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
+                    window.CenaAndroid={appVersion:()=> '0.7.2',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
                       connectStremio:()=>window.CenaStremioResult({connected:false,pairing:true,library:[]}),
                       openStremioAuthorization:()=>window.stremioAuthorized=true,
                       readStremioLibrary:()=>window.CenaStremioResult({connected:true,pairing:false,account:'t***@example.org',lastRead:Date.now(),library:window.stremioRows}),
@@ -218,6 +218,36 @@ jobs:
                   assert len(native_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))"))==4
                   print('Stremio preview and selected import preserve watched records, deduplicate, keep custom IDs visible, and only send new titles to Trakt when explicitly checked. Provider authorization is mocked in this browser test.')
                   native_page.close()
+                  scroll_page=browser.new_page(viewport={'width':412,'height':915})
+                  scroll_page.on('pageerror',lambda error:errors.append(str(error)))
+                  scroll_page.route('https://**/*',lambda route:route.fulfill(status=200,content_type='image/png',body=png) if route.request.resource_type=='image' else route.fulfill(status=200,content_type='application/json',body='{}'))
+                  scroll_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify(Array.from({length:110},(_,i)=>({id:'tt'+(9000000+i),type:'movie',name:'Saved film '+i,status:'watchlist',poster:'https://image.tmdb.org/fixture.jpg'}))));
+                    window.CenaAndroid={appVersion:()=> '0.7.2',ready:()=>{},traktInventory:()=>{}};
+                  """)
+                  scroll_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  scroll_page.locator('nav [data-tab="library"]').click()
+                  scroll_page.locator('[data-filter="all"]').click()
+                  scroll_page.locator('#query').fill('rascunho preservado')
+                  scroll_page.evaluate("document.querySelector('#search-results').innerHTML='<p id=search-sentinel>Resultados preservados</p>'")
+                  scroll_page.locator('#library-grid .poster-card').nth(40).scroll_into_view_if_needed()
+                  scroll_page.wait_for_timeout(1000)
+                  before=scroll_page.evaluate("window.savedCard=document.querySelector('#library-grid .poster-card[data-id=tt9000040]');window.savedImage=savedCard.querySelector('img');window.scrollY")
+                  assert before>1000
+                  scroll_page.evaluate("window.CenaTraktResult({configured:true,connected:true,lastSync:1700000000000,pending:[],watchlist:[],watched:[]})")
+                  assert abs(scroll_page.evaluate('window.scrollY')-before)<3, 'Timestamp-only sync must not jump to the top'
+                  expect(scroll_page.locator('#query')).to_have_value('rascunho preservado')
+                  scroll_page.evaluate("window.CenaTraktResult({configured:true,connected:true,lastSync:1700000001000,pending:[],watchlist:[{id:'tt9991234',type:'movie',name:'Remote new film'}],watched:[{id:'tt9000040',type:'movie',watchedAt:'2026-11-02T00:00:00Z'}]})")
+                  assert abs(scroll_page.evaluate('window.scrollY')-before)<3, 'Actual library changes must preserve the visible card position'
+                  assert scroll_page.evaluate("window.savedCard===document.querySelector('#library-grid .poster-card[data-id=tt9000040]') && window.savedImage===savedCard.querySelector('img')"), 'Existing cards and loaded images must be reused'
+                  expect(scroll_page.locator('#library-grid .poster-card')).to_have_count(111)
+                  expect(scroll_page.locator('#query')).to_have_value('rascunho preservado')
+                  expect(scroll_page.locator('#search-sentinel')).to_have_text('Resultados preservados')
+                  expect(scroll_page.locator('#library-grid .poster-card[data-id="tt9000040"] .badge')).to_have_text('✓ Assistido')
+                  scroll_page.screenshot(path='qa/catalog-scroll-preserved.png',full_page=False)
+                  scroll_page.close()
+                  print('Scroll, search draft/results, and existing image nodes preserved across timestamp-only and actual Trakt updates.')
                   artwork_page = browser.new_page(viewport={'width':412,'height':915})
                   artwork_page.on('pageerror',lambda error: errors.append(str(error)))
                   artwork_page.add_init_script("""
@@ -229,29 +259,31 @@ jobs:
                       {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',status:'watched',watchedSource:'Trakt',poster:''},
                       {id:'tt0167260',type:'movie',name:'The Lord of the Rings: The Return of the King',year:'2003',status:'watchlist',poster:''},
                       {id:'tt0367882',type:'movie',name:'Indiana Jones and the Kingdom of the Crystal Skull',year:'2008',status:'watchlist',poster:''},
-                      {id:'tt0253474',type:'movie',name:'The Pianist',year:'2002',status:'watchlist',poster:''}
+                      {id:'tt0253474',type:'movie',name:'The Pianist',year:'2002',status:'watchlist',poster:''},
+                      {id:'tt13073252',type:'movie',name:'O Sequestro do Voo 375',year:'2023',status:'watchlist',poster:''},
+                      {id:'tt8646254',type:'movie',name:'45 do Segundo Tempo',year:'2022',status:'watchlist',poster:''}
                     ]));
                   """)
                   artwork_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
                   artwork_page.locator('nav [data-tab="library"]').click()
                   artwork_page.locator('[data-filter="all"]').click()
                   cards=artwork_page.locator('#library-grid .poster-card')
-                  expect(cards).to_have_count(7)
-                  for index in range(7):
+                  expect(cards).to_have_count(9)
+                  for index in range(9):
                       image=cards.nth(index).locator('.poster-art img')
                       cards.nth(index).scroll_into_view_if_needed()
                       expect(image).to_be_visible(timeout=60000)
                       expect(image).to_have_js_property('complete',True)
                       assert image.evaluate('(image)=>image.naturalWidth')>0
                   before=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
-                  assert len(before)==7 and all(item.get('poster','').startswith('https://') for item in before), [(item['id'],bool(item.get('poster'))) for item in before]
+                  assert len(before)==9 and all(item.get('poster','').startswith('https://') for item in before), [(item['id'],bool(item.get('poster'))) for item in before]
                   assert next(item for item in before if item['id']=='tt0172495')['status']=='watched'
                   artwork_page.screenshot(path='qa/repaired-posters.png',full_page=True)
                   artwork_page.reload(wait_until='networkidle')
                   after=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
-                  assert len(after)==7 and all(item.get('poster') for item in after)
+                  assert len(after)==9 and all(item.get('poster') for item in after)
                   assert next(item for item in after if item['id']=='tt0172495')['watchedSource']=='Trakt'
-                  print('Seven real user-reported posters loaded, and persisted without changing saved watched status.')
+                  print('Nine real user-reported posters, including the two Brazilian films, loaded, and persisted without changing saved watched status.')
                   artwork_page.close()
                   assert not errors, errors
                   Path('qa').mkdir(exist_ok=True)
