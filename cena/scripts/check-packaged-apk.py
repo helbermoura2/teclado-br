@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.9.0' in index
+    assert 'v0.9.1' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
     identification = archive.read('assets/identify-cover.js').decode()
     assert 'compareCovers' in app and 'coverInput(result)' in app
@@ -42,6 +42,6 @@ tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.9.0'" in badging and "versionCode='16'" in badging
+assert "versionName='0.9.1'" in badging and "versionCode='17'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
