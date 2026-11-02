@@ -72,7 +72,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
         run: bash "${{ steps.source.outputs.directory }}/scripts/prepare-signing.sh" initialize
-      - name: Build installable preview APK
+      - name: Build final discovery and series preview APK
         working-directory: ${{ steps.source.outputs.directory }}/android
         env:
           CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
