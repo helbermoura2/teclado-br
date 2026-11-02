@@ -9,7 +9,7 @@ import org.junit.Test
 class NuvioRepositoryTest {
  private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
  private class Fixture:NuvioTransport {
-  var clock=1700000000000L;var failProgress=false;var refreshes=0;val calls=mutableListOf<String>()
+  var paged=false;val pages=mutableListOf<Int>();var clock=1700000000000L;var failProgress=false;var refreshes=0;val calls=mutableListOf<String>()
   override fun request(path:String,body:JSONObject?,token:String?):NuvioResponse {
    calls.add(path)
    val value=when(path){
@@ -17,7 +17,7 @@ class NuvioRepositoryTest {
     "/rest/v1/rpc/poll_tv_login_session"->"[{\"status\":\"approved\"}]"
     "/functions/v1/tv-logins-exchange","/auth/v1/token?grant_type=refresh_token"->{if(path.contains("refresh_token"))refreshes++;JSONObject().put("access_token","private-access-token-marker").put("refresh_token","private-refresh-token-marker").put("expires_in",3600).put("user",JSONObject().put("id","account-a").put("email","test@example.invalid")).toString()}
     "/rest/v1/rpc/sync_pull_profiles"->"[{\"profile_index\":1,\"name\":\"Pessoa A\"},{\"profile_index\":2,\"name\":\"Pessoa B\"}]"
-    "/rest/v1/rpc/sync_pull_watched_items"->if(body!!.optInt("p_profile_id")==1)"[{\"content_id\":\"tt1335975\",\"content_type\":\"movie\",\"title\":\"47 Ronin\",\"watched_at\":1700000000},{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"else"[]"
+    "/rest/v1/rpc/sync_pull_watched_items"->{pages.add(body!!.optInt("p_page"));if(paged&&body.optInt("p_page")==1){val rows=JSONArray();for(index in 0 until 500)rows.put(JSONObject().put("content_id","tt${7000000+index}").put("content_type","movie"));rows.toString()}else if(paged){"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"}else if(body.optInt("p_profile_id")==1)"[{\"content_id\":\"tt1335975\",\"content_type\":\"movie\",\"title\":\"47 Ronin\",\"watched_at\":1700000000},{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"else"[]"}
     "/rest/v1/rpc/sync_pull_watch_progress"->{if(failProgress)return NuvioResponse(503,"private server details");if(body!!.optInt("p_profile_id")==1)"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":2,\"position\":600000,\"duration\":2400000}]"else"[]"}
     else->throw IllegalStateException("Unexpected endpoint $path")
    };return NuvioResponse(200,value)
@@ -36,6 +36,10 @@ class NuvioRepositoryTest {
  @Test fun transientFailuresPreserveTheLastCompleteHistoryAndRefreshTokens(){
   val f=Fixture();val repo=loggedIn(f)
   try{repo.selectProfile(1);val before=repo.status();f.clock+=3601000;f.failProgress=true;assertFalse(repo.sync(true));val failed=repo.status();assertEquals(before.optLong("lastSync"),failed.optLong("lastSync"));assertEquals(2,failed.getJSONArray("watched").length());assertTrue(failed.optString("error").contains("NUVIO_HTTP_503"));assertEquals(1,f.refreshes);f.failProgress=false;assertTrue(repo.sync(true));assertEquals(f.clock,repo.status().optLong("lastSync"))}finally{repo.disconnect()}
+ }
+ @Test fun snapshotsReadEveryHistoryPageBeforeCommitting(){
+  val f=Fixture();f.paged=true;val repo=loggedIn(f)
+  try{repo.selectProfile(1);assertEquals(listOf(1,2),f.pages);assertEquals(501,repo.status().optInt("watchedCount"));assertTrue(repo.status().optLong("lastSync")>0)}finally{repo.disconnect()}
  }
  @Test fun identifiersAndEpisodesAreValidatedWithoutTitleGuessing(){
   val unresolved=NuvioCodec.watched(JSONObject("{\"content_id\":\"tmdb:550\",\"content_type\":\"movie\",\"title\":\"47 Ronin\"}"))!!;assertEquals("",unresolved.optString("id"))
