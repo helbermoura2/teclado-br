@@ -300,6 +300,37 @@ jobs:
                   discovery_page.screenshot(path='qa/personalized-discovery.png',full_page=True)
                   discovery_page.close()
                   print('Five centered tabs, personalized recommendations, existing-title exclusion, Trakt queue on add, available episodes and future releases verified. Account responses are simulated.')
+                  similar_page=browser.new_page(viewport={'width':412,'height':915})
+                  similar_page.on('pageerror',lambda error:errors.append(str(error)))
+                  def similar_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:route.fulfill(status=200,content_type='application/json',body='{}')
+                  similar_page.route('https://**/*',similar_route)
+                  similar_page.add_init_script("""
+                    const seed={id:'tt1335975',type:'movie',name:'47 Ronin',year:'2013',genres:['Action','Fantasy'],description:'Samurai seek revenge.',status:'watchlist'};
+                    const choices=Array.from({length:7},(_,i)=>({id:'tt'+(7000000+i),type:'movie',name:'Samurai candidate '+i,year:'2012',genres:['Action','Fantasy'],description:'Samurai seek revenge in feudal Japan.'}));
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify([seed]));
+                    localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at:Date.now(),genreKey:'Action|Fantasy',items:choices}));
+                    window.modelMode='valid';window.CenaAndroid={appVersion:()=> '0.9.0',traktInventory:()=>{},ready:()=>queueMicrotask(()=>window.CenaLocalModelResult({configured:true,supported:true,name:'fixture.gguf',bytes:1024})),cancelLocalAi:()=>{},
+                      generateLocalAi:(id,prompt)=>{const candidates=JSON.parse(prompt.split('Candidatos: ')[1]);const ids=candidates.slice(0,5).map(item=>item.id);if(window.modelMode==='invalid')ids[0]='tt9999999';queueMicrotask(()=>window.CenaLocalAiResult({requestId:id,status:'ok',text:JSON.stringify(ids)}));}};
+                  """)
+                  similar_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  similar_page.locator('.poster-card[data-id="tt1335975"]').first.click()
+                  similar_page.locator('#similar-titles').click()
+                  expect(similar_page.locator('#similar-grid .poster-card')).to_have_count(5,timeout=30000)
+                  expect(similar_page.locator('#similar-grid .poster-card[data-id="tt1335975"]')).to_have_count(0)
+                  similar_page.locator('#refine-similar').click()
+                  expect(similar_page.locator('#similar-status')).to_contain_text('selecionadas com IA local')
+                  similar_page.evaluate("window.modelMode='invalid'")
+                  similar_page.locator('#refine-similar').click()
+                  expect(similar_page.locator('#similar-status')).to_contain_text('Mantive as opções')
+                  expect(similar_page.locator('#similar-grid .poster-card')).to_have_count(5)
+                  expect(similar_page.locator('#similar-grid .poster-card[data-id="tt9999999"]')).to_have_count(0)
+                  similar_page.screenshot(path='qa/five-similar-titles.png',full_page=True)
+                  similar_page.locator('#similar-grid .poster-card').first.click()
+                  expect(similar_page.locator('#detail-content h2')).to_contain_text('Samurai candidate')
+                  similar_page.close()
+                  print('Five title-specific choices, local AI refinement, invalid-ID fallback and detail navigation verified. Model replies simulated in browser; actual GGUF tested separately on Android.')
                   artwork_page = browser.new_page(viewport={'width':412,'height':915})
                   artwork_page.on('pageerror',lambda error: errors.append(str(error)))
                   artwork_page.add_init_script("""
