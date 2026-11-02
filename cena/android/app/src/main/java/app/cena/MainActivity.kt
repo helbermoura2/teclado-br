@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
     private val seriesExecutor=Executors.newSingleThreadScheduledExecutor()
     private val series:SeriesRepository by lazy {SeriesRepository(applicationContext,changed={emitSeries()})}
     private var seriesFingerprint=""
+    private var lastSeriesOpening=0L
     private fun emitSeries(){val state=series.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaSeriesResult && window.CenaSeriesResult($state)",null)}}
     private fun seriesTask(force:Boolean=false){try{seriesExecutor.execute{if(series.refresh(force))SeriesWorker.schedule(applicationContext);emitSeries()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
     private val stremioExecutor = Executors.newSingleThreadScheduledExecutor()
@@ -233,8 +234,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         traktVisible=true
-        if(::web.isInitialized) {stremioTask {stremio.pollLink()};seriesTask()}
-        if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync() }
+        if(::web.isInitialized) stremioTask {stremio.pollLink()}
+        val forceSeries=System.currentTimeMillis()-lastSeriesOpening>=15*60*1000L
+        if(forceSeries)lastSeriesOpening=System.currentTimeMillis()
+        if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync();seriesTask(forceSeries) }
     }
 
     override fun onPause() { traktVisible=false; super.onPause() }
@@ -290,7 +293,7 @@ class MainActivity : ComponentActivity() {
             for(i in 0 until values.length()) trakt.enqueue(values.getJSONObject(i))
             trakt.initialUploadComplete(); TraktWorker.schedule(applicationContext); trakt.sync()
         } }
-        @JavascriptInterface fun queueTrakt(raw: String) { if(raw.length<=2000) traktTask { trakt.enqueue(JSONObject(raw)); TraktWorker.schedule(applicationContext); trakt.sync() } }
+        @JavascriptInterface fun queueTrakt(raw: String) { if(raw.length<=2000) traktTask { trakt.enqueue(JSONObject(raw)); TraktWorker.schedule(applicationContext); trakt.sync();seriesTask(forceSeries) } }
         @JavascriptInterface fun saveStory(encoded: String) {
             if(encoded.length>12_000_000) return
             val bytes=try { Base64.decode(encoded,Base64.DEFAULT) } catch(_:Exception) { return }
