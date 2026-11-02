@@ -190,6 +190,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         clear();type("zunibravo ");long deadline=SystemClock.uptimeMillis()+20000;boolean predicted=false;List<String> words=new ArrayList<>();
         do{words=suggestions();predicted=words.stream().anyMatch(w->w.equalsIgnoreCase("cafezinho"));if(predicted)break;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
         check(predicted,"Learned next word missing: "+words);result.putString("learned_next_word",words.toString());shot("23-proxima-palavra-aprendida");
+        shell("input keyevent 3");Thread.sleep(2000); // leave the field normally so native history flushes before process death
         result.putString("dictionary_learning",restored?"Manual word, learned prefix and learned next word persisted after reinstall":"Explicit save of editor word, prefix completion and learning from repeated typing");
     }
     @Override public void onStart(){try{
