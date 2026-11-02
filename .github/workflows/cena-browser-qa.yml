@@ -355,8 +355,11 @@ jobs:
                     localStorage.setItem('cena.story.notes.v1',JSON.stringify({'movie:tt6000001':{rating:'9.99'}}));
                   """)
                   rating_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  rating_page.locator('.poster-card[data-id="tt6000001"] .imdb-score').scroll_into_view_if_needed()
                   expect(rating_page.locator('.poster-card[data-id="tt6000001"] .imdb-score')).to_have_text('★ IMDb 8,1 / 10')
+                  rating_page.locator('.poster-card[data-id="tt6000002"] .imdb-score').scroll_into_view_if_needed()
                   expect(rating_page.locator('.poster-card[data-id="tt6000002"] .imdb-score')).to_have_text('IMDb —')
+                  rating_page.locator('.poster-card[data-id="tt6000003"] .imdb-score').scroll_into_view_if_needed()
                   expect(rating_page.locator('.poster-card[data-id="tt6000003"] .imdb-score')).to_have_text('★ IMDb 8,7 / 10')
                   rating_page.locator('.poster-card[data-id="tt6000001"]').click()
                   expect(rating_page.locator('.detail-top .imdb-score')).to_have_text('★ IMDb 8,1 / 10')
