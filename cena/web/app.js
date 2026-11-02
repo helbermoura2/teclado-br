@@ -1,3 +1,4 @@
+import {loadStoryPoster,receiveStoryArtwork} from './story-artwork.js';
 import {createStremioPanel} from './stremio-panel.js';
 import { ArtworkResolver, trustedArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
@@ -7,6 +8,7 @@ import { coverInput, identifyCover, searchTolerantTitles } from './identify-cove
 import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
+window.CenaStoryArtworkResult=receiveStoryArtwork;
 const storageKey = 'cena.connection.v1';
 let connection = null;
 let stored = null;
@@ -358,9 +360,10 @@ function localConnection() {
 
 // Render a 9:16 PNG locally. Photo captures never leave the device.
 async function story(item) {
-  $('#story-editor').innerHTML = `<div class="story"><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-caption">Sua frase</label><input id="story-caption" value="${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}" maxlength="70"><button class="primary wide" id="share-story">Compartilhar imagem</button><button class="secondary wide" id="save-story">Salvar imagem PNG</button><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
+  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-caption">Sua frase</label><input id="story-caption" value="${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}" maxlength="70"><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
   const canvas = $('#story-canvas'); const ctx = canvas.getContext('2d');
   let image = null;
+  const caption=$('#story-caption');
   const draw = () => {
     ctx.setTransform(1.5,0,0,1.5,0,0);
     const gradient = ctx.createLinearGradient(0, 0, 720, 1280); gradient.addColorStop(0, '#492570'); gradient.addColorStop(.5, '#191323'); gradient.addColorStop(1, '#613d76');
@@ -375,24 +378,39 @@ async function story(item) {
     const words = item.name.split(' '); let line = '', y = 925;
     for (const word of words) { if (ctx.measureText(line + word).width > 600 && line) { ctx.fillText(line.trim(), 360, y); y += 38; line = ''; } line += word + ' '; }
     ctx.fillText(line.trim(), 360, y);
-    ctx.font = '22px sans-serif'; ctx.fillStyle = '#ded0ec'; ctx.fillText($('#story-caption').value, 360, 1110, 620);
+    ctx.font = '22px sans-serif'; ctx.fillStyle = '#ded0ec'; ctx.fillText(caption.value, 360, 1110, 620);
     ctx.font = 'bold 35px sans-serif'; ctx.fillStyle = 'white'; ctx.fillText('CEN', 345, 1200); ctx.fillStyle='#9959ff'; ctx.fillText('▲', 410, 1200);
   };
   draw(); $('#story-caption').oninput = draw;
-  const loadStoryPoster = url => {
-    if(!url || !canvas.isConnected)return;
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    img.onload = () => { if (!canvas.isConnected) return; image = img; draw(); };
-    img.onerror = () => { if (canvas.isConnected) toast('Pôster indisponível para exportação. O card será gerado com o título.'); };
-    img.src = url;
+  const status=$('#story-status'),share=$('#share-story'),save=$('#save-story'),retry=$('#retry-story'),without=$('#story-without-poster');
+  const enable=()=>{share.disabled=false;save.disabled=false;};
+  const prepare=async()=>{
+    share.disabled=true;save.disabled=true;retry.hidden=true;without.hidden=true;status.dataset.state='loading';status.textContent='Carregando a capa…';
+    try{
+      const result=await loadStoryPoster(item,{bridge:window.CenaAndroid,resolveArtwork:value=>artworkResolver.resolve(value)});
+      if(!canvas.isConnected)return;
+      image=result.image;draw();
+      // Verify exportability before offering save/share, including in web previews.
+      canvas.toDataURL('image/png');canvas.dataset.posterLoaded='true';
+      if(result.sourceUrl)persistArtwork(item,result.sourceUrl);
+      status.dataset.state='ready';status.textContent='Capa pronta para compartilhar.';enable();
+    }catch(error){
+      if(!canvas.isConnected)return;
+      image=null;canvas.width=1080;canvas.height=1920;draw();canvas.dataset.posterLoaded='false';
+      status.dataset.state='error';status.textContent=error.message||'Não consegui preparar a capa.';retry.hidden=false;without.hidden=false;
+    }
   };
-  if(item.poster)loadStoryPoster(item.poster);else artworkResolver.resolve(item).then(loadStoryPoster);
+  retry.onclick=prepare;
+  without.onclick=()=>{status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();};
+  prepare();
   $('#save-story').onclick = () => {
+    if(save.disabled)return;
     try { if(native && typeof window.CenaAndroid.saveStory==='function') window.CenaAndroid.saveStory(canvas.toDataURL('image/png').split(',')[1]);
       else { const link=document.createElement('a'); link.href=canvas.toDataURL('image/png'); link.download='CENA-Story.png'; link.click(); }
     } catch { toast('Não consegui salvar o card. Tente outra imagem.'); }
   };
   $('#share-story').onclick = async () => {
+    if(share.disabled)return;
     try {
       if (native) { window.CenaAndroid.shareStory(canvas.toDataURL('image/png').split(',')[1]); return; }
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
