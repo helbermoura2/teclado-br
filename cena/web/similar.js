@@ -22,7 +22,7 @@ export function rankSimilar(seed,candidates,{existing=[],includeSaved=true,limit
 }
 function catalogItem(meta,type){return {id:meta.imdb_id||meta.id,type:meta.type||type,name:meta.name,originalName:meta.name,year:String(meta.releaseInfo||meta.year||'').slice(0,4),released:meta.released||'',poster:trustedArtwork(meta.poster),genres:meta.genres||meta.genre||[],description:meta.description||'',imdbRating:meta.imdbRating??null,imdbRatingAt:Date.now(),cast:meta.cast||[],directors:Array.isArray(meta.director)?meta.director:meta.director?[meta.director]:[],source:'Cinemeta',sourceUrl:`https://www.imdb.com/title/${meta.imdb_id||meta.id}/`};}
 export class SimilarEngine {
- constructor({storage,fetcher=fetch,details=getTitleDetails,engine}={}){this.storage=storage;this.fetcher=fetcher;this.details=details;this.engine=engine||new RecommendationEngine({storage,fetcher,details});this.jobs=new Map();}
+ constructor({storage,fetcher=fetch,details=getTitleDetails,engine}={}){this.storage=storage;this.fetcher=(...args)=>fetcher(...args);this.details=details;this.engine=engine||new RecommendationEngine({storage,fetcher,details});this.jobs=new Map();}
  async find(seed,{existing=[],includeSaved=true,force=false}={}){
   if(!valid(seed))throw Error('Este título ainda não tem um identificador compatível.');
   let rich=seed;try{const info=await this.details(seed);if(info.id===seed.id&&info.type===seed.type)rich={...seed,...info};}catch{}
