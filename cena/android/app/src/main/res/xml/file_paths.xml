@@ -1,1 +1,1 @@
-<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="captures" path="captures/" /><cache-path name="stories" path="stories/" /></paths>
+<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="captures" path="captures/" /><cache-path name="stories" path="stories/" /><cache-path name="local-ai-tests" path="local-ai-tests/" /></paths>
