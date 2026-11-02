@@ -264,7 +264,7 @@ jobs:
                       {id:'tt8646254',type:'movie',name:'45 do Segundo Tempo',year:'2022',status:'watchlist',poster:''}
                     ]));
                   """)
-                  artwork_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  artwork_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
                   artwork_page.locator('nav [data-tab="library"]').click()
                   artwork_page.locator('[data-filter="all"]').click()
                   cards=artwork_page.locator('#library-grid .poster-card')
@@ -279,7 +279,7 @@ jobs:
                   assert len(before)==9 and all(item.get('poster','').startswith('https://') for item in before), [(item['id'],bool(item.get('poster'))) for item in before]
                   assert next(item for item in before if item['id']=='tt0172495')['status']=='watched'
                   artwork_page.screenshot(path='qa/repaired-posters.png',full_page=True)
-                  artwork_page.reload(wait_until='networkidle')
+                  artwork_page.reload(wait_until='domcontentloaded')
                   after=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
                   assert len(after)==9 and all(item.get('poster') for item in after)
                   assert next(item for item in after if item['id']=='tt0172495')['watchedSource']=='Trakt'
