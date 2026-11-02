@@ -103,20 +103,20 @@ jobs:
           SOURCE_DIRECTORY: ${{ steps.source.outputs.directory }}
         run: |
           mkdir -p entrega
-          cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-0.9.0.apk
+          cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-0.9.1.apk
           cd entrega
-          sha256sum CENA-0.9.0.apk > CENA-0.9.0.apk.sha256
+          sha256sum CENA-0.9.1.apk > CENA-0.9.1.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: CENA-Android-0.9.0
+          name: CENA-Android-0.9.1
           path: entrega/*
           retention-days: 30
           if-no-files-found: error
       - name: Download instructions
         run: |
           echo '### CENA Android' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Baixe o artefato CENA-Android-0.9.0 ao final desta página, extraia o ZIP no celular e abra CENA-0.9.0.apk.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Versão 0.9.0: cinco semelhantes por título e refinamento opcional com GGUF local, sem baixar pesos no APK.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Baixe o artefato CENA-Android-0.9.1 ao final desta página, extraia o ZIP no celular e abra CENA-0.9.1.apk.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Versão 0.9.1: cinco semelhantes por título e refinamento opcional com GGUF local, sem baixar pesos no APK.' >> "$GITHUB_STEP_SUMMARY"
 
   publish-private-preview:
     needs: build
@@ -138,17 +138,17 @@ jobs:
           exit 1
       - uses: actions/download-artifact@v4
         with:
-          name: CENA-Android-0.9.0
+          name: CENA-Android-0.9.1
           path: entrega
       - name: Publish direct APK download in the private repository
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           test "$(gh repo view "$GITHUB_REPOSITORY" --json isPrivate --jq .isPrivate)" = true
-          if ! gh release view cena-v0.9.0 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create cena-v0.9.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'CENA 0.9.0 — atualização de teste' --notes-file cena/docs/CENA-0.9.0.md
+          if ! gh release view cena-v0.9.1 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create cena-v0.9.1 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'CENA 0.9.1 — atualização de teste' --notes-file cena/docs/CENA-0.9.1.md
           fi
-          gh release upload cena-v0.9.0 entrega/CENA-0.9.0.apk entrega/CENA-0.9.0.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload cena-v0.9.1 entrega/CENA-0.9.1.apk entrega/CENA-0.9.1.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
 
 
 
