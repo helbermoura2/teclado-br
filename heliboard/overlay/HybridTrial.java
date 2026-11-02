@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package br.com.tecladobr.heli.testing;
 import android.content.*;
-import android.os.Bundle;
+import android.os.*;
 import android.text.Spanned;
 import android.text.style.StrikethroughSpan;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -81,6 +81,38 @@ public final class HybridTrial {
         },cancelled::get,s-> {
         },s-> {
         });
+    }
+    private static void serviceModes(Context c)throws Exception {
+        CountDownLatch bound=new CountDownLatch(1);
+        AtomicReference<Messenger> service=new AtomicReference<>();
+        ServiceConnection connection=new ServiceConnection() {
+            public void onServiceConnected(ComponentName name,IBinder binder) { service.set(new Messenger(binder)); bound.countDown(); }
+            public void onServiceDisconnected(ComponentName name) { service.set(null); }
+        };
+        check(c.bindService(new Intent(c,WritingEngineService.class),connection,Context.BIND_AUTO_CREATE),"Cannot bind hybrid engine");
+        try {
+            check(bound.await(10,TimeUnit.SECONDS),"Engine binding timed out");
+            for(String mode:new String[]{AiPreferences.ONLINE,AiPreferences.OFFLINE}) {
+                CountDownLatch done=new CountDownLatch(1);
+                AtomicReference<String> response=new AtomicReference<>("");
+                ResultReceiver receiver=new ResultReceiver(new Handler(Looper.getMainLooper())) {
+                    protected void onReceiveResult(int code,Bundle data) {
+                        if(code==2||code==3) { response.set(data.getString("text","")); done.countDown(); }
+                    }
+                };
+                Parcel parcel=Parcel.obtain();
+                try {
+                    receiver.writeToParcel(parcel,0); parcel.setDataPosition(0);
+                    Bundle data=new Bundle();
+                    data.putParcelable("receiver",ResultReceiver.CREATOR.createFromParcel(parcel));
+                    data.putString("mode",mode); data.putString("prompt","Texto sintético.");
+                    Message message=Message.obtain(null,1); message.setData(data); service.get().send(message);
+                } finally { parcel.recycle(); }
+                check(done.await(10,TimeUnit.SECONDS),"Engine mode request timed out");
+                check(response.get().contains(AiPreferences.ONLINE.equals(mode)?"Cadastre a chave":"Importe um modelo"),"Engine did not honor per-request mode: "+response.get());
+                Thread.sleep(200);
+            }
+        } finally { c.unbindService(connection); }
     }
     public static void run(HeliTrialInstrumentation test,Bundle result)throws Exception {
         Context c=test.getTargetContext();
@@ -189,6 +221,7 @@ public final class HybridTrial {
             SecretStore.remove(c);
             AiPreferences.mode(c,AiPreferences.OFFLINE);
         }
+        serviceModes(c);
         TextChanges.Pair diff=TextChanges.compare("Eu nao sei.","Eu não sei!");
         check(diff.before.toString().equals("Eu nao sei.")&&diff.after.toString().equals("Eu não sei!"),"Diff changed the original or result");
         check(((Spanned)diff.before).getSpans(0,diff.before.length(),StrikethroughSpan.class).length>0,"Removed text not marked");

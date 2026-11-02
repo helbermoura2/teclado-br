@@ -492,6 +492,7 @@ public final class WritingPanel {
             if(closed||id!=request)return;
             Message m=Message.obtain(null,1);
             Bundle b=new Bundle();
+            b.putString("mode",AiPreferences.mode(ime));
             b.putString("prompt",PromptBuilder.build(task,style,prompt,snapshot.source));
             b.putInt("limit",WritingLauncher.syntheticTest?32:256);
             Parcel parcel=Parcel.obtain();

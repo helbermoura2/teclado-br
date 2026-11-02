@@ -228,6 +228,7 @@ public final class ModelSettingsActivity extends Activity {
             parcel.setDataPosition(0);
             Bundle data=new Bundle();
             data.putParcelable("receiver",ResultReceiver.CREATOR.createFromParcel(parcel));
+            data.putString("mode",AiPreferences.mode(this));
             data.putString("prompt",PromptBuilder.build("Ortografia e gramática","","","Eu nao sei o que fazer hoje."));
             data.putInt("limit",128);
             data.putBoolean("benchmark",true);

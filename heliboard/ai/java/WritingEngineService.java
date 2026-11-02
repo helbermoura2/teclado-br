@@ -29,6 +29,8 @@ public final class WritingEngineService extends Service {
             busy=true;
             cancelled=false;
             String prompt=data.getString("prompt","");
+            String requestedMode=data.getString("mode",AiPreferences.OFFLINE);
+            final String mode=AiPreferences.AUTO.equals(requestedMode)||AiPreferences.ONLINE.equals(requestedMode)?requestedMode:AiPreferences.OFFLINE;
             int limit=Math.max(16,Math.min(256,data.getInt("limit",256)));
             boolean benchmark=data.getBoolean("benchmark",false);
             worker.execute(()-> {
@@ -41,7 +43,6 @@ public final class WritingEngineService extends Service {
                     peak.accumulateAndGet(Debug.getPss(),Math::max);
                 },0,300,TimeUnit.MILLISECONDS);
                 try {
-                    String mode=AiPreferences.mode(WritingEngineService.this);
                     boolean key=SecretStore.hasKey(WritingEngineService.this);
                     offline=new OfflineEngine(WritingEngineService.this,()->cancelled);
                     InferenceRouter.Backend remote=(p,n,partial)-> {
