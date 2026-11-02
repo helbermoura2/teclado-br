@@ -15,13 +15,13 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /** Tokens, device grants and the account-bound outbox never enter WebView storage or logs. */
-class TraktVault(context: Context) {
-    private val prefs = context.getSharedPreferences("cena.trakt.v1", Context.MODE_PRIVATE)
+class TraktVault(context: Context, private val namespace: String = "cena.trakt.v1", private val serviceName: String = "Trakt") {
+    private val prefs = context.getSharedPreferences(namespace, Context.MODE_PRIVATE)
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey("cena.trakt.v1", null) as? SecretKey)?.let { return it }
+        (store.getKey(namespace, null) as? SecretKey)?.let { return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
-            init(KeyGenParameterSpec.Builder("cena.trakt.v1", KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            init(KeyGenParameterSpec.Builder(namespace, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
         }.generateKey()
     }
@@ -32,7 +32,7 @@ class TraktVault(context: Context) {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, Base64.decode(value.getString("iv"), Base64.NO_WRAP)))
             JSONObject(String(cipher.doFinal(Base64.decode(value.getString("data"), Base64.NO_WRAP)), Charsets.UTF_8))
-        } catch (_: Exception) { JSONObject().put("error", "A conexão protegida não está disponível. Conecte o Trakt novamente.") }
+        } catch (_: Exception) { JSONObject().put("error", "A conexão protegida não está disponível. Conecte o $serviceName novamente.") }
     }
     fun write(value: JSONObject) {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key())
