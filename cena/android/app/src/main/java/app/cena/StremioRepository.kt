@@ -52,7 +52,7 @@ class StremioRepository(context:Context,private val transport:StremioTransport=S
     fun status():JSONObject=synchronized(lock){
         val state=load()
         JSONObject().put("connected",state.optString("authKey").isNotBlank()).put("account",state.optString("account"))
-            .put("pairing",state.optString("pairCode").isNotBlank()).put("publicCode",state.optString("publicCode"))
+            .put("pairing",state.optString("pairCode").isNotBlank())
             .put("reading",state.optBoolean("reading")).put("processed",state.optInt("processed")).put("total",state.optInt("total"))
             .put("lastRead",state.optLong("lastRead")).put("error",state.optString("error")).put("warning",state.optString("warning"))
             .put("library",state.optJSONArray("library") ?: JSONArray()).put("excluded",state.optInt("excluded"))
