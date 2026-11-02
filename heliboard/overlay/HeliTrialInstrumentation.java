@@ -171,10 +171,25 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     boolean dictionaryContains(String word)throws Exception {
         try(Cursor rows=getTargetContext().getContentResolver().query(android.provider.UserDictionary.Words.CONTENT_URI,new String[]{android.provider.UserDictionary.Words.WORD},android.provider.UserDictionary.Words.WORD+" = ?",new String[]{word},null)){return rows!=null&&rows.moveToFirst();}
     }
+    Rect personalCandidate(String word)throws Exception {
+        Rect[] rect={null};runOnMainSync(()->{
+            View root=KeyboardSwitcher.getInstance().getStripContainer();
+            SuggestionStripView strip=(SuggestionStripView)findView(root,v->v instanceof SuggestionStripView);
+            if(strip==null)return;
+            try{
+                java.lang.reflect.Field field=SuggestionStripView.class.getDeclaredField("suggestedWords");field.setAccessible(true);
+                helium314.keyboard.latin.SuggestedWords words=(helium314.keyboard.latin.SuggestedWords)field.get(strip);
+                View candidate=findView(strip,v->{if(!(v instanceof TextView)||!(v.getTag() instanceof Integer)||!v.isShown())return false;int index=(Integer)v.getTag();return index>=0&&index<words.size()&&word.equalsIgnoreCase(words.getInfo(index).mWord);});
+                if(candidate!=null){int[] xy=new int[2];candidate.getLocationOnScreen(xy);rect[0]=new Rect(xy[0],xy[1],xy[0]+candidate.getWidth(),xy[1]+candidate.getHeight());}
+            }catch(ReflectiveOperationException error){throw new AssertionError(error);}
+        });return rect[0];
+    }
     void predict(String prefix,String word)throws Exception {
-        clear();type(prefix);long deadline=SystemClock.uptimeMillis()+20000;List<String> values;
-        do{values=suggestions();if(values.stream().anyMatch(w->w.equalsIgnoreCase(word)))return;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
-        throw new AssertionError("Missing personal prediction for "+prefix+": "+values);
+        clear();type(prefix);long deadline=SystemClock.uptimeMillis()+20000;Rect candidate;
+        do{candidate=personalCandidate(word);if(candidate!=null)break;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
+        check(candidate!=null,"Missing personal prediction for "+prefix+": "+suggestions());shot("21-completar-"+prefix);tap(candidate);
+        deadline=SystemClock.uptimeMillis()+10000;while(!text().trim().equalsIgnoreCase(word)&&SystemClock.uptimeMillis()<deadline)Thread.sleep(200);
+        check(text().trim().equalsIgnoreCase(word),"Prediction did not insert complete word: "+text());
     }
     void personalDictionary(boolean restored)throws Exception {
         if(!restored){
@@ -187,9 +202,11 @@ public final class HeliTrialInstrumentation extends Instrumentation {
             for(int i=0;i<8;i++){clear();type("zunibravo cafezinho ");Thread.sleep(250);}
         }
         predict("zuni","zunibravo");shot("22-palavra-aprendida");
-        clear();type("zunibravo ");long deadline=SystemClock.uptimeMillis()+20000;boolean predicted=false;List<String> words=new ArrayList<>();
-        do{words=suggestions();predicted=words.stream().anyMatch(w->w.equalsIgnoreCase("cafezinho"));if(predicted)break;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
-        check(predicted,"Learned next word missing: "+words);result.putString("learned_next_word",words.toString());shot("23-proxima-palavra-aprendida");
+        clear();type("zunibravo ");long deadline=SystemClock.uptimeMillis()+20000;Rect next;
+        do{next=personalCandidate("cafezinho");if(next!=null)break;Thread.sleep(250);}while(SystemClock.uptimeMillis()<deadline);
+        check(next!=null,"Learned next word missing: "+suggestions());result.putString("learned_next_word","cafezinho");shot("23-proxima-palavra-aprendida");tap(next);
+        deadline=SystemClock.uptimeMillis()+10000;while(!text().trim().equalsIgnoreCase("zunibravo cafezinho")&&SystemClock.uptimeMillis()<deadline)Thread.sleep(200);
+        check(text().trim().equalsIgnoreCase("zunibravo cafezinho"),"Next-word tap inserted wrong text: "+text());
         shell("input keyevent 3");Thread.sleep(2000); // leave the field normally so native history flushes before process death
         result.putString("dictionary_learning",restored?"Manual word, learned prefix and learned next word persisted after reinstall":"Explicit save of editor word, prefix completion and learning from repeated typing");
     }
