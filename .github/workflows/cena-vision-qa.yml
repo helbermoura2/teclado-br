@@ -88,10 +88,12 @@ jobs:
             adb push /tmp/cena-smoke.gguf /data/local/tmp/cena-smoke.gguf
             adb shell run-as app.cena.mobile.test mkdir -p files
             adb shell run-as app.cena.mobile.test cp /data/local/tmp/cena-smoke.gguf files/smoke.gguf
+            adb shell run-as app.cena.mobile.test chmod 600 files/smoke.gguf
+            adb shell content call --uri content://app.cena.mobile.test.model/model --method grant
             adb shell content query --uri content://app.cena.mobile.test.model/model
             timeout 420s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest,app.cena.LocalAiTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
             adb shell dumpsys activity lastanr > ../qa/native-last-anr.txt
-            if ! grep -F 'OK (18 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
+            if ! grep -F 'OK (18 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb logcat -d -s AndroidRuntime:E; adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
             grep -F 'OK (18 tests)' /tmp/cena-instrumentation.txt
             adb shell run-as app.cena.mobile cat files/legacy-update-marker.txt | grep -x update
             mkdir -p ../qa
