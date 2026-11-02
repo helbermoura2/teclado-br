@@ -36,7 +36,7 @@ class SeriesRepository(context:Context,private val source:SeriesSource=TraktSeri
     private val vault=TraktVault(context,"cena.series.v1","Trakt")
     private fun rows(value:JSONArray?)=(0 until (value?.length()?:0)).mapNotNull{value?.optJSONObject(it)}
     fun status():JSONObject=synchronized(lock){val state=vault.read();JSONObject().put("reading",running.get()).put("lastCheck",state.optLong("lastCheck")).put("pending",state.optInt("pending")).put("error",state.optString("error")).put("items",state.optJSONArray("items")?:JSONArray()).put("intervalHours",12)}
-    fun clear()=synchronized(lock){vault.write(JSONObject())}
+    fun clear()=synchronized(lock){vault.clear()}
     /** At most twenty due shows per pass; continuations finish large libraries without blocking UI. */
     fun refresh(force:Boolean=false):Boolean {
         if(!running.compareAndSet(false,true))return false
