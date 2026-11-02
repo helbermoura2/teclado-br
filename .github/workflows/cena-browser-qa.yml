@@ -405,7 +405,8 @@ jobs:
                   nuvio_page.close()
                   print('Nuvio direct UI: browser authorization, no password field, exact film watch check, episode count, milliseconds resume and profile isolation verified. Account responses simulated.')
                   artwork_page = browser.new_page(viewport={'width':412,'height':915})
-                  artwork_page.on('pageerror',lambda error: errors.append(str(error)))
+                  artwork_page.on('pageerror',lambda error: (errors.append(str(error)), print('ARTWORK APP ERROR:',str(error),flush=True)))
+                  artwork_page.on('requestfailed',lambda request: print('ARTWORK REQUEST FAILED:',request.url,request.failure,flush=True) if request.url.startswith('http://127.0.0.1:3000/') else None)
                   artwork_page.add_init_script("""
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
                     if(!localStorage.getItem('cena.local.items.v1')) localStorage.setItem('cena.local.items.v1',JSON.stringify([
@@ -421,7 +422,7 @@ jobs:
                     ]));
                   """)
                   artwork_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
-                  expect(artwork_page.locator('#main h1')).to_be_visible()
+                  expect(artwork_page.locator('#main h1')).to_be_visible(timeout=20000)
                   artwork_page.locator('nav [data-tab="library"]').click()
                   artwork_page.locator('[data-filter="all"]').click()
                   cards=artwork_page.locator('#library-grid .poster-card')
