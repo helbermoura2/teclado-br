@@ -9,6 +9,6 @@ Instale sobre a 0.7.1, sem desinstalar.
 - Fontes públicas verificadas para O Sequestro do Voo 375 (2023, tt13073252) e 45 do Segundo Tempo (2022, tt8646254).
 - Contador Capas salvas e avisos Buscando capa/Capa indisponível distinguem uma tarefa pendente de uma imagem que não foi encontrada. O contador representa URLs salvas; as demais são verificadas ao rolar. Nenhum filme é removido por falta de capa.
 
-Validação: 50 testes locais; regressão de rolagem com 110 filmes e atualização real da lista simulada, mantendo o mesmo card e elemento de imagem; carregamento de nove capas reais, incluindo os dois filmes brasileiros; consulta e download das duas capas regionais; atualização Android assinada sobre a 0.7.1 e testes nativos existentes.
+Validação: 51 testes locais; regressão de rolagem com 110 filmes e atualização real da lista simulada, mantendo o mesmo card e elemento de imagem; carregamento de nove capas reais, incluindo os dois filmes brasileiros; consulta e download das duas capas regionais; atualização Android assinada sobre a 0.7.1 e testes nativos existentes.
 
 Não há garantia de imagem disponível para todo título: indisponibilidade de origem ou rede continua sendo sinalizada, sem inventar uma capa.
