@@ -57,6 +57,19 @@ class MainActivity : ComponentActivity() {
     }
     @Volatile private var traktVisible = false
     @Volatile private var traktWaitingAuth = false
+    private val stremioExecutor = Executors.newSingleThreadScheduledExecutor()
+    @Volatile private var stremioWaitingAuth = false
+    private val stremio by lazy { StremioRepository(applicationContext, changed={emitStremio()}) }
+    private fun emitStremio() {
+        val state=stremio.status();stremioWaitingAuth=state.optBoolean("pairing")
+        runOnUiThread { if(!isDestroyed && pageReady) web.evaluateJavascript("window.CenaStremioResult && window.CenaStremioResult($state)",null) }
+    }
+    private fun stremioTask(task:()->Unit) {
+        try { stremioExecutor.execute {
+            try {task()} catch(_:Exception){runOnUiThread {if(!isDestroyed)sendError("Não consegui consultar o Stremio. Tente novamente.")}}
+            emitStremio()
+        }} catch(_:java.util.concurrent.RejectedExecutionException) {}
+    }
     private var pendingStory: ByteArray? = null
     private val saveStoryFile = registerForActivityResult(ActivityResultContracts.CreateDocument("image/png")) { uri ->
         val bytes=pendingStory; pendingStory=null
@@ -201,6 +214,9 @@ class MainActivity : ComponentActivity() {
         })
         web.loadUrl("https://appassets.androidplatform.net${assetPrefix}index.html")
         receiveImage(intent)
+        stremioExecutor.scheduleWithFixedDelay({
+            try {if(stremioWaitingAuth){stremio.pollLink();emitStremio()}}catch(_:Exception){}
+        },5,5,java.util.concurrent.TimeUnit.SECONDS)
         traktExecutor.scheduleWithFixedDelay({
             try { if(traktVisible || traktWaitingAuth) { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) trakt.sync(); emitTrakt() } } catch(_:Exception) {}
         },5,5,java.util.concurrent.TimeUnit.SECONDS)
@@ -208,12 +224,23 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         traktVisible=true
+        if(::web.isInitialized) stremioTask {stremio.pollLink()}
         if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync() }
     }
 
     override fun onPause() { traktVisible=false; super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun stremioState() {stremioTask {}}
+        @JavascriptInterface fun connectStremio() {stremioTask {stremio.beginLink()}}
+        @JavascriptInterface fun openStremioAuthorization() {stremioTask {
+            val uri=Uri.parse(stremio.authorizationUrl())
+            runOnUiThread {try {startActivity(Intent(Intent.ACTION_VIEW,uri))}catch(_:Exception){sendError("Não consegui abrir o navegador. Tente novamente.")}}
+        }}
+        @JavascriptInterface fun readStremioLibrary() {stremioTask {stremio.readLibrary()}}
+        @JavascriptInterface fun cancelStremioReading() {stremio.cancelReading()}
+        @JavascriptInterface fun disconnectStremio() {stremio.cancelReading();stremioTask {stremio.disconnect()}}
+
         @JavascriptInterface fun traktState() { traktTask { } }
         @JavascriptInterface fun configureTrakt(clientId: String) { if(clientId.length<=200) traktTask { trakt.configure(clientId.trim()) } }
         @JavascriptInterface fun connectTrakt() { traktTask { trakt.beginAuth() } }
@@ -256,7 +283,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { } }
+        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { } }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -311,6 +338,8 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         cleanPhoto()
         visionInput = null
+        stremio.cancelReading()
+        stremioExecutor.shutdownNow()
         traktExecutor.shutdownNow()
         visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
         visionExecutor.shutdown()
