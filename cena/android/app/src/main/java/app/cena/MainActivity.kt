@@ -86,7 +86,7 @@ class MainActivity : ComponentActivity() {
     private var historyLoop=false
     private fun emitHistory(){val value=history.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryResult && window.CenaHistoryResult($value)",null)}}
     private fun historyTask(task:()->Unit={}){try{historyExecutor.execute{try{task();emitHistory()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui ler o histórico local. Tente novamente.")}}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
-    private fun startHistoryLoop(){if(historyLoop)return;historyLoop=true;historyExecutor.scheduleWithFixedDelay({if(traktVisible&&pageReady&&!isDestroyed)try{emitHistory()}catch(_:Exception){}},5,10,java.util.concurrent.TimeUnit.SECONDS)}
+    private fun startHistoryLoop(){if(isDestroyed||isFinishing||historyExecutor.isShutdown||historyLoop)return;historyLoop=true;historyExecutor.scheduleWithFixedDelay({if(traktVisible&&pageReady&&!isDestroyed)try{emitHistory()}catch(_:Exception){}},5,10,java.util.concurrent.TimeUnit.SECONDS)}
     private var pendingHistoryExport:ByteArray?=null
     private val saveHistoryFile=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->val value=pendingHistoryExport;pendingHistoryExport=null;if(uri!=null&&value!=null)historyTask{contentResolver.openOutputStream(uri)?.use{it.write(value)}?:error("Arquivo indisponível");runOnUiThread{if(!isDestroyed)sendError("Histórico exportado em JSON.")}}}
     private val nuvioExecutor=Executors.newSingleThreadScheduledExecutor()
@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
     private var lastNuvioOpening=0L
     private fun emitNuvio(){val state=nuvio.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaNuvioResult && window.CenaNuvioResult($state)",null)}}
     private fun nuvioTask(action:()->Unit={}){try{nuvioExecutor.execute{try{action()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui consultar o Nuvio. Confira a conexão e tente novamente.")}};emitNuvio()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
-    private fun startNuvioLoop(){if(nuvioLoop)return;nuvioLoop=true;nuvioExecutor.scheduleWithFixedDelay({if(nuvioVisible&&!isDestroyed){try{if(nuvio.pairing()){nuvio.poll();emitNuvio()}else if(nuvio.enabled()&&System.currentTimeMillis()-lastNuvioLoopSync>=300000){nuvio.sync();lastNuvioLoopSync=System.currentTimeMillis();emitNuvio()}}catch(_:Exception){}}},3,5,java.util.concurrent.TimeUnit.SECONDS)}
+    private fun startNuvioLoop(){if(isDestroyed||isFinishing||nuvioExecutor.isShutdown||nuvioLoop)return;nuvioLoop=true;nuvioExecutor.scheduleWithFixedDelay({if(nuvioVisible&&!isDestroyed){try{if(nuvio.pairing()){nuvio.poll();emitNuvio()}else if(nuvio.enabled()&&System.currentTimeMillis()-lastNuvioLoopSync>=300000){nuvio.sync();lastNuvioLoopSync=System.currentTimeMillis();emitNuvio()}}catch(_:Exception){}}},3,5,java.util.concurrent.TimeUnit.SECONDS)}
     private val localModelExecutor=Executors.newSingleThreadExecutor()
     private val localModel by lazy {LocalModelStore(applicationContext)}
     private val localAiClient:LocalAiClient by lazy {LocalAiClient(this){value->if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaLocalAiResult && window.CenaLocalAiResult($value)",null)}}
@@ -370,7 +370,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();startHistoryLoop();historyTask();nuvioTask{nuvio.poll();nuvio.sync()} }
+        @JavascriptInterface fun ready() = runOnUiThread { if(isDestroyed||isFinishing)return@runOnUiThread;pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();startHistoryLoop();historyTask();nuvioTask{nuvio.poll();nuvio.sync()} }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -422,6 +422,7 @@ class MainActivity : ComponentActivity() {
     }
     private fun cleanPhoto() { photoFile?.delete(); croppedFile?.delete(); photoFile = null; croppedFile = null; photoUri = null }
     override fun onDestroy() {
+        pageReady=false
         super.onDestroy()
         cleanPhoto()
         visionInput = null
