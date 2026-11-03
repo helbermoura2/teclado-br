@@ -146,31 +146,43 @@ function renderLocalAI(){
  if($('#choose-model'))$('#choose-model').onclick=()=>localAI.select();
  if($('#forget-model'))$('#forget-model').onclick=()=>localAI.remove();
 }
-async function findSimilar(seed,includeSaved=true){
+function similaritySummary(result,local=false){
+ const count=result.items.length,labels=result.criteriaLabels.length?` Critérios: ${result.criteriaLabels.join(', ')}.`:'';
+ return `${count} ${count===1?'opção':'opções'} ${local?'selecionadas com IA local entre enredos verificados':'por proximidade do enredo'}.${count<5?' Não completei a lista com títulos pouco relacionados.':''}${labels}${result.omitted.length?` ${result.omitted.length} opções encontradas foram omitidas porque já estão no seu catálogo.`:''}${result.partial?' Algumas fontes não responderam; a busca pode estar incompleta.':''}`;
+}
+function paintSimilar(panel,result,local=false){
+ similarResults=result.items;patchRecommendationCards(panel.querySelector('#similar-grid'),similarResults);
+ panel.querySelector('#similar-status').textContent=similaritySummary(result,local);
+ panel.querySelector('#similar-reasons').innerHTML=similarResults.map(item=>`<details class="similar-evidence"><summary>${escape(item.name)} · ${escape(item.recommendationReason)}</summary>${(item.similarEvidence||[]).map(proof=>`<p class="muted">${escape(proof.quote)}</p>`).join('')}<small class="muted">Evidência na sinopse consultada. Abra o título para conferir a fonte.</small></details>`).join('');
+ panel.querySelector('#similar-omitted').replaceChildren();
+ if(result.omitted.length){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Quais títulos já estão no meu catálogo?';details.append(summary);for(const item of result.omitted){const line=document.createElement('p');line.className='muted';line.textContent=item.name;details.append(line);}panel.querySelector('#similar-omitted').append(details);}
+ wireImages();for(const button of panel.querySelectorAll('button.poster-card[data-id]'))button.onclick=()=>showDetail(similarResults.find(item=>item.id===button.dataset.id));
+}
+async function findSimilar(seed,includeSaved=true,query=''){
  localAI.cancel();const ticket=++similarTicket,panel=$('#similar-panel');
- panel.innerHTML='<p role="status">Buscando cinco títulos semelhantes…</p>';
- try{
-  const result=await similarEngine.find(seed,{existing:items,includeSaved});
-  if(ticket!==similarTicket||!panel.isConnected)return;
-  similarResults=result.items;
-  panel.innerHTML=`<h3>Semelhantes a ${escape(result.seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><p id="similar-status" class="muted" role="status">${result.items.length===5?'Cinco opções pelos temas e dados do catálogo.':`Encontrei ${result.items.length} opções com o tema identificado. Não completei com filmes de gênero genérico.${!includeSaved?' Marque a opção acima para incluir títulos da sua lista.':''}`}</p>${result.partial?'<p class="muted">Algumas buscas temáticas não responderam. Toque em Ver 5 semelhantes para tentar novamente.</p>':''}<div id="similar-grid">${grid(similarResults)}</div><div id="similar-reasons">${similarResults.map(item=>`<p class="muted"><strong>${escape(item.name)}:</strong> ${escape(item.recommendationReason)}</p>`).join('')}</div>${localAI.state.configured&&localAI.state.supported&&result.candidates.length>=5?'<label for="similar-preference">Preferência opcional para a IA</label><input id="similar-preference" maxlength="200" placeholder="Mais ação e fantasia, por exemplo"><button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
-  wireImages();
-  panel.querySelectorAll('button.poster-card[data-id]').forEach(button=>button.onclick=()=>showDetail(similarResults.find(item=>item.id===button.dataset.id)));
-  $('#similar-saved').onchange=event=>findSimilar(result.seed,event.target.checked);
-  if($('#similar-ai-settings'))$('#similar-ai-settings').onclick=()=>{$('#detail').close();setTab('connect');$('#local-ai-panel')?.scrollIntoView({block:'center'});};
-  if($('#refine-similar'))$('#refine-similar').onclick=async()=>{
-   const button=$('#refine-similar'),cancel=$('#cancel-similar'),status=$('#similar-status');button.disabled=true;cancel.hidden=false;status.textContent='Executando o GGUF no celular… Você pode cancelar.';
-   cancel.onclick=()=>localAI.cancel();
-   try{
-    const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,$('#similar-preference').value));
-    if(ticket!==similarTicket||!panel.isConnected)return;
-    const selected=validateLocalSelection(answer,result.candidates);if(!selected)throw Error('A IA não retornou cinco IDs válidos. Mantive as opções do catálogo.');
-    similarResults=selected;$('#similar-grid').innerHTML=grid(selected);$('#similar-reasons').textContent='';status.textContent='Cinco opções selecionadas com IA local entre títulos verificados do catálogo.';wireImages();
-    panel.querySelectorAll('button.poster-card[data-id]').forEach(card=>card.onclick=()=>showDetail(similarResults.find(item=>item.id===card.dataset.id)));
-   }catch(error){if(ticket===similarTicket&&status.isConnected)status.textContent=error.message;}
-   finally{if(button.isConnected){button.disabled=false;cancel.hidden=true;}}
-  };
- }catch(error){if(ticket===similarTicket&&panel.isConnected)panel.innerHTML=`<p role="alert">${escape(error.message)}</p><button class="secondary" id="retry-similar">Tentar novamente</button>`;if($('#retry-similar'))$('#retry-similar').onclick=()=>findSimilar(seed,includeSaved);}
+ panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
+ const search=panel.querySelector('#search-similar'),ai=panel.querySelector('#refine-similar'),status=panel.querySelector('#similar-status');
+ search.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;
+ const run=async useLocal=>{
+  if(!search.isConnected||search.disabled)return;
+  const preference=panel.querySelector('#similar-preference').value,include=panel.querySelector('#similar-saved').checked;
+  search.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;let cancelled=false;const cancel=panel.querySelector('#cancel-similar');if(cancel&&useLocal){cancel.hidden=false;cancel.onclick=()=>{cancelled=true;localAI.cancel();status.textContent='Consulta cancelada. As opções anteriores foram preservadas.';};}
+  status.textContent='Buscando candidatos para o pedido e conferindo sinopses…';
+  try{
+   const result=await similarEngine.find(seed,{existing:items,includeSaved:include,query:preference});
+   if(ticket!==similarTicket||!panel.isConnected||cancelled)return;
+   paintSimilar(panel,result);
+   if(useLocal&&result.candidates.length){status.textContent='Executando o GGUF no celular entre candidatos que atendem aos critérios…';const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,preference));if(ticket!==similarTicket||!panel.isConnected||cancelled)return;const selected=validateLocalSelection(answer,result.candidates,{seed:result.seed,query:preference});if(!selected)throw Error('A IA não retornou uma seleção válida para os critérios. Mantive as opções do catálogo.');paintSimilar(panel,{...result,items:selected},true);}
+  }catch(error){if(ticket===similarTicket&&status.isConnected&&!cancelled)status.textContent=error.message;}
+  finally{if(search.isConnected){search.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;if(cancel?.isConnected)cancel.hidden=true;}
+ };
+ search.onclick=()=>run(false);if(ai)ai.onclick=()=>run(true);
+ panel.querySelector('#similar-preference').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();run(false);}};
+ panel.querySelector('#similar-saved').onchange=()=>run(false);
+ if($('#similar-ai-settings'))$('#similar-ai-settings').onclick=()=>{$('#detail').close();setTab('connect');$('#local-ai-panel')?.scrollIntoView({block:'center'});};
+ try{const result=await similarEngine.find(seed,{existing:items,includeSaved,query});if(ticket===similarTicket&&panel.isConnected)paintSimilar(panel,result);}
+ catch(error){if(ticket===similarTicket&&status.isConnected)status.textContent=error.message;}
+ finally{if(search.isConnected){search.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;}
 }
 
 window.CenaNuvioResult=state=>{
