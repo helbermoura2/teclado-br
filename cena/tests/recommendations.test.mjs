@@ -29,3 +29,16 @@ test('series distinguish available episodes, future airings, unknown data and ca
  assert.equal(seriesSummary({checkedAt:1,available:0,aired:0,next:{}},now).state,'unknown');
  assert.equal(seriesSummary({checkedAt:1,available:2,error:'offline',next:{}},now).state,'stale');
 });
+
+test('manual refresh fetches another page and excludes currently displayed identities',async()=>{
+ const values=new Map(),urls=[];const engine=new RecommendationEngine({storage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)},details:async x=>x,fetcher:async url=>{urls.push(url);return {ok:true,json:async()=>({metas:url.includes('skip=100')?[{id:'tt0000009',type:'movie',name:'Outra opção',genres:['Crime']}]:candidates.filter(x=>url.includes('/'+x.type+'/'))})};}});
+ const first=await engine.recommend([watched]);const next=await engine.recommend([watched],{force:true,exclude:first.items.map(x=>x.type+':'+x.id)});assert.ok(urls.some(x=>x.includes('skip=100')));assert.ok(next.items.some(x=>x.id==='tt0000009'));assert.ok(next.items.every(x=>!first.items.some(y=>x.id===y.id&&x.type===y.type)));await engine.recommend([watched],{force:true});assert.ok(urls.some(x=>x.includes('skip=200')));
+});
+test('offline and exhausted catalogs never pretend the same titles are new suggestions',async()=>{
+ const values=new Map();let offline=false;const engine=new RecommendationEngine({storage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)},details:async x=>x,fetcher:async()=>{if(offline)throw Error('offline');return {ok:true,json:async()=>({metas:[candidates[0]]})};}});
+ const first=await engine.recommend([watched]);offline=true;const next=await engine.recommend([watched],{force:true,exclude:first.items.map(x=>x.type+':'+x.id)});assert.equal(next.stale,true);assert.deepEqual(next.items,[]);assert.ok(JSON.parse(values.get('cena.discovery.catalog.v1')).items.length);
+});
+test('manual refresh waits for an automatic request instead of returning its unchanged result',async()=>{
+ let release;const wait=new Promise(r=>release=r);let calls=0;const engine=new RecommendationEngine({details:async()=>{await wait;return watched;},fetcher:async url=>{calls++;return {ok:true,json:async()=>({metas:[url.includes('skip=100')?{id:'tt0000009',type:'movie',name:'Outra opção'}:candidates[0]]})};}});
+ const first=engine.recommend([watched]),next=engine.recommend([watched],{force:true,exclude:['movie:tt0000002']});release();await first;const result=await next;assert.ok(result.items.every(x=>x.id!=='tt0000002'));assert.ok(result.items.some(x=>x.id==='tt0000009'));assert.ok(calls>=4);
+});
