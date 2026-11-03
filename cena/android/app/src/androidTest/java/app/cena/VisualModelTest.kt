@@ -27,6 +27,10 @@ class VisualModelTest {
             val a = engine.embedding(photo)
             val b = engine.embedding(photo)
             val c = engine.embedding(other)
+            assertTrue(VisualModelStore.status(instrumentation.targetContext).optBoolean("available"))
+            var notified=false
+            VisualModelStore.download(instrumentation.targetContext){notified=true}
+            assertTrue("An installed model must be reused without starting another download",notified)
             assertEquals(512, a.size)
             assertTrue(a.all { it.isFinite() })
             val same = a.indices.sumOf { (a[it]*b[it]).toDouble() }
