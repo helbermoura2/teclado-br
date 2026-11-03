@@ -80,7 +80,8 @@ class MainActivity : ComponentActivity() {
             emitStremio()
         }} catch(_:java.util.concurrent.RejectedExecutionException) {}
     }
-    private fun emitVisualModel(){try{val value=VisualModelStore.status(applicationContext);runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaVisionModelState && window.CenaVisionModelState($value)",null)}}catch(_:Exception){}}
+    private val visualDownloadQueued=java.util.concurrent.atomic.AtomicBoolean(false)
+    private fun emitVisualModel(){try{val value=VisualModelStore.status(applicationContext);value.put("downloading",value.optBoolean("downloading")||visualDownloadQueued.get());runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaVisionModelState && window.CenaVisionModelState($value)",null)}}catch(_:Exception){}}
     private val appData by lazy {AppDataStore(applicationContext)}
     private var pendingBackup:ByteArray?=null
     private val saveBackupFile=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->val value=pendingBackup;pendingBackup=null;if(uri!=null&&value!=null)historyTask{contentResolver.openOutputStream(uri)?.use{it.write(value)}?:error("Arquivo indisponível");runOnUiThread{if(!isDestroyed)Toast.makeText(this,"Backup salvo.",Toast.LENGTH_SHORT).show()}}}
@@ -279,7 +280,7 @@ class MainActivity : ComponentActivity() {
 
     inner class Bridge {
         @JavascriptInterface fun visionModelState(){emitVisualModel()}
-        @JavascriptInterface fun downloadVisualModel(){try{visionExecutor.execute{VisualModelStore.download(applicationContext){emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
+        @JavascriptInterface fun downloadVisualModel(){if(!visualDownloadQueued.compareAndSet(false,true))return;emitVisualModel();try{visionExecutor.execute{try{if(!isDestroyed)VisualModelStore.download(applicationContext){emitVisualModel()}}finally{visualDownloadQueued.set(false);emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){visualDownloadQueued.set(false)}}
         @JavascriptInterface fun cancelVisualModel(){VisualModelStore.cancel()}
         @JavascriptInterface fun dataGet(key:String):String=try{appData.get(key)}catch(_:Exception){"__ERROR__"}
         @JavascriptInterface fun dataPut(key:String,value:String):String=try{appData.put(key,value);"{\"ok\":true}"}catch(_:Exception){"{\"ok\":false}"}
