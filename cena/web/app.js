@@ -28,6 +28,7 @@ let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
 const localApi = createLocalApi(localStorage, { search: searchTolerantTitles });
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
 let seriesState={items:[],reading:false,pending:0,lastCheck:0};
+let discoveryRefreshing=false,discoveryRequest=0;
 let discoveryResults=[],discoveryMode='recommend',discoveryFilter='all',discoveryInfo=null,discoveryFingerprint='';
 let nuvioState={connected:false,active:false,watched:[],progress:[]},deferredNuvioState=null,nuvioResults=[];
 let resumeExpanded=false,homeMetadata=new Map(),homeMetadataTried=new Set(),homeMetadataBusy=false,homeRecommendationPending=null;
@@ -410,27 +411,53 @@ function renderSeriesSections(){
   wireImages();if(window.scrollY!==position)window.scrollTo(0,position);
 }
 function discover(){
-  main.innerHTML=`<div class="eyebrow">NOVAS HISTÓRIAS PARA VOCÊ</div><h1>Descobrir</h1><div class="chips"><button class="chip ${discoveryMode==='recommend'?'selected':''}" data-discovery-mode="recommend">Para você</button><button class="chip ${discoveryMode==='series'?'selected':''}" data-discovery-mode="series">Suas séries</button></div>${discoveryMode==='series'?'<section id="series-discovery"></section>':`<p class="muted">Sugestões calculadas no aparelho por semelhança de gêneros, temas e elenco. Seus assistidos e notas pessoais ajudam; a lista Quero assistir é uma pista mais fraca.</p><div class="chips"><button class="chip ${discoveryFilter==='all'?'selected':''}" data-discovery-filter="all">Tudo</button><button class="chip ${discoveryFilter==='movie'?'selected':''}" data-discovery-filter="movie">Filmes</button><button class="chip ${discoveryFilter==='series'?'selected':''}" data-discovery-filter="series">Séries</button></div><div class="actions"><button class="secondary" id="refresh-recommendations">Atualizar sugestões</button></div><div id="recommendation-status" class="muted" role="status"></div><div id="recommendation-grid"></div><p class="muted">Abra uma indicação para ver detalhes e adicionar a Quero assistir. Com o Trakt conectado, ela segue para sua lista usada no Nuvio.</p>`}`;
+  main.innerHTML=`<div class="eyebrow">NOVAS HISTÓRIAS PARA VOCÊ</div><h1>Descobrir</h1><div class="chips"><button class="chip ${discoveryMode==='recommend'?'selected':''}" data-discovery-mode="recommend">Para você</button><button class="chip ${discoveryMode==='series'?'selected':''}" data-discovery-mode="series">Suas séries</button></div>${discoveryMode==='series'?'<section id="series-discovery"></section>':`<p class="muted">Sugestões calculadas no aparelho por semelhança de gêneros, temas e elenco. Seus assistidos e notas pessoais ajudam; a lista Quero assistir é uma pista mais fraca.</p><div class="chips"><button class="chip ${discoveryFilter==='all'?'selected':''}" data-discovery-filter="all">Tudo</button><button class="chip ${discoveryFilter==='movie'?'selected':''}" data-discovery-filter="movie">Filmes</button><button class="chip ${discoveryFilter==='series'?'selected':''}" data-discovery-filter="series">Séries</button></div><div class="actions"><button class="secondary" id="refresh-recommendations">Mostrar outras sugestões</button></div><div id="recommendation-status" class="muted" role="status"></div><div id="recommendation-grid"></div><p class="muted">Abra uma indicação para ver detalhes e adicionar a Quero assistir. Com o Trakt conectado, ela segue para sua lista usada no Nuvio.</p>`}`;
   document.querySelectorAll('[data-discovery-mode]').forEach(button=>button.onclick=()=>{discoveryMode=button.dataset.discoveryMode;discover();});
   document.querySelectorAll('[data-discovery-filter]').forEach(button=>button.onclick=()=>{discoveryFilter=button.dataset.discoveryFilter;discover();});
   renderSeriesSections();
+  if($('#refresh-recommendations'))$('#refresh-recommendations').disabled=discoveryRefreshing;
   if(discoveryMode==='recommend'){$('#refresh-recommendations').onclick=()=>loadRecommendations(true);renderRecommendations();if(!discoveryInfo||discoveryFingerprint!==tasteFingerprint()||Date.now()-discoveryInfo.at>=12*3600000)loadRecommendations();}
 }
 function renderRecommendations(){
   const target=$('#recommendation-grid');if(!target)return;
   const known=new Set(items.map(item=>`${item.type}:${item.id}`));
   const rows=discoveryResults.filter(item=>!known.has(`${item.type}:${item.id}`)&&(discoveryFilter==='all'||item.type===discoveryFilter)).slice(0,24);
-  target.innerHTML=rows.length?grid(rows,true):discoveryInfo?'<div class="empty"><p>Sem novas sugestões neste filtro. Atualize as opções ou amplie seu catálogo.</p></div>':'';
+  patchRecommendationCards(target,rows);
   const status=$('#recommendation-status');if(status&&discoveryInfo)status.textContent=`${discoveryInfo.seedCount?'Baseado em '+discoveryInfo.seedCount+' títulos do seu catálogo.':'Descobertas do catálogo para começar.'} ${discoveryInfo.stale?'Mostrando a última consulta salva. ':''}Atualizado em ${new Date(discoveryInfo.at).toLocaleString('pt-BR')}.`;
   wireImages();
 }
+function patchRecommendationCards(target,rows){
+ const current=new Map([...target.querySelectorAll('.poster-card')].map(card=>[card.querySelector('[data-artwork-key]')?.dataset.artworkKey,card]));
+ let list=target.querySelector(':scope > .grid');
+ if(!rows.length){if(!target.querySelector('.empty'))target.innerHTML=discoveryInfo?'<div class="empty"><p>Sem novas sugestões neste filtro.</p></div>':'';return;}
+ if(!list){target.innerHTML='<div class="grid"></div>';list=target.firstElementChild;}
+ let next=list.firstElementChild;
+ for(const item of rows){
+  let card=current.get(`${item.type}:${item.id}`);current.delete(`${item.type}:${item.id}`);
+  if(!card){const template=document.createElement('template');template.innerHTML=grid([item],true);card=template.content.querySelector('.poster-card');}
+  artworkModels.set(`${item.type}:${item.id}`,item);ratingModels.set(`${item.type}:${item.id}`,item);
+  const reason=card.querySelector('.recommendation-reason');if(reason&&reason.textContent!==item.recommendationReason)reason.textContent=item.recommendationReason;
+  if(card!==next)list.insertBefore(card,next);next=card.nextElementSibling;
+ }
+ for(const card of current.values())card.remove();
+}
 function tasteFingerprint(){return JSON.stringify(items.map(({id,type,status,watchedEpisodes})=>({id,type,status,watchedEpisodes})))+(localStorage.getItem('cena.story.notes.v1')||'');}
 async function loadRecommendations(force=false){
-  const status=$('#recommendation-status'),button=$('#refresh-recommendations');if(!status)return;
-  status.textContent='Preparando sugestões a partir do seu catálogo…';if(button)button.disabled=true;
-  try{const fingerprint=tasteFingerprint();const value=await recommendationEngine.recommend(items,{force});discoveryResults=value.items;discoveryInfo=value;discoveryFingerprint=fingerprint;if(status.isConnected)renderRecommendations();}
-  catch(error){if(status.isConnected)status.textContent=error.message;}
-  finally{if(button?.isConnected)button.disabled=false;}
+ const status=$('#recommendation-status'),button=$('#refresh-recommendations');if(!status||discoveryRefreshing)return;
+ const ticket=++discoveryRequest,selectedFilter=discoveryFilter;
+ const known=new Set(items.map(item=>`${item.type}:${item.id}`));
+ const exclude=force?discoveryResults.filter(item=>!known.has(`${item.type}:${item.id}`)&&(selectedFilter==='all'||item.type===selectedFilter)).slice(0,24).map(item=>`${item.type}:${item.id}`):[];
+ discoveryRefreshing=true;status.textContent=force?'Procurando outras sugestões… Suas capas continuam aqui.':'Preparando sugestões a partir do seu catálogo…';if(button){button.disabled=true;button.textContent='Buscando sugestões…';}
+ try{
+  const fingerprint=tasteFingerprint(),value=await recommendationEngine.recommend(items,{force,exclude});
+  if(ticket!==discoveryRequest)return;
+  const alternatives=value.items.filter(item=>selectedFilter==='all'||item.type===selectedFilter);
+  if(force&&!alternatives.length){if(status.isConnected)status.textContent=value.stale?'Não consegui consultar novas opções agora. As sugestões anteriores foram mantidas.':'Não encontrei outras opções neste filtro agora. As sugestões anteriores foram mantidas.';return;}
+  if(force&&selectedFilter!=='all')value.items=[...value.items.filter(item=>item.type===selectedFilter),...discoveryResults.filter(item=>item.type!==selectedFilter)];
+  discoveryResults=value.items;discoveryInfo=value;discoveryFingerprint=fingerprint;
+  if(tab==='discover'&&$('#recommendation-status')){renderRecommendations();if(value.stale)$('#recommendation-status').textContent='Mostrando outras opções do catálogo salvo. Não consegui atualizar o catálogo online agora.';}
+ }catch(error){if(status.isConnected)status.textContent='Não consegui atualizar agora. Suas sugestões foram mantidas. '+error.message;}
+ finally{discoveryRefreshing=false;const active=$('#refresh-recommendations');if(active){active.disabled=false;active.textContent='Mostrar outras sugestões';}}
 }
 async function runSearch(query, coverLines = null) {
   const target = $('#search-results');
