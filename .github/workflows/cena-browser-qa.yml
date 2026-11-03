@@ -71,7 +71,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.12.0')
+                  expect(page.locator('#app-version')).to_contain_text('0.12.1')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -119,7 +119,7 @@ jobs:
                       {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
                       {id:'tt0903747',type:'series',name:'Breaking Bad',removed:false,temp:false},
                       {id:'kitsu:123',type:'series',name:'Anime custom ID',removed:false,temp:false}];
-                    window.CenaAndroid={appVersion:()=> '0.12.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
+                    window.CenaAndroid={appVersion:()=> '0.12.1',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
                       connectStremio:()=>window.CenaStremioResult({connected:false,pairing:true,library:[]}),
                       openStremioAuthorization:()=>window.stremioAuthorized=true,
                       readStremioLibrary:()=>window.CenaStremioResult({connected:true,pairing:false,account:'t***@example.org',lastRead:Date.now(),library:window.stremioRows}),
@@ -225,7 +225,7 @@ jobs:
                   scroll_page.add_init_script("""
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
                     localStorage.setItem('cena.local.items.v1',JSON.stringify(Array.from({length:110},(_,i)=>({id:'tt'+(9000000+i),type:'movie',name:'Saved film '+i,status:'watchlist',poster:'https://image.tmdb.org/fixture.jpg'}))));
-                    window.CenaAndroid={appVersion:()=> '0.12.0',ready:()=>{},traktInventory:()=>{}};
+                    window.CenaAndroid={appVersion:()=> '0.12.1',ready:()=>{},traktInventory:()=>{}};
                   """)
                   scroll_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
                   scroll_page.locator('nav [data-tab="library"]').click()
@@ -251,7 +251,13 @@ jobs:
                   print('Scroll, search draft/results, and existing image nodes preserved across timestamp-only and actual Trakt updates.')
                   discovery_page=browser.new_page(viewport={'width':412,'height':915})
                   discovery_page.on('pageerror',lambda error:errors.append(str(error)))
+                  pending_refresh=[]
+                  refresh_mode={'value':'normal'}
                   def discovery_route(route):
+                      if '/catalog/' in route.request.url and refresh_mode['value']!='normal':
+                          if refresh_mode['value']=='offline':route.abort()
+                          else:pending_refresh.append(route)
+                          return
                       if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
                       else:
                           match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
@@ -266,7 +272,7 @@ jobs:
                     localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at,genreKey:'Crime|Drama',source:'Test catalog',items:[...saved,{id:'tt0000002',type:'movie',name:'Nova indicação policial',genres:['Crime','Drama'],year:'2020',poster:'https://image.tmdb.org/fixture.jpg'},{id:'tt0000003',type:'series',name:'Nova série policial',genres:['Crime','Drama'],year:'2020',poster:'https://image.tmdb.org/fixture.jpg'}]}));
                     window.discoveryActions=[];
                     window.demoSeries={items:[{id:'tt0903747',aired:3,completed:2,available:1,newEpisodes:1,checkedAt:at,next:{season:1,number:3,title:'Episódio disponível',firstAired:'2008-02-10T00:00:00Z'}}],lastCheck:at,pending:0};
-                    window.CenaAndroid={appVersion:()=> '0.12.0',traktInventory:()=>{},queueTrakt:raw=>window.discoveryActions.push(JSON.parse(raw)),
+                    window.CenaAndroid={appVersion:()=> '0.12.1',traktInventory:()=>{},queueTrakt:raw=>window.discoveryActions.push(JSON.parse(raw)),
                       ready:()=>queueMicrotask(()=>{window.CenaTraktResult({connected:true,configured:true,username:'test',lastSync:at,pending:[],watchlist:[],watched:[],progress:[{id:'tt0903747',type:'series',episodes:2}]});window.CenaSeriesResult(window.demoSeries);}),
                       refreshSeries:()=>window.CenaSeriesResult({items:[{id:'tt0903747',aired:3,completed:3,available:0,newEpisodes:0,checkedAt:Date.now(),next:{season:2,number:1,firstAired:new Date(Date.now()+30*86400000).toISOString()}}],lastCheck:Date.now(),pending:0})};
                   """)
@@ -298,6 +304,29 @@ jobs:
                   discovery_page.screenshot(path='qa/series-and-next-episode.png',full_page=True)
                   discovery_page.locator('[data-discovery-mode="recommend"]').click()
                   expect(discovery_page.locator('#recommendation-grid .poster-card')).to_have_count(1)
+                  discovery_page.locator('.poster-card .poster-art img').first.scroll_into_view_if_needed()
+                  expect(discovery_page.locator('.poster-card .poster-art img').first).to_be_visible()
+                  discovery_page.evaluate("window.savedRecommendationImage=document.querySelector('#recommendation-grid .poster-art img');window.savedRecommendationCard=document.querySelector('#recommendation-grid .poster-card')")
+                  refresh_mode['value']='offline'
+                  discovery_page.locator('#refresh-recommendations').click()
+                  expect(discovery_page.locator('#recommendation-status')).to_contain_text('sugestões anteriores foram mantidas')
+                  assert discovery_page.evaluate("window.savedRecommendationImage===document.querySelector('#recommendation-grid .poster-art img') && window.savedRecommendationCard===document.querySelector('#recommendation-grid .poster-card')"), 'Offline refresh must retain the actual card and loaded image nodes'
+                  refresh_mode['value']='hold'
+                  discovery_page.locator('#refresh-recommendations').click()
+                  expect(discovery_page.locator('#refresh-recommendations')).to_be_disabled()
+                  assert discovery_page.evaluate("window.savedRecommendationImage.isConnected && window.savedRecommendationCard.isConnected"), 'Cards must stay visible while refreshing'
+                  discovery_page.wait_for_timeout(300)
+                  assert pending_refresh, 'Manual refresh must query another catalog page'
+                  for held in pending_refresh:
+                      kind='series' if '/series/' in held.request.url else 'movie'
+                      metas=[{'id':'tt70000'+str(i),'type':kind,'name':'Nova opção '+kind+' '+str(i),'genres':['Crime','Drama'],'poster':'https://image.tmdb.org/new-fixture.jpg','releaseInfo':'2020'} for i in range(10,13)]
+                      held.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'metas':metas}))
+                  pending_refresh.clear()
+                  expect(discovery_page.locator('#refresh-recommendations')).to_be_enabled()
+                  expect(discovery_page.locator('#recommendation-grid')).to_contain_text('Nova opção')
+                  expect(discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000003"]')).to_have_count(0)
+                  assert discovery_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1')).length")==3, 'Refreshing must not modify the library'
+                  print('Manual refresh keeps the exact loaded image/card nodes while waiting or offline, then displays different suggestions. Account/catalog fixtures simulated.')
                   discovery_page.screenshot(path='qa/personalized-discovery.png',full_page=True)
                   discovery_page.close()
                   print('Five centered tabs, personalized recommendations, existing-title exclusion, Trakt queue on add, available episodes and future releases verified. Account responses are simulated.')
@@ -312,7 +341,7 @@ jobs:
                     const choices=Array.from({length:7},(_,i)=>({id:'tt'+(7000000+i),type:'movie',name:'Samurai candidate '+i,year:'2012',genres:['Action','Fantasy'],description:'Samurai seek revenge in feudal Japan.'}));
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify([seed,...choices.slice(0,5).map(item=>({...item,status:'watchlist'}))]));
                     localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at:Date.now(),genreKey:'Action|Fantasy',items:[...choices,...Array.from({length:5},(_,i)=>({id:'tt'+(8000000+i),type:'movie',name:'Generic action '+i,genres:['Action','Fantasy'],description:'A fantasy action adventure.'}))]}));
-                    window.modelMode='valid';window.CenaAndroid={appVersion:()=> '0.12.0',traktInventory:()=>{},ready:()=>queueMicrotask(()=>window.CenaLocalModelResult({configured:true,supported:true,name:'fixture.gguf',bytes:1024})),cancelLocalAi:()=>{},
+                    window.modelMode='valid';window.CenaAndroid={appVersion:()=> '0.12.1',traktInventory:()=>{},ready:()=>queueMicrotask(()=>window.CenaLocalModelResult({configured:true,supported:true,name:'fixture.gguf',bytes:1024})),cancelLocalAi:()=>{},
                       generateLocalAi:(id,prompt)=>{const candidates=JSON.parse(prompt.split('Candidatos: ')[1]);const ids=candidates.slice(0,5).map(item=>item.id);if(window.modelMode==='invalid')ids[0]='tt9999999';queueMicrotask(()=>window.CenaLocalAiResult({requestId:id,status:'ok',text:JSON.stringify(ids)}));}};
                   """)
                   similar_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
@@ -383,7 +412,7 @@ jobs:
                     localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at:Date.now(),genreKey:'',source:'Test catalog',items:[['tt0245429','A Viagem de Chihiro'],['tt0325980','Piratas do Caribe'],['tt0120586','A Outra História Americana'],['tt0110357','O Rei Leão'],['tt0080684','O Império Contra-Ataca']].map(([id,name])=>({id,type:'movie',name,year:'2001',poster:'https://images.metahub.space/poster/medium/'+id+'/img'}))}));
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify(saved));
                     window.nuvioFixture={connected:true,active:true,profileId:1,profileName:'Perfil A',scope:'account-a:1',account:'Conta de teste',profiles:[{id:1,name:'Perfil A'},{id:2,name:'Perfil B'}],lastSync:Date.now(),watchedCount:2,watched:[{id:'tt1335975',type:'movie',watchedAt:Date.now()},{id:'tt0903747',type:'series',season:1,episode:1}],progress:[{id:'tt0903747',type:'series',season:1,episode:2,position:600000,duration:2400000},{id:'tt4158110',name:'tt4158110',type:'series',season:2,episode:3,position:1560000,duration:3000000},{id:'tt0114369',name:'Quase não iniciado',type:'movie',position:10000,duration:6000000}]};
-                    window.CenaAndroid={appVersion:()=> '0.12.0',traktInventory:()=>{},nuvioInventory:()=>{},ready:()=>{},connectNuvio:()=>window.CenaNuvioResult({connected:false,pairing:true,userCode:'ABC123',verificationUrl:'https://nuvio.tv/link'}),openNuvioVerification:()=>window.nuvioOpened=true,
+                    window.CenaAndroid={appVersion:()=> '0.12.1',traktInventory:()=>{},nuvioInventory:()=>{},ready:()=>{},connectNuvio:()=>window.CenaNuvioResult({connected:false,pairing:true,userCode:'ABC123',verificationUrl:'https://nuvio.tv/link'}),openNuvioVerification:()=>window.nuvioOpened=true,
                       selectNuvioProfile:id=>window.CenaNuvioResult({...window.nuvioFixture,profileId:id,scope:'account-a:'+id,profileName:'Perfil '+(id===1?'A':'B'),watched:id===1?window.nuvioFixture.watched:[],progress:id===1?window.nuvioFixture.progress:[],watchedCount:id===1?2:0}),syncNuvio:()=>window.CenaNuvioResult(window.nuvioFixture),refreshNuvioProfiles:()=>{},disconnectNuvio:()=>window.CenaNuvioResult({connected:false,active:false})};
                   """)
                   nuvio_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
@@ -428,7 +457,6 @@ jobs:
                   nuvio_page.wait_for_timeout(2000)
                   nuvio_page.screenshot(path='qa/home-redesign.png',full_page=True)
                   import base64
-                  print('HOME_REVIEW_JPEG:'+base64.b64encode(nuvio_page.screenshot(type='jpeg',quality=65,full_page=False)).decode())
                   nuvio_page.locator('#nuvio-home [data-nuvio-title="tt0903747"]').click()
                   expect(nuvio_page.locator('#detail-content h2')).to_contain_text('Breaking Bad')
                   nuvio_page.locator('#detail .close').click()
@@ -450,7 +478,7 @@ jobs:
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt1335975',type:'movie',name:'47 Ronin',year:'2013',status:'watchlist'}]));
                     window.historyEvents=[{eventId:'9007199254740992',kind:'movie',type:'movie',id:'tt1335975',mediaKey:'movie:tt1335975',name:'47 Ronin',year:2013,watchedAt:'2023-06-01T12:00:00Z',datePrecision:'exact'},{eventId:'9007199254740993',kind:'movie',type:'movie',id:'tt1335975',mediaKey:'movie:tt1335975',name:'47 Ronin',year:2013,watchedAt:'2026-06-01T12:00:00Z',datePrecision:'exact'},{eventId:'3',kind:'movie',type:'movie',id:'tt1335975',mediaKey:'movie:tt1335975',name:'47 Ronin',year:2013,watchedAt:'',datePrecision:'unknown'}];
                     window.historyFixture={connected:true,scope:'account-a',account:'Conta de teste',lastImport:Date.now(),coverage:'complete',totals:{plays:3,movies:1,series:0,episodes:0,estimatedMinutes:357,timedPlays:3,unknownDates:1},years:[{year:2026,plays:1,movies:1},{year:2023,plays:1,movies:1}],unknown:{plays:1,movies:1},media:[{id:'tt1335975',type:'movie',name:'47 Ronin',year:2013,plays:3,years:[2023,2026],unknownDates:1}],timezone:'UTC'};
-                    window.CenaAndroid={appVersion:()=> '0.12.0',ready:()=>queueMicrotask(()=>window.CenaHistoryResult(window.historyFixture)),traktInventory:()=>{},historyState:()=>window.CenaHistoryResult(window.historyFixture),importHistory:()=>window.historyImportRequested=true,exportHistory:()=>window.historyExportRequested=true,
+                    window.CenaAndroid={appVersion:()=> '0.12.1',ready:()=>queueMicrotask(()=>window.CenaHistoryResult(window.historyFixture)),traktInventory:()=>{},historyState:()=>window.CenaHistoryResult(window.historyFixture),importHistory:()=>window.historyImportRequested=true,exportHistory:()=>window.historyExportRequested=true,
                       historyRows:(requestId,year,kind,page,mediaId)=>{const rows=window.historyEvents.filter(row=>(!mediaId||row.id===mediaId)&&(kind==='all'||row.kind===kind)&&(year==='all'||year==='unknown'&&row.datePrecision==='unknown'||row.watchedAt.startsWith(year+'-')));queueMicrotask(()=>window.CenaHistoryRows({requestId,scope:'account-a',rows,total:rows.length,page,hasMore:false}));}};
                   """)
                   history_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
