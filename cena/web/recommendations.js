@@ -1,3 +1,4 @@
+import {titleThemes,themeLabel} from './taste-features.js';
 import {getTitleDetails} from './search-public.js';
 import {trustedArtwork} from './artwork.js';
 import {storyOpinion} from './story-layout.js';
@@ -11,6 +12,7 @@ const stops=new Set('the and for with from this that their they have about into 
 function features(item){
  const vector=new Map();const add=(token,weight)=>vector.set(token,(vector.get(token)||0)+weight);
  for(const genre of genres(item))add('g:'+normalize(genre),3);
+ for(const theme of titleThemes(item))add('t:'+theme,4);
  for(const name of item.directors||[])add('d:'+normalize(name),2);
  for(const name of (item.cast||[]).slice(0,5))add('a:'+normalize(name),1.2);
  for(const word of normalize(item.description||'').match(/[a-z]{3,}/g)||[])if(!stops.has(word))add('w:'+word,.1);
@@ -37,7 +39,9 @@ export function rankRecommendations(items,candidates,{notes={},seeds=selectTaste
   const vector=vectors[seeds.length+index];let total=0,weight=0,best=null,bestScore=0,penalty=0;
   for(const seed of seedData){const score=similarity(vector,seed.vector);if(seed.negative){penalty+=score*.6;continue;}total+=score*seed.weight;weight+=seed.weight;if(score*seed.weight>bestScore){bestScore=score*seed.weight;best=seed;}}
   const shared=best?genres(item).find(genre=>genres(best.item).some(other=>normalize(other)===normalize(genre))):null;
-  const reason=bestScore>.015?`${shared?genreLabel(shared)+' em comum':'Temas ou elenco em comum'} com ${best.item.name}.`:'Uma descoberta do catálogo para ampliar suas opções.';
+  const sharedThemes=best?titleThemes(item).filter(theme=>titleThemes(best.item).includes(theme)):[];
+  const sharedActor=best?(item.cast||[]).find(name=>(best.item.cast||[]).some(actor=>normalize(actor)===normalize(name))):null;
+  const reason=sharedThemes.length?`Temas em comum: ${sharedThemes.map(themeLabel).join(', ')} com ${best.item.name}.`:sharedActor?`Elenco em comum: ${sharedActor}, de ${best.item.name}.`:bestScore>.015?`${shared?genreLabel(shared)+' em comum':'Temas ou elenco em comum'} com ${best.item.name}.`:'Uma descoberta do catálogo para ampliar suas opções.';
   return {...item,poster:trustedArtwork(item.poster),recommendationReason:reason,affinity:(weight?total/weight:0)-penalty,providerOrder:index};
  }).sort((a,b)=>b.affinity-a.affinity||a.providerOrder-b.providerOrder);
  const selected=[],usedGenres=new Map();const remaining=[...ranked];
@@ -65,12 +69,15 @@ export class RecommendationEngine {
   this.inFlight=this.run(items,force,exclude).finally(()=>{this.inFlight=null;});return this.inFlight;
  }
  async run(items,force,exclude=[]){
-  const notes=this.read('cena.story.notes.v1',{}),seeds=selectTasteSeeds(items,notes),profiles=this.read('cena.discovery.profiles.v1',{}),rich=[];
+  const notes=this.read('cena.story.notes.v1',{}),feedback=this.read('cena.feedback.v1',{});
+  const liked=Object.values(feedback).filter(row=>row&&valid(row.item)&&['like','dislike'].includes(row.value));for(const row of liked)notes[key(row.item)]={...notes[key(row.item)],rating:row.value==='like'?'9':'1'};
+  const tastes=[...new Map([...items,...liked.map(row=>({...row.item,status:'watched',watchedAt:new Date(row.at||0).toISOString()}))].map(item=>[key(item),item])).values()];
+  const seeds=selectTasteSeeds(tastes,notes),profiles=this.read('cena.discovery.profiles.v1',{}),rich=[];
   let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<seeds.length){const seed=seeds[cursor++],saved=profiles[key(seed)];let metadata=saved&&this.now()-saved.at<30*86400000?saved.item:null;if(!metadata)try{metadata=await this.details(seed);if(metadata.id!==seed.id||metadata.type!==seed.type)metadata=null;else profiles[key(seed)]={at:this.now(),item:metadata};}catch{}rich.push({...seed,...metadata,status:seed.status,watchedEpisodes:seed.watchedEpisodes});}}));
   this.save('cena.discovery.profiles.v1',Object.fromEntries(Object.entries(profiles).sort((a,b)=>b[1].at-a[1].at).slice(0,100)));
   const counts=new Map();for(const seed of rich)if(preference(seed,notes)===null||preference(seed,notes)>=5)for(const genre of genres(seed))counts.set(genre,(counts.get(genre)||0)+1);
   const preferred=[...counts].sort((a,b)=>b[1]-a[1]).slice(0,2).map(([genre])=>genre);
-  const catalog=await this.catalog(force,preferred),dismissed=this.read('cena.discovery.dismissed.v1',[]);
+  const catalog=await this.catalog(force,preferred),dismissed=[...this.read('cena.discovery.dismissed.v1',[]),...Object.entries(feedback).filter(([,row])=>['dislike','seen'].includes(row?.value)).map(([key])=>key)];
   const countsByType={movie:0,series:0};const ranked=rankRecommendations(items,catalog.items,{notes,seeds:rich,limit:1000,dismissed:[...dismissed,...exclude]}).filter(item=>countsByType[item.type]++<30);
   return {items:ranked,at:catalog.at,stale:Boolean(catalog.stale),source:catalog.source,seedCount:rich.length};
  }
