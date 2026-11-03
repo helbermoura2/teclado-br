@@ -1,0 +1,27 @@
+name: CENA preview release metadata
+on:
+  push:
+    branches: ['cena/android-preview']
+    paths: ['.github/workflows/cena-release-metadata.yml']
+permissions:
+  contents: write
+jobs:
+  align-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Align preview source with the verified delivered APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          expected=68df4b3b2a7632776f15012f89abdc8172b559d9
+          verified=ed4eb32ec0bf0485c8cfb1bc449af4093453e674
+          current=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/cena-v0.13.0" --jq .object.sha)
+          test "$current" = "$expected" || test "$current" = "$verified"
+          digest=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/cena-v0.13.0" --jq '.assets[] | select(.name == "CENA-0.13.0.apk") | .digest')
+          test "$digest" = sha256:4619b8b3f786abfab4c12e118fca7b110d94432c79c05ff0d88dd03c581c4bda
+          if [ "$current" != "$verified" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/cena-v0.13.0" -f sha="$verified" -F force=false
+          fi
+          gh release edit cena-v0.13.0 --repo "$GITHUB_REPOSITORY" --target "$verified" --notes-file cena/docs/CENA-0.13.0.md
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/cena-v0.13.0" --jq .object.sha)" = "$verified"
