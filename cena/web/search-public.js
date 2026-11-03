@@ -124,7 +124,8 @@ export async function getTitleDetails(item, fetcher = fetch) {
   const title = item.localWikiTitle || item.wikiTitle;
   if (title) requests.push(getJson(fetcher, `https://${item.localWikiTitle ? 'pt':'en'}.wikipedia.org/w/api.php`, {action:'query',titles:title,redirects:'1',prop:'extracts',exintro:'1',explaintext:'1',exchars:'4000'}));
   const replies = await Promise.allSettled(requests);
-  const meta = replies[0].status === 'fulfilled' ? cinemetaItem(replies[0].value.meta) : null;
+  const responseMeta = replies[0].status === 'fulfilled' ? cinemetaItem(replies[0].value.meta) : null;
+  const meta=responseMeta?.id===item.id&&responseMeta.type===item.type?responseMeta:null;
   const page = replies[1]?.status === 'fulfilled' ? Object.values(replies[1].value.query?.pages || {}).find(page => page.extract) : null;
   const result = { ...item, ...((!item.name || /^tt\d+$/.test(item.name)) && meta?.id===item.id && meta.type===item.type ? {name:meta.name} : {}), year:item.year || (meta?.id===item.id ? meta.year : '') || '', poster: item.poster || (meta?.id===item.id ? meta.poster : '') || '', ...(meta ? {runtime:meta.runtime,rating:meta.rating,imdbRating:meta.imdbRating,imdbRatingAt:meta.imdbRatingAt,cast:meta.cast,directors:meta.directors,genres:meta.genres,genre:meta.genre || item.genre} : {}),
     plot: meta?.id===item.id&&meta.type===item.type ? meta.description : item.plot||'',
