@@ -1,3 +1,12 @@
+import {mountVisionModel} from './vision-model-panel.js';
+import {mountBackup} from './backup.js';
+import {readCollections,createCollection,collectionItems,mountTitleCollections} from './collections.js';
+import {mountFeedback,readFeedback} from './feedback.js';
+import {mountCalendar} from './calendar.js';
+import {mountRetrospective} from './retrospective.js';
+import {renderSyncSummary} from './sync-summary.js';
+import {createStoryEditor} from './story-editor.js';
+import {createAppStorage} from './app-storage.js';
 import {resumeKey,visibleResume,titleName,homeSeries} from './home-feed.js';
 import {applyHistoryMetadata,historyYearLabel,historyStats,historyDate,historyItem} from './watch-history.js';
 import {applyNuvioState,nuvioContinue} from './nuvio-state.js';
@@ -7,9 +16,7 @@ import {SimilarEngine,buildLocalSelectionPrompt,validateLocalSelection} from './
 import {createLocalAI} from './local-ai.js';
 import {RecommendationEngine} from './recommendations.js';
 import {seriesSummary} from './series-view.js';
-import {renderStory,parseStoryRating} from './story-layout.js';
-import {storyMetadata} from './story-metadata.js';
-import {loadStoryPoster,receiveStoryArtwork} from './story-artwork.js';
+import {receiveStoryArtwork} from './story-artwork.js';
 import {createStremioPanel} from './stremio-panel.js';
 import { ArtworkResolver, trustedArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
@@ -19,13 +26,18 @@ import { coverInput, identifyCover, searchTolerantTitles } from './identify-cove
 import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
+const storage=createAppStorage(localStorage,window.CenaAndroid);
 window.CenaStoryArtworkResult=receiveStoryArtwork;
 const storageKey = 'cena.connection.v1';
 let connection = null;
 let stored = null;
-try { stored = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch {}
+try { stored = JSON.parse(storage.getItem(storageKey) || 'null'); } catch {}
 let apiBase = stored?.apiBase || (native ? 'local' : location.origin);
-const localApi = createLocalApi(localStorage, { search: searchTolerantTitles });
+const localApi = createLocalApi(storage, { search: searchTolerantTitles });
+let visualModelState={available:false,downloading:false};
+window.CenaVisionModelState=value=>{visualModelState=value;renderVisionModel();};
+function renderVisionModel(){mountVisionModel($('#vision-model-panel'),{state:visualModelState,bridge:window.CenaAndroid});}
+let activeCollection='',collectionResults=[];
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
 let seriesState={items:[],reading:false,pending:0,lastCheck:0};
 let discoveryRefreshing=false,discoveryRequest=0;
@@ -33,7 +45,7 @@ let discoveryResults=[],discoveryMode='recommend',discoveryFilter='all',discover
 let nuvioState={connected:false,active:false,watched:[],progress:[]},deferredNuvioState=null,nuvioResults=[];
 let resumeExpanded=false,homeMetadata=new Map(),homeMetadataTried=new Set(),homeMetadataBusy=false,homeRecommendationPending=null;
 const resumeHiddenKey='cena.resume.hidden.v1';
-let resumeHidden={};try{resumeHidden=JSON.parse(localStorage.getItem(resumeHiddenKey)||'{}')||{};}catch{}
+let resumeHidden={};try{resumeHidden=JSON.parse(storage.getItem(resumeHiddenKey)||'{}')||{};}catch{}
 let historyState={totals:{},years:[],media:[]},deferredHistoryState=null,historyYear='all',historyKind='all',historyMode='history',historyMedia='',historyRows=[],historyRequest=0,historyPage=1,historyHasMore=false,historyResults=[];
 let traktState = { connected:false, configured:false, pending:[] };
 let traktWasConnected = false;
@@ -45,7 +57,7 @@ const stremioPanel=createStremioPanel({
   bridge:window.CenaAndroid,getItems:()=>items,traktConnected:()=>Boolean(traktState.connected),toast,
   onImport:async(result,sendToTrakt)=>{
     if(apiBase!=='local'||!libraryReady)throw Error('Aguarde sua lista local carregar.');
-    localStorage.setItem('cena.local.items.v1',JSON.stringify(result.items));items=result.items;
+    storage.setItem('cena.local.items.v1',JSON.stringify(result.items));items=result.items;
     sendTraktInventory();
     if(sendToTrakt&&typeof window.CenaAndroid?.queueTraktBatch==='function')window.CenaAndroid.queueTraktBatch(JSON.stringify(result.added.map(({id,type})=>({id,type,action:'add'}))));
   }
@@ -56,9 +68,9 @@ function historyBadge(item){return `<span class="watch-years">${escape(historyYe
 window.CenaHistoryResult=state=>{
  if(!libraryReady){deferredHistoryState=state;return;}
  if(JSON.stringify(state)===JSON.stringify(historyState))return;
- const previous=historyState;historyState=state;const merged=applyHistoryMetadata(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
- if(changed&&apiBase==='local'){items=merged;localStorage.setItem('cena.local.items.v1',JSON.stringify(items));}
- if(tab==='profile'){renderHistorySummary();if(previous.scope!==state.scope||previous.lastImport!==state.lastImport){const records=$('#history-records');if(records)records.innerHTML='<p class="muted">Carregando histórico desta conta…</p>';loadHistoryRows(true);}}
+ const previous=historyState;historyState=state;renderSync();const merged=applyHistoryMetadata(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
+ if(changed&&apiBase==='local'){items=merged;storage.setItem('cena.local.items.v1',JSON.stringify(items));}
+ if(tab==='profile'){renderHistorySummary();if(previous.scope!==state.scope||previous.lastImport!==state.lastImport)mountRetrospective($('#retrospective-panel'),{state:historyState,bridge:window.CenaAndroid,toast});if(previous.scope!==state.scope||previous.lastImport!==state.lastImport){const records=$('#history-records');if(records)records.innerHTML='<p class="muted">Carregando histórico desta conta…</p>';loadHistoryRows(true);}}
  else if(tab==='library'&&changed)patchLibrary();else if(tab==='home'&&changed&&!$('#detail').open){const position=window.scrollY;home();window.scrollTo(0,position);}
  const dates=$('#title-watch-history');if(dates&&detailItem)renderTitleHistory(items.find(item=>item.id===detailItem.id&&item.type===detailItem.type)||detailItem);
 };
@@ -72,8 +84,10 @@ function loadHistoryRows(reset=true){
  const id=String(++historyRequest);window.CenaAndroid.historyRows(id,historyYear,historyKind,reset?1:historyPage+1,historyMedia);
 }
 function profile(){
- main.innerHTML=`<div class="eyebrow">SUA MEMÓRIA DE CINEMA</div><h1>Meu perfil</h1><div id="history-summary"></div><div class="history-filters"><label for="history-year">Ano em que assistiu</label><select id="history-year"></select><label for="history-kind" ${historyMode==='stats'?'hidden':''}>Tipo</label><select id="history-kind" ${historyMode==='stats'?'hidden':''}><option value="all">Filmes e episódios</option><option value="movie">Filmes</option><option value="episode">Episódios</option></select></div><div class="chips"><button class="chip ${historyMode==='history'?'selected':''}" id="history-tab">Histórico</button><button class="chip ${historyMode==='stats'?'selected':''}" id="history-stats-tab">Estatísticas</button></div><div id="history-stats"></div><div id="history-records"></div>`;
+ main.innerHTML=`<div class="eyebrow">SUA MEMÓRIA DE CINEMA</div><h1>Meu perfil</h1><div id="history-summary"></div><div class="history-filters"><label for="history-year">Ano em que assistiu</label><select id="history-year"></select><label for="history-kind" ${historyMode==='stats'?'hidden':''}>Tipo</label><select id="history-kind" ${historyMode==='stats'?'hidden':''}><option value="all">Filmes e episódios</option><option value="movie">Filmes</option><option value="episode">Episódios</option></select></div><div class="chips"><button class="chip ${historyMode==='history'?'selected':''}" id="history-tab">Histórico</button><button class="chip ${historyMode==='stats'?'selected':''}" id="history-stats-tab">Estatísticas</button></div><div id="history-stats"></div><div id="history-records"></div><section class="panel" id="retrospective-panel"></section><section class="panel" id="backup-panel"></section>`;
  renderHistorySummary();$('#history-kind').value=historyKind;
+ mountBackup($('#backup-panel'),{storage,bridge:window.CenaAndroid,toast,onRestore:async()=>{await refresh();resumeHidden=JSON.parse(storage.getItem(resumeHiddenKey)||'{}');profile();}});
+ mountRetrospective($('#retrospective-panel'),{state:historyState,bridge:window.CenaAndroid,toast});
  $('#history-year').onchange=event=>{historyYear=event.target.value;renderHistoryStats();loadHistoryRows(true);};$('#history-kind').onchange=event=>{historyKind=event.target.value;loadHistoryRows(true);};
  $('#history-tab').onclick=()=>{historyMode='history';profile();};$('#history-stats-tab').onclick=()=>{historyMode='stats';profile();};
  loadHistoryRows(true);if(typeof window.CenaAndroid?.historyState==='function')window.CenaAndroid.historyState();
@@ -104,8 +118,8 @@ function renderTitleHistory(item){
  if($('#history-title-dates'))$('#history-title-dates').onclick=()=>{$('#detail').close();historyMedia=item.id;historyYear='all';historyKind='all';historyMode='history';setTab('profile');};
 }
 
-const artworkResolver = new ArtworkResolver({storage:localStorage});
-const ratingsResolver=new RatingsResolver({storage:localStorage});
+const artworkResolver = new ArtworkResolver({storage:storage});
+const ratingsResolver=new RatingsResolver({storage:storage});
 const ratingModels=new Map(),ratingObserved=new WeakSet(),ratingLoading=new WeakSet();
 function scoreMarkup(item){const id=`${item.type}:${item.id}`;ratingModels.set(id,item);const value=ratingsResolver.peek(item);return `<span class="imdb-score ${value!=null?'rated':'unrated'}" data-rating-key="${escape(id)}" data-rating-state="${value===undefined?'pending':value===null?'missing':'ready'}" title="Nota dos usuários do IMDb, de 1 a 10">${imdbLabel(value)}</span>`;}
 async function hydrateScore(element){
@@ -119,8 +133,8 @@ async function hydrateScore(element){
 const ratingObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.target.isConnected){ratingObserver.unobserve(entry.target);continue;}if(entry.isIntersecting)hydrateScore(entry.target);}},{rootMargin:'200px'}):null;
 function wireRatings(){for(const element of document.querySelectorAll('[data-rating-key]')){if(ratingObserved.has(element))continue;ratingObserved.add(element);if(ratingObserver)ratingObserver.observe(element);else hydrateScore(element);}}
 
-const recommendationEngine=new RecommendationEngine({storage:localStorage});
-const similarEngine=new SimilarEngine({storage:localStorage,engine:recommendationEngine});
+const recommendationEngine=new RecommendationEngine({storage:storage});
+const similarEngine=new SimilarEngine({storage:storage,engine:recommendationEngine});
 let similarResults=[],similarTicket=0;
 const localAI=createLocalAI({bridge:window.CenaAndroid,onState:renderLocalAI});
 window.CenaLocalModelResult=value=>localAI.update(value);
@@ -162,8 +176,8 @@ async function findSimilar(seed,includeSaved=true){
 window.CenaNuvioResult=state=>{
  if(!libraryReady){deferredNuvioState=state;return;}
  if(JSON.stringify(state)===JSON.stringify(nuvioState))return;
- nuvioState=state;const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
- if(changed&&apiBase==='local'){items=merged;localStorage.setItem('cena.local.items.v1',JSON.stringify(items));}
+ nuvioState=state;renderSync();const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
+ if(changed&&apiBase==='local'){items=merged;storage.setItem('cena.local.items.v1',JSON.stringify(items));}
  if(tab==='connect'&&!document.querySelector('#nuvio-profile:focus')){const panel=$('#nuvio-panel');renderNuvioPanel(panel,state,window.CenaAndroid);}
  if(!$('#detail').open){if(tab==='library'&&changed)patchLibrary();else if(tab==='home'&&changed){const y=window.scrollY;home();window.scrollTo(0,y);}}
  renderNuvioSections();renderSeriesSections();
@@ -177,25 +191,25 @@ function renderNuvioSections(){
  if(!rows.length&&!hidden){section.innerHTML='';return;}
  section.innerHTML=`<div class="section-heading"><div><span class="eyebrow">SEU PRÓXIMO PLAY</span><h2>Continuar assistindo</h2></div>${rows.length>6?`<button id="resume-expand">${resumeExpanded?'Mostrar menos':`Ver todos · ${rows.length}`}</button>`:''}</div>${rows.length?`<div class="resume-rail ${resumeExpanded?'expanded':''}">${rows.slice(0,resumeExpanded?20:6).map((entry,index)=>{const {row,label}=entry,item=nuvioResults[index],percent=row.duration>0?Math.max(0,Math.min(99,Math.round(row.position/row.duration*100))):null;return `<article class="resume-card"><button class="resume-open" data-nuvio-title="${escape(item.id)}" data-nuvio-type="${escape(item.type)}" aria-label="Ver ${escape(titleName(item))}"><div class="resume-art">${poster({...item,name:titleName(item)})}<span class="resume-play" aria-hidden="true">▶</span></div><div class="resume-copy"><strong>${escape(titleName(item))}</strong><small>${escape(label)}</small>${percent!==null?`<progress max="100" value="${percent}" aria-label="${percent}% assistido"></progress>`:''}${scoreMarkup(item)}</div></button><button class="resume-dismiss" data-resume-hide="${index}" aria-label="Remover ${escape(titleName(item))} de continuar assistindo">×</button></article>`;}).join('')}</div>`:'<p class="muted">Sua próxima sessão começa quando você quiser.</p>'}${hidden?`<button class="link-button restore-resume" id="resume-restore">Restaurar ${hidden} ${hidden===1?'título oculto':'títulos ocultos'}</button>`:''}`;
  for(const button of section.querySelectorAll('[data-nuvio-title]'))button.onclick=()=>showDetail(nuvioResults.find(row=>row.id===button.dataset.nuvioTitle&&row.type===button.dataset.nuvioType));
- for(const button of section.querySelectorAll('[data-resume-hide]'))button.onclick=()=>{resumeHidden[resumeKey(rows[Number(button.dataset.resumeHide)],resumeScope())]=true;localStorage.setItem(resumeHiddenKey,JSON.stringify(resumeHidden));renderNuvioSections();toast('Oculto no CENA. O histórico do Nuvio foi mantido.');};
+ for(const button of section.querySelectorAll('[data-resume-hide]'))button.onclick=()=>{resumeHidden[resumeKey(rows[Number(button.dataset.resumeHide)],resumeScope())]=true;storage.setItem(resumeHiddenKey,JSON.stringify(resumeHidden));renderNuvioSections();toast('Oculto no CENA. O histórico do Nuvio foi mantido.');};
  if($('#resume-expand'))$('#resume-expand').onclick=()=>{resumeExpanded=!resumeExpanded;renderNuvioSections();};
- if($('#resume-restore'))$('#resume-restore').onclick=()=>{for(const entry of all)delete resumeHidden[resumeKey(entry,resumeScope())];localStorage.setItem(resumeHiddenKey,JSON.stringify(resumeHidden));renderNuvioSections();};
+ if($('#resume-restore'))$('#resume-restore').onclick=()=>{for(const entry of all)delete resumeHidden[resumeKey(entry,resumeScope())];storage.setItem(resumeHiddenKey,JSON.stringify(resumeHidden));renderNuvioSections();};
  wireImages();hydrateHomeNames(rows.map(entry=>entry.item));
 }
 async function hydrateHomeNames(rows){
  for(const item of rows)if(!item.name||/^tt\d+$/.test(item.name))homeMetadataTried.has(`${item.type}:${item.id}`)||homeMetadata.set(`${item.type}:${item.id}`,homeMetadata.get(`${item.type}:${item.id}`)||{...item,name:''});
  if(homeMetadataBusy)return;homeMetadataBusy=true;
- try{for(const [key,value]of homeMetadata){if(homeMetadataTried.has(key))continue;homeMetadataTried.add(key);try{const details=await getTitleDetails(value);if(details.id===value.id&&details.type===value.type){homeMetadata.set(key,details);const saved=items.find(item=>item.id===value.id&&item.type===value.type);if(saved&&(!saved.name||/^tt\d+$/.test(saved.name))&&details.name&&!/^tt\d+$/.test(details.name)){saved.name=details.name;if(apiBase==='local')localStorage.setItem('cena.local.items.v1',JSON.stringify(items));}}}catch{}if(tab==='home'){renderNuvioSections();renderSeriesSections();}}}
+ try{for(const [key,value]of homeMetadata){if(homeMetadataTried.has(key))continue;homeMetadataTried.add(key);try{const details=await getTitleDetails(value);if(details.id===value.id&&details.type===value.type){homeMetadata.set(key,details);const saved=items.find(item=>item.id===value.id&&item.type===value.type);if(saved&&(!saved.name||/^tt\d+$/.test(saved.name))&&details.name&&!/^tt\d+$/.test(details.name)){saved.name=details.name;if(apiBase==='local')storage.setItem('cena.local.items.v1',JSON.stringify(items));}}}catch{}if(tab==='home'){renderNuvioSections();renderSeriesSections();}}}
  finally{homeMetadataBusy=false;}
 }
-window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSeriesSections();};
+window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSync();renderSeriesSections();};
 const artworkModels = new Map();
 const artworkObserved = new WeakSet();
 const artworkLoading = new WeakSet();
 function persistArtwork(item, url) {
   if(apiBase==='local') {
     const saved=items.find(row=>row.id===item.id && row.type===item.type);
-    if(saved && saved.poster!==url) { saved.poster=url; try {localStorage.setItem('cena.local.items.v1',JSON.stringify(items));}catch{} }
+    if(saved && saved.poster!==url) { saved.poster=url; try {storage.setItem('cena.local.items.v1',JSON.stringify(items));}catch{} }
   }
   for(const row of searchResults) if(row.id===item.id && row.type===item.type) row.poster=url;
   if(detailItem?.id===item.id && detailItem?.type===item.type) detailItem.poster=url;
@@ -242,11 +256,11 @@ window.CenaTraktResult = state => {
   if(JSON.stringify(state)===JSON.stringify(traktState)) return;
   const becameConnected = state.connected && !traktWasConnected;
   if(!state.connected) traktInitialUploadRequested=false;
-  traktWasConnected = Boolean(state.connected); traktState = state;
+  traktWasConnected = Boolean(state.connected); traktState = state;renderSync();
   if(apiBase !== 'local') return;
   const merged = applyTraktState(items,state,{preserveWatchState:nuvioState.active});
   const libraryChanged=JSON.stringify(merged)!==JSON.stringify(items);
-  if(libraryChanged) { items=merged; localStorage.setItem('cena.local.items.v1',JSON.stringify(items)); }
+  if(libraryChanged) { items=merged; storage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
   if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
   if(tab==='connect' && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus')) localConnection();
@@ -259,7 +273,7 @@ window.CenaTraktResult = state => {
 };
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
-  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...nuvioResults,...items].find(item => item.id === card.dataset.id));
+  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...nuvioResults,...collectionResults,...items].find(item => item.id === card.dataset.id));
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -273,7 +287,7 @@ async function api(route, options = {}) {
   if (!response.ok) throw Error(value.error || 'Não foi possível conectar.');
   return value;
 }
-function persist() { localStorage.setItem(storageKey, JSON.stringify({ ...connection, apiBase })); }
+function persist() { storage.setItem(storageKey, JSON.stringify({ ...connection, apiBase })); }
 async function ensureConnection() {
   if (connection) return;
   connection = await api('/api/libraries', { method: 'POST' });
@@ -310,12 +324,13 @@ function setTab(next) {
   if (tab === 'connect') connect();
   if (tab === 'discover') discover();
   if (tab === 'profile') profile();
+  if(tab==='collections')collections();
   window.scrollTo(0, 0);
 }
 function horizontalGrid(rows,recommendation=false){return grid(rows,recommendation).replace('class="grid"','class="poster-rail"');}
 function home() {
  const pending=items.filter(item=>item.status==='watchlist');
- main.innerHTML=`<div class="home-welcome"><div class="eyebrow">SEU CINEMA, DO SEU JEITO</div><h1>Qual é o play<br>de hoje<span>?</span></h1><p>Suas histórias, no seu ritmo.</p></div><section id="nuvio-home"></section><section id="series-home"></section><section id="home-recommendations"><div class="section-heading"><div><span class="eyebrow">BOAS PRÓXIMAS HISTÓRIAS</span><h2>Para você</h2></div><button id="home-discover">Explorar</button></div><div id="home-recommendation-grid"></div></section><section><div class="section-heading"><div><span class="eyebrow">SALVOS PARA DEPOIS</span><h2>Quero assistir</h2></div><button id="see-all">${pending.length?`Ver todos · ${pending.length}`:'Seu catálogo'}</button></div>${pending.length?horizontalGrid(pending.slice(0,6)):empty()}</section><button class="capture-strip" id="hero-scan"><span class="capture-strip-icon" aria-hidden="true">▣</span><span><strong>Viu uma boa história?</strong><small>Fotografe uma capa ou escolha um print</small></span><span aria-hidden="true">→</span></button><button class="home-sync" id="home-sync"><span class="sync-dot ${nuvioState.error||traktState.error?'pending':''}" aria-hidden="true"></span>${nuvioState.active?'Nuvio conectado':traktState.connected?'Trakt conectado':'Lista salva neste aparelho'}<span aria-hidden="true">→</span></button>`;
+ main.innerHTML=`<div class="home-welcome"><div class="eyebrow">SEU CINEMA, DO SEU JEITO</div><h1>Qual é o play<br>de hoje<span>?</span></h1><p>Suas histórias, no seu ritmo.</p></div><section id="nuvio-home"></section><section id="series-home"></section><section class="calendar-preview" id="home-calendar"></section><section id="home-recommendations"><div class="section-heading"><div><span class="eyebrow">BOAS PRÓXIMAS HISTÓRIAS</span><h2>Para você</h2></div><button id="home-discover">Explorar</button></div><div id="home-recommendation-grid"></div></section><section><div class="section-heading"><div><span class="eyebrow">SALVOS PARA DEPOIS</span><h2>Quero assistir</h2></div><button id="see-all">${pending.length?`Ver todos · ${pending.length}`:'Seu catálogo'}</button></div>${pending.length?horizontalGrid(pending.slice(0,6)):empty()}</section><button class="capture-strip" id="hero-scan"><span class="capture-strip-icon" aria-hidden="true">▣</span><span><strong>Viu uma boa história?</strong><small>Fotografe uma capa ou escolha um print</small></span><span aria-hidden="true">→</span></button><button class="home-sync" id="home-sync"><span class="sync-dot ${nuvioState.error||traktState.error?'pending':''}" aria-hidden="true"></span>${nuvioState.active?'Nuvio conectado':traktState.connected?'Trakt conectado':'Lista salva neste aparelho'}<span aria-hidden="true">→</span></button>`;
  $('#hero-scan').onclick=()=>setTab('scan');$('#see-all').onclick=()=>{filter='watchlist';setTab('library');};$('#home-discover').onclick=()=>{discoveryMode='recommend';setTab('discover');};$('#home-sync').onclick=()=>setTab('connect');
  if($('#empty-search'))$('#empty-search').onclick=()=>{setTab('library');$('#query').focus();};
  wireCards(pending);renderSeriesSections();renderNuvioSections();renderHomeRecommendations();
@@ -335,9 +350,19 @@ async function loadHomeRecommendations(force=false){
  try{const result=await homeRecommendationPending;discoveryResults=result.items;discoveryInfo=result;discoveryFingerprint=fingerprint;}
  catch{}finally{homeRecommendationPending=null;if(tab==='home')renderHomeRecommendations();}
 }
+function collections(){
+ const lists=readCollections(storage);if(activeCollection&&!lists[activeCollection])activeCollection='';
+ main.innerHTML='<div class="eyebrow">CADA LISTA, UMA VONTADE</div><h1>Minhas listas</h1><form id="new-collection" class="search-row"><input id="collection-name" placeholder="Nome da nova lista" aria-label="Nome da nova lista" maxlength="60" required><button class="primary">Criar</button></form><div class="chips" id="collection-choices"></div><section id="collection-titles"></section>';
+ const choices=$('#collection-choices');for(const [id,list]of Object.entries(lists)){const button=document.createElement('button');button.className='chip '+(id===activeCollection?'selected':'');button.textContent=list.name;button.onclick=()=>{activeCollection=id;collections();};choices.append(button);}
+ $('#new-collection').onsubmit=event=>{event.preventDefault();try{activeCollection=createCollection(storage,$('#collection-name').value);collections();}catch(error){toast(error.message);}};
+ if(!activeCollection){$('#collection-titles').innerHTML='<p class="muted">Crie ou escolha uma lista. Abra um título para adicioná-lo às suas listas pessoais.</p>';return;}
+ collectionResults=collectionItems(storage,activeCollection,items);$('#collection-titles').innerHTML=collectionResults.length?grid(collectionResults):'<p class="muted">Esta lista ainda não tem títulos. Adicione pelo detalhe de um filme ou série.</p>';wireImages();
+}
+function renderSync(){const target=$('#sync-summary');if(target)renderSyncSummary(target,{trakt:traktState,nuvio:nuvioState,history:historyState,series:seriesState});}
 function library() {
   const rows = items.filter(i => filter === 'all' || i.status === filter);
-  main.innerHTML = `<div class="eyebrow">CADA HISTÓRIA TEM SEU LUGAR</div><h1>Meu catálogo</h1><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Assistidos</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} títulos</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p><div id="library-grid">${rows.length ? grid(rows) : empty()}</div><div id="library-sync-notice">${notice()}</div>`;
+  main.innerHTML = `<div class="eyebrow">CADA HISTÓRIA TEM SEU LUGAR</div><h1>Meu catálogo</h1><button class="secondary" id="open-collections">♡ Minhas listas</button><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Assistidos</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} títulos</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p><div id="library-grid">${rows.length ? grid(rows) : empty()}</div><div id="library-sync-notice">${notice()}</div>`;
+  if($('#open-collections'))$('#open-collections').onclick=()=>setTab('collections');
   if($('#refresh-artwork')) $('#refresh-artwork').onclick=()=>{
     artworkResolver.retry();
     for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
@@ -408,10 +433,11 @@ function renderSeriesSections(){
   const details=$('#series-detail-state');if(details){const state=seriesState.items?.find(row=>row.id===detailItem?.id);if(detailItem?.type==='series'&&traktState.connected){const summary=seriesSummary(state);details.innerHTML=`<div class="notice"><strong>${escape(summary.headline)}</strong><p>${escape(summary.detail)}</p>${state?.error?'<p>Consulta pendente. Os dados anteriores foram preservados.</p>':''}</div>`;}else details.innerHTML='';}
   for(const button of document.querySelectorAll('[data-series-refresh]'))button.onclick=()=>{if(typeof window.CenaAndroid?.refreshSeries==='function'){window.CenaAndroid.refreshSeries();toast('Consulta de episódios solicitada.');}else toast('A consulta de episódios usa a conexão Trakt no APK Android.');};
   for(const button of document.querySelectorAll('[data-series-id]'))button.onclick=()=>showDetail(items.find(item=>item.id===button.dataset.seriesId&&item.type==='series'));
+  for(const id of ['#calendar-panel','#home-calendar']){const target=$(id);if(target){mountCalendar(target,{items,state:seriesState,nuvioActive:nuvioState.active,onOpen:showDetail});if(id==='#home-calendar'&&!target.querySelector('.calendar-row'))target.replaceChildren();}}
   wireImages();if(window.scrollY!==position)window.scrollTo(0,position);
 }
 function discover(){
-  main.innerHTML=`<div class="eyebrow">NOVAS HISTÓRIAS PARA VOCÊ</div><h1>Descobrir</h1><div class="chips"><button class="chip ${discoveryMode==='recommend'?'selected':''}" data-discovery-mode="recommend">Para você</button><button class="chip ${discoveryMode==='series'?'selected':''}" data-discovery-mode="series">Suas séries</button></div>${discoveryMode==='series'?'<section id="series-discovery"></section>':`<p class="muted">Sugestões calculadas no aparelho por semelhança de gêneros, temas e elenco. Seus assistidos e notas pessoais ajudam; a lista Quero assistir é uma pista mais fraca.</p><div class="chips"><button class="chip ${discoveryFilter==='all'?'selected':''}" data-discovery-filter="all">Tudo</button><button class="chip ${discoveryFilter==='movie'?'selected':''}" data-discovery-filter="movie">Filmes</button><button class="chip ${discoveryFilter==='series'?'selected':''}" data-discovery-filter="series">Séries</button></div><div class="actions"><button class="secondary" id="refresh-recommendations">Mostrar outras sugestões</button></div><div id="recommendation-status" class="muted" role="status"></div><div id="recommendation-grid"></div><p class="muted">Abra uma indicação para ver detalhes e adicionar a Quero assistir. Com o Trakt conectado, ela segue para sua lista usada no Nuvio.</p>`}`;
+  main.innerHTML=`<div class="eyebrow">NOVAS HISTÓRIAS PARA VOCÊ</div><h1>Descobrir</h1><div class="chips"><button class="chip ${discoveryMode==='recommend'?'selected':''}" data-discovery-mode="recommend">Para você</button><button class="chip ${discoveryMode==='series'?'selected':''}" data-discovery-mode="series">Suas séries</button></div>${discoveryMode==='series'?'<section class="panel" id="calendar-panel"></section><section id="series-discovery"></section>':`<p class="muted">Novas histórias a partir do que você gosta. Abra um título para dar seu feedback.</p><details class="recommendation-explanation"><summary>Como as sugestões funcionam</summary><p class="muted">Gêneros, temas, elenco, assistidos e suas notas ajudam nas escolhas. Gostei reforça seu gosto; Não combina e Já assisti retiram o título das próximas sugestões.</p></details><div class="chips"><button class="chip ${discoveryFilter==='all'?'selected':''}" data-discovery-filter="all">Tudo</button><button class="chip ${discoveryFilter==='movie'?'selected':''}" data-discovery-filter="movie">Filmes</button><button class="chip ${discoveryFilter==='series'?'selected':''}" data-discovery-filter="series">Séries</button></div><div class="actions"><button class="secondary" id="refresh-recommendations">Mostrar outras sugestões</button></div><div id="recommendation-status" class="muted" role="status"></div><div id="recommendation-grid"></div><p class="muted">Abra uma indicação para ver detalhes e adicionar a Quero assistir. Com o Trakt conectado, ela segue para sua lista usada no Nuvio.</p>`}`;
   document.querySelectorAll('[data-discovery-mode]').forEach(button=>button.onclick=()=>{discoveryMode=button.dataset.discoveryMode;discover();});
   document.querySelectorAll('[data-discovery-filter]').forEach(button=>button.onclick=()=>{discoveryFilter=button.dataset.discoveryFilter;discover();});
   renderSeriesSections();
@@ -441,7 +467,7 @@ function patchRecommendationCards(target,rows){
  }
  for(const card of current.values())card.remove();
 }
-function tasteFingerprint(){return JSON.stringify(items.map(({id,type,status,watchedEpisodes})=>({id,type,status,watchedEpisodes})))+(localStorage.getItem('cena.story.notes.v1')||'');}
+function tasteFingerprint(){return JSON.stringify(items.map(({id,type,status,watchedEpisodes})=>({id,type,status,watchedEpisodes})))+(storage.getItem('cena.story.notes.v1')||'')+(storage.getItem('cena.feedback.v1')||'');}
 async function loadRecommendations(force=false){
  const status=$('#recommendation-status'),button=$('#refresh-recommendations');if(!status||discoveryRefreshing)return;
  const ticket=++discoveryRequest,selectedFilter=discoveryFilter;
@@ -528,12 +554,12 @@ window.CenaVisualResult = result => {
     }
     status.textContent = 'IA visual local: comparei sua imagem com as capas encontradas. Confirme o título e o ano antes de adicionar.';
   } else {
-    status.textContent = result.status === 'no-references' ? 'Não encontrei capas disponíveis para comparar. Confira as sugestões pelo texto.' : 'A comparação visual não ficou disponível neste aparelho. As sugestões pelo texto continuam disponíveis.';
+    status.textContent = result.status === 'no-references' ? 'Não encontrei capas disponíveis para comparar. Confira as sugestões pelo texto.' : (!visualModelState.available?'Comparação visual opcional: baixe o modelo em Conectar. A busca pelo texto continua funcionando.':'A comparação visual não ficou disponível neste aparelho. As sugestões pelo texto continuam disponíveis.');
   }
 };
 
 async function save(item, status = 'watchlist') {
-  if (busy) return;
+  if (busy) return false;
   busy = true;
   try {
     await ensureConnection();
@@ -543,8 +569,8 @@ async function save(item, status = 'watchlist') {
     items = result.items;
     sendTraktInventory(); queueTrakt(item, status === 'watchlist' ? 'add' : 'remove');
     toast(status === 'watched' ? 'Marcado como assistido.' : apiBase === 'local' ? 'Adicionado à lista neste aparelho.' : 'Adicionado! Sua lista no servidor foi atualizada.');
-    showDetail(item); refreshCurrentView();
-  } catch (error) { toast(error.message); }
+    showDetail(item); refreshCurrentView();return true;
+  } catch (error) { toast(error.message);return false; }
   finally { busy = false; }
 }
 async function remove(item) {
@@ -562,11 +588,17 @@ function showDetail(item, enriched = false) {
   detailItem = item;
   if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis">${escape(item.description || 'Sem sinopse disponível.')}</p><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver 5 semelhantes</button><div id="similar-panel"></div><div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp">${escape(item.description || 'Sem sinopse disponível.')}</p><button class="link-button" id="synopsis-expand" aria-expanded="false">Ler sinopse completa</button><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver 5 semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
   if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
   $('#share-title').onclick = () => story(item);
+  $('#rate-title').onclick=async()=>{await story(item);$('#story-rating')?.focus();};
+  $('#synopsis-expand').onclick=()=>{const expanded=$('#synopsis-expand').getAttribute('aria-expanded')==='true';$('#detail-synopsis').classList.toggle('synopsis-clamp',expanded);$('#synopsis-expand').setAttribute('aria-expanded',String(!expanded));$('#synopsis-expand').textContent=expanded?'Ler sinopse completa':'Recolher sinopse';};
+  const backdrop=$('#detail-backdrop');if(trustedArtwork(item.poster)){const image=new Image();image.src=item.poster;image.alt='';backdrop.append(image);}
+  mountTitleCollections($('#title-collections'),{storage,item,toast});
+  mountFeedback($('#title-feedback'),{storage,item,toast,onSeen:async value=>{if(value.type==='series')throw Error('Para séries, registre os episódios no player ou use os controles de progresso.');if(!await save(value,'watched'))throw Error('Não consegui marcar este filme. Tente novamente.');},onChange:()=>{const values=readFeedback(storage);discoveryResults=discoveryResults.filter(row=>!['dislike','seen'].includes(values[row.type+':'+row.id]?.value));discoveryInfo=null;discoveryFingerprint='';if(tab==='discover')renderRecommendations();if(tab==='home')renderHomeRecommendations();}});
+
   $('#similar-titles').onclick=()=>findSimilar(item);
   renderSeriesSections();renderTitleHistory(item);
   if(typeof window.CenaAndroid?.historyState==='function')window.CenaAndroid.historyState();
@@ -574,7 +606,7 @@ function showDetail(item, enriched = false) {
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
   if (!enriched) getTitleDetails(item).then(details => {
     if ($('#detail').open && detailItem?.id === item.id) {
-      if($('#story-canvas')||$('#similar-panel')?.childNodes.length) { const status=$('#detail-loading'); if(status) status.textContent=''; }
+      if($('#story-canvas')||$('#similar-panel')?.childNodes.length||document.activeElement?.closest('#title-collections,#title-feedback')) { const status=$('#detail-loading'); if(status) status.textContent=''; }
       else showDetail(details, true);
     }
   }).catch(() => { const status = $('#detail-loading'); if (status && detailItem?.id === item.id) status.textContent = 'Não consegui carregar a ficha. Tente abrir o filme novamente.'; });
@@ -630,14 +662,14 @@ function localConnection() {
   main.innerHTML = `<div class="eyebrow">SUA LISTA, EM MAIS TELAS</div><h1>Conectar ao Nuvio</h1>
     <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
     <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
-    <div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
+    <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
     ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
     ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
     <div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
-  stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
+  window.CenaAndroid?.visionModelState?.();stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderSync();renderVisionModel();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
   if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
   if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
@@ -653,65 +685,7 @@ function localConnection() {
 }
 
 // Render a 9:16 PNG locally. Photo captures never leave the device.
-async function story(item) {
-  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" placeholder="Ex.: 8,53 ou 8.53" maxlength="5"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
-  const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
-  let image=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
-  const notesKey='cena.story.notes.v1',noteId=`${item.type}:${item.id}`;
-  let notes={};try{notes=JSON.parse(localStorage.getItem(notesKey)||'{}');}catch{}
-  if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
-  if(notes[noteId]){caption.value=String(notes[noteId].caption||'').slice(0,140);rating.value=String(notes[noteId].rating||'');if(notes[noteId].title)title.value=String(notes[noteId].title).slice(0,180);}
-  let editedTitle=Boolean(notes[noteId]?.title);
-  const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
-  const draw=()=>{
-    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value});
-    ratingError.hidden=validRating();
-    if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
-  };
-  const remember=()=>{notes[noteId]={caption:caption.value,rating:rating.value,title:editedTitle?title.value:'',at:Date.now()};try{localStorage.setItem(notesKey,JSON.stringify(Object.fromEntries(Object.entries(notes).sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,200))));}catch{}};
-  caption.oninput=rating.oninput=()=>{draw();remember();};title.oninput=()=>{editedTitle=true;draw();remember();};
-  storyMetadata(item).then(value=>{if(!canvas.isConnected)return;metadata=value;if(!editedTitle)title.value=value.title;draw();}).catch(()=>{});
-  draw();
-  const status=$('#story-status'),share=$('#share-story'),save=$('#save-story'),retry=$('#retry-story'),without=$('#story-without-poster');
-  const enable=()=>{ready=true;draw();};
-  const prepare=async()=>{
-    ready=false;share.disabled=true;save.disabled=true;retry.hidden=true;without.hidden=true;status.dataset.state='loading';status.textContent='Carregando a capa…';
-    try{
-      const result=await loadStoryPoster(item,{bridge:window.CenaAndroid,resolveArtwork:value=>artworkResolver.resolve(value)});
-      if(!canvas.isConnected)return;
-      image=result.image;draw();
-      // Verify exportability before offering save/share, including in web previews.
-      canvas.toDataURL('image/png');canvas.dataset.posterLoaded='true';
-      if(result.sourceUrl)persistArtwork(item,result.sourceUrl);
-      status.dataset.state='ready';status.textContent='Capa pronta para compartilhar.';enable();
-    }catch(error){
-      if(!canvas.isConnected)return;
-      image=null;canvas.width=1080;canvas.height=1920;draw();canvas.dataset.posterLoaded='false';
-      status.dataset.state='error';status.textContent=error.message||'Não consegui preparar a capa.';retry.hidden=false;without.hidden=false;
-    }
-  };
-  retry.onclick=prepare;
-  without.onclick=()=>{status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();};
-  prepare();
-  $('#save-story').onclick = () => {
-    if(save.disabled)return;
-    try { if(native && typeof window.CenaAndroid.saveStory==='function') window.CenaAndroid.saveStory(canvas.toDataURL('image/png').split(',')[1]);
-      else { const link=document.createElement('a'); link.href=canvas.toDataURL('image/png'); link.download='CENA-Story.png'; link.click(); }
-    } catch { toast('Não consegui salvar o card. Tente outra imagem.'); }
-  };
-  $('#share-story').onclick = async () => {
-    if(share.disabled)return;
-    try {
-      if (native) { window.CenaAndroid.shareStory(canvas.toDataURL('image/png').split(',')[1]); return; }
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) throw Error('Não foi possível gerar a imagem.');
-      const file = new File([blob], 'cena-story.png', { type: 'image/png' });
-      if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title: item.name });
-      else { const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'cena-story.png'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast('Imagem salva. Abra o Instagram para publicar.'); }
-    } catch (error) { if (error.name !== 'AbortError') toast('Não foi possível compartilhar a imagem. Tente novamente.'); }
-  };
-  canvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+const story=createStoryEditor({$,escape,storage,getItems:()=>items,native,artworkResolver,persistArtwork,toast});
 document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = () => setTab(button.dataset.tab));
 $('#profile-shortcut').onclick=()=>{historyMedia='';setTab('profile');};
 $('#search-shortcut').onclick = () => { setTab('library'); $('#query').focus(); };
