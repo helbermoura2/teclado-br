@@ -46,30 +46,32 @@ export function rankRecommendations(items,candidates,{notes={},seeds=selectTaste
 }
 async function json(fetcher,url){const response=await fetcher(url,{signal:AbortSignal.timeout(12000),headers:{Accept:'application/json'}});if(!response.ok)throw Error('Catálogo indisponível.');return response.json();}
 export class RecommendationEngine {
- constructor({storage,fetcher=fetch,details=getTitleDetails,bridge,now=Date.now}={}){this.storage=storage;this.fetcher=(...args)=>fetcher(...args);this.details=details;this.bridge=bridge;this.now=now;this.inFlight=null;}
+ constructor({storage,fetcher=fetch,details=getTitleDetails,bridge,now=Date.now}={}){this.storage=storage;this.fetcher=(...args)=>fetcher(...args);this.details=details;this.bridge=bridge;this.now=now;this.inFlight=null;this.page=0;}
  read(key,fallback){try{return JSON.parse(this.storage?.getItem(key)||'null')||fallback;}catch{return fallback;}}
  save(key,value){try{this.storage?.setItem(key,JSON.stringify(value));}catch{}}
  async catalog(force=false,preferred=[]){
   const genreKey=preferred.slice(0,2).sort().join('|');const cached=this.read('cena.discovery.catalog.v1',null);if(!force&&cached&&cached.genreKey===genreKey&&this.now()-cached.at<12*3600000)return cached;
   let rows=[];let source='Cinemeta';
-  const requests=['movie','series'].flatMap(type=>['',...preferred.slice(0,2)].map(genre=>({type,url:`https://v3-cinemeta.strem.io/catalog/${type}/top/${genre?'genre='+encodeURIComponent(genre)+'&':''}skip=0.json`})));
+  const skip=force?100*(this.page++%4+1):0;
+  const requests=['movie','series'].flatMap(type=>['',...preferred.slice(0,2)].map(genre=>({type,url:`https://v3-cinemeta.strem.io/catalog/${type}/top/${genre?'genre='+encodeURIComponent(genre)+'&':''}skip=${skip}.json`})));
   const results=await Promise.allSettled(requests.map(request=>json(this.fetcher,request.url)));
   for(let i=0;i<results.length;i++)if(results[i].status==='fulfilled')for(const meta of results[i].value.metas||[]){const type=requests[i].type;const item={id:meta.imdb_id||meta.id,type:meta.type||type,name:meta.name,originalName:meta.name,year:String(meta.releaseInfo||meta.year||'').slice(0,4),released:meta.released||'',poster:trustedArtwork(meta.poster),genres:meta.genres||[],description:meta.description||'',imdbRating:meta.imdbRating??null,imdbRatingAt:Date.now(),cast:meta.cast||[],directors:meta.director?Array.isArray(meta.director)?meta.director:[meta.director]:[],source:'Cinemeta',sourceUrl:`https://www.imdb.com/title/${meta.imdb_id||meta.id}/`};if(valid(item)&&item.name)rows.push(item);}
   if(!rows.length){if(cached)return {...cached,stale:true};throw Error('Não consegui consultar opções agora. Confira a internet e tente novamente.');}
-  const value={at:this.now(),genreKey,items:['movie','series'].flatMap(type=>[...new Map(rows.filter(item=>item.type===type).map(item=>[key(item),item])).values()].slice(0,150)),source};this.save('cena.discovery.catalog.v1',value);return value;
+  if(cached?.genreKey===genreKey)rows.push(...cached.items);
+  const value={at:this.now(),genreKey,items:['movie','series'].flatMap(type=>[...new Map(rows.filter(item=>item.type===type).map(item=>[key(item),item])).values()].slice(0,500)),source};this.save('cena.discovery.catalog.v1',value);return value;
  }
- async recommend(items,{force=false}={}){
-  if(this.inFlight)return this.inFlight;
-  this.inFlight=this.run(items,force).finally(()=>{this.inFlight=null;});return this.inFlight;
+ async recommend(items,{force=false,exclude=[]}={}){
+  if(this.inFlight){if(!force)return this.inFlight;await this.inFlight.catch(()=>{});}
+  this.inFlight=this.run(items,force,exclude).finally(()=>{this.inFlight=null;});return this.inFlight;
  }
- async run(items,force){
+ async run(items,force,exclude=[]){
   const notes=this.read('cena.story.notes.v1',{}),seeds=selectTasteSeeds(items,notes),profiles=this.read('cena.discovery.profiles.v1',{}),rich=[];
   let cursor=0;await Promise.all(Array.from({length:3},async()=>{while(cursor<seeds.length){const seed=seeds[cursor++],saved=profiles[key(seed)];let metadata=saved&&this.now()-saved.at<30*86400000?saved.item:null;if(!metadata)try{metadata=await this.details(seed);if(metadata.id!==seed.id||metadata.type!==seed.type)metadata=null;else profiles[key(seed)]={at:this.now(),item:metadata};}catch{}rich.push({...seed,...metadata,status:seed.status,watchedEpisodes:seed.watchedEpisodes});}}));
   this.save('cena.discovery.profiles.v1',Object.fromEntries(Object.entries(profiles).sort((a,b)=>b[1].at-a[1].at).slice(0,100)));
   const counts=new Map();for(const seed of rich)if(preference(seed,notes)===null||preference(seed,notes)>=5)for(const genre of genres(seed))counts.set(genre,(counts.get(genre)||0)+1);
   const preferred=[...counts].sort((a,b)=>b[1]-a[1]).slice(0,2).map(([genre])=>genre);
   const catalog=await this.catalog(force,preferred),dismissed=this.read('cena.discovery.dismissed.v1',[]);
-  const countsByType={movie:0,series:0};const ranked=rankRecommendations(items,catalog.items,{notes,seeds:rich,limit:300,dismissed}).filter(item=>countsByType[item.type]++<30);
+  const countsByType={movie:0,series:0};const ranked=rankRecommendations(items,catalog.items,{notes,seeds:rich,limit:1000,dismissed:[...dismissed,...exclude]}).filter(item=>countsByType[item.type]++<30);
   return {items:ranked,at:catalog.at,stale:Boolean(catalog.stale),source:catalog.source,seedCount:rich.length};
  }
  dismiss(item){const values=this.read('cena.discovery.dismissed.v1',[]);this.save('cena.discovery.dismissed.v1',[...new Set([...values,key(item)])].slice(-500));}
