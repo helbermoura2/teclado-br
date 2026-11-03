@@ -28,14 +28,7 @@ class VisualMatcher(private val context: Context) : AutoCloseable {
 
     private fun model(): OrtSession {
         session?.let { return it }
-        val info = JSONObject(context.assets.open("models/model-info.json").bufferedReader().use { it.readText() })
-        val file = File(File(context.filesDir, "vision").apply { mkdirs() }, "clip-${info.getString("sha256").take(16)}.onnx")
-        if (!file.exists() || file.length() != info.getLong("size")) {
-            val temporary = File(file.parentFile, file.name + ".tmp")
-            context.assets.open("models/clip-vision.onnx").use { input -> temporary.outputStream().use { input.copyTo(it) } }
-            require(temporary.length() == info.getLong("size"))
-            require(temporary.renameTo(file))
-        }
+        val file = VisualModelStore.file(context)
         val options = OrtSession.SessionOptions().apply { setIntraOpNumThreads(2); setInterOpNumThreads(1) }
         try { session = environment.createSession(file.absolutePath, options) } finally { options.close() }
         return session!!
