@@ -80,6 +80,14 @@ class MainActivity : ComponentActivity() {
             emitStremio()
         }} catch(_:java.util.concurrent.RejectedExecutionException) {}
     }
+    private fun emitVisualModel(){try{val value=VisualModelStore.status(applicationContext);runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaVisionModelState && window.CenaVisionModelState($value)",null)}}catch(_:Exception){}}
+    private val appData by lazy {AppDataStore(applicationContext)}
+    private var pendingBackup:ByteArray?=null
+    private val saveBackupFile=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->val value=pendingBackup;pendingBackup=null;if(uri!=null&&value!=null)historyTask{contentResolver.openOutputStream(uri)?.use{it.write(value)}?:error("Arquivo indisponível");runOnUiThread{if(!isDestroyed)Toast.makeText(this,"Backup salvo.",Toast.LENGTH_SHORT).show()}}}
+    private val openBackupFile=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)historyTask{
+        val raw=contentResolver.openInputStream(uri)?.use{input->val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192);var count=input.read(buffer);while(count>=0){require(output.size()+count<=24*1024*1024);output.write(buffer,0,count);count=input.read(buffer)};output.toString("UTF-8")}?:error("Arquivo indisponível")
+        val value=JSONObject(raw);runOnUiThread{if(!isDestroyed)web.evaluateJavascript("window.CenaBackupFile && window.CenaBackupFile($value)",null)}
+    }}
     private val historyExecutor=Executors.newSingleThreadScheduledExecutor()
     private val history by lazy {WatchHistoryRepository(applicationContext)}
     @Volatile private var historyScheduled=false
@@ -270,6 +278,19 @@ class MainActivity : ComponentActivity() {
     override fun onPause() { nuvioVisible=false;traktVisible=false;localAiClient.cancel();super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun visionModelState(){emitVisualModel()}
+        @JavascriptInterface fun downloadVisualModel(){try{visionExecutor.execute{VisualModelStore.download(applicationContext){emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
+        @JavascriptInterface fun cancelVisualModel(){VisualModelStore.cancel()}
+        @JavascriptInterface fun dataGet(key:String):String=try{appData.get(key)}catch(_:Exception){"__ERROR__"}
+        @JavascriptInterface fun dataPut(key:String,value:String):String=try{appData.put(key,value);"{\"ok\":true}"}catch(_:Exception){"{\"ok\":false}"}
+        @JavascriptInterface fun dataBatch(value:String):String=try{appData.batch(JSONObject(value));"{\"ok\":true}"}catch(_:Exception){"{\"ok\":false}"}
+        @JavascriptInterface fun exportBackup(){historyTask{
+            val value=JSONObject().put("format","cena-backup").put("version",1).put("createdAt",java.time.Instant.now().toString()).put("data",appData.dump())
+            try{value.put("history",history.export())}catch(_:Exception){}
+            val bytes=value.toString().toByteArray(Charsets.UTF_8);require(bytes.size<=24*1024*1024)
+            runOnUiThread{if(!isDestroyed){pendingBackup=bytes;saveBackupFile.launch("CENA-Backup-${java.time.LocalDate.now()}.json")}}
+        }}
+        @JavascriptInterface fun pickBackup()=runOnUiThread{if(!isDestroyed)openBackupFile.launch(arrayOf("application/json","text/plain","application/octet-stream"))}
         @JavascriptInterface fun historyState(){historyTask()}
         @JavascriptInterface fun importHistory(){WatchHistoryWorker.schedule(applicationContext,true);historyTask()}
         @JavascriptInterface fun historyRows(requestId:String,year:String,kind:String,page:Int,mediaId:String){
@@ -370,7 +391,7 @@ class MainActivity : ComponentActivity() {
             } catch (_: java.util.concurrent.RejectedExecutionException) {}
         }
 
-        @JavascriptInterface fun ready() = runOnUiThread { if(isDestroyed||isFinishing)return@runOnUiThread;pageReady = true; consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();startHistoryLoop();historyTask();nuvioTask{nuvio.poll();nuvio.sync()} }
+        @JavascriptInterface fun ready() = runOnUiThread { if(isDestroyed||isFinishing)return@runOnUiThread;pageReady = true; emitVisualModel();consumePending(); traktTask { }; stremioTask { };seriesTask();localModelTask{};nuvioVisible=true;startNuvioLoop();startHistoryLoop();historyTask();nuvioTask{nuvio.poll();nuvio.sync()} }
         @JavascriptInterface fun pickImage() = runOnUiThread {
             if (scanning) return@runOnUiThread
             try { gallery.launch("image/*") }
@@ -423,6 +444,7 @@ class MainActivity : ComponentActivity() {
     private fun cleanPhoto() { photoFile?.delete(); croppedFile?.delete(); photoFile = null; croppedFile = null; photoUri = null }
     override fun onDestroy() {
         pageReady=false
+        VisualModelStore.cancel()
         super.onDestroy()
         cleanPhoto()
         visionInput = null
