@@ -49,4 +49,15 @@ class AssetsUpgradeTest {
             assertTrue(evaluate(scenario, "document.querySelector('main h1').textContent").contains("Capturar"))
         }
     }
+    @Test fun lateReadyAfterClosingCannotRestartStoppedExecutors() {
+        lateinit var activity: MainActivity
+        ActivityScenario.launch(MainActivity::class.java).use { scenario -> scenario.onActivity { activity=it } }
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            assertTrue(activity.isDestroyed)
+            activity.Bridge().ready()
+            activity.Bridge().ready()
+        }
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+    }
+
 }
