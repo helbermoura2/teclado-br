@@ -35,3 +35,7 @@ test('yearly retrospective uses watch-year statistics and labels time as estimat
 test('sync diagnostics distinguish pending work, errors and never-consulted sources',()=>{
  const rows=syncRows({trakt:{connected:true,pending:[{}],lastSync:123},nuvio:{active:true,lastSync:124,error:'offline'},history:{connected:true,coverage:'partial'},series:{}});assert.equal(rows[0].pending,1);assert.equal(rows[1].error,'offline');assert.match(rows[2].note,/parcial/);assert.equal(rows[3].at,undefined);
 });
+
+test('restored history can produce an offline retrospective without mixing accounts or release years',async()=>{
+ const {archiveSummary}=await import('../web/backup.js');const events=[{...event('1'),runtimeMinutes:119},{...event('2'),runtimeMinutes:119},event('3','invalid')];const state=archiveSummary(events);assert.equal(state.origin,'backup');assert.equal(state.years[0].year,2024);assert.equal(state.years[0].plays,2);assert.equal(state.years[0].movies,1);assert.equal(recapData(state,'2024').origin,'backup');assert.equal(recapData(state,'2024').minutes,238);
+});
