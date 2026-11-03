@@ -57,3 +57,7 @@ test('a foreign president in an American film is not evidence of a US president'
 test('a mismatched metadata ID cannot lend its presidential plot to another title',async()=>{
  const {getTitleDetails}=await import('../web/search-public.js');const item=irrelevant[0];const wrong=await getTitleDetails(item,async()=>({ok:true,json:async()=>({meta:{id:presidential[0].id,type:'movie',name:'Wrong identity',genres:['Action'],description:presidential[0].description}})}));assert.equal(wrong.description,item.description);assert.equal(rankSimilar(airForce,[wrong],{query:'presidente dos EUA'}).length,0);
 });
+
+test('local prompts stay compact and validation rejects a candidate omitted from the model context',()=>{
+ const many=Array.from({length:10},(_,i)=>({...presidential[0],id:'tt'+(9000000+i),name:'Presidential action '.repeat(15),description:presidential[0].description+'More details. '.repeat(100)}));const prompt=buildLocalSelectionPrompt(airForce,many,'mais ação com presidente dos EUA');const shown=JSON.parse(prompt.split('Candidatos: ')[1]);assert.equal(shown.length,8);assert.ok(prompt.length<4200);assert.ok(shown.every(row=>!row.summary||!row.evidence));const outside=many.find(row=>!shown.some(candidate=>candidate.id===row.id));assert.equal(validateLocalSelection(JSON.stringify([outside.id]),many,{seed:airForce,query:'mais ação com presidente dos EUA'}),null);
+});
