@@ -7,3 +7,5 @@ A lista permanece visível durante a busca. Cards que continuam no resultado pre
 Testes cobrem páginas sucessivas, exclusão dos títulos exibidos, consulta simultânea, catálogo esgotado, modo offline, preservação dos elementos de capa e apresentação de novas opções. Mantém histórico, listas, conexões e identidade de atualização.
 
 Instale por cima da versão atual, sem desinstalar.
+
+Corrige também um callback atrasado da tela que podia tentar iniciar executores de sincronização já encerrados. Teste Android específico reproduz o callback depois de fechar a Activity.
