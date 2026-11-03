@@ -1,4 +1,5 @@
 name: CENA Android APK
+# Catalog updates write only changed SQLite rows; unchanged artwork keeps its saved records.
 # Visual download requests are deduplicated and restored archives can generate an offline recap.
 # Late WebView readiness callbacks are ignored after the Activity has closed.
 # Home QA scrolls horizontal shelves before validating lazily loaded artwork and scores.
