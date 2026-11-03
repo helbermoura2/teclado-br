@@ -15,3 +15,5 @@ Conectar passa a apresentar estado, última conclusão, pendências e falhas de 
 Modelo visual CLIP separado do APK: download opcional de cerca de 89 MB em Conectar, com progresso, cancelamento e verificação de tamanho/SHA-256. Pesos públicos com licença MIT e revisão fixada. OCR funciona sem o download; fotos não são enviadas. Modelos já copiados por versões anteriores podem ser reaproveitados. O GGUF opcional do usuário continua fora do APK. QA Android usa os mesmos pesos como fixture embarcada, enquanto o pacote de entrega é verificado sem os pesos.
 
 Instale por cima da versão atual, sem desinstalar. Mantém conexões, biblioteca, histórico e assinatura de atualização.
+
+Histórico restaurado permite escolher a conta do arquivo, consultar anos e gerar sua própria retrospectiva offline, identificada como backup. O download visual ignora cliques duplicados e reaproveita um modelo já instalado.
