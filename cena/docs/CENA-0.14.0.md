@@ -6,7 +6,7 @@ Presidente dos EUA, samurais, zumbis, assaltos, vampiros, viagem no tempo, artes
 
 Para Air Force One, afinidade com presidente ameaçado e o enredo têm prioridade. Ator em comum, aviação ou ação genérica não bastam. Presidente de outro país num filme americano não é tratado como presidente dos EUA. Quando há apenas algumas opções elegíveis, o app mostra menos de cinco. Não preenche vagas com filmes pouco relacionados.
 
-A IA local recebe até dez candidatos já aprovados, evidências e os critérios do pedido. Pode selecionar de um a cinco IDs distintos; a saída é novamente validada contra os candidatos e os critérios. IDs inventados ou fora do pedido são rejeitados, mantendo as opções do catálogo. A seleção do modelo continua sujeita à capacidade do GGUF escolhido.
+A IA local recebe até oito candidatos já aprovados, evidências e os critérios do pedido. Pode selecionar de um a cinco IDs distintos; a saída é novamente validada contra os candidatos e os critérios. IDs inventados ou fora do pedido são rejeitados, mantendo as opções do catálogo. A seleção do modelo continua sujeita à capacidade do GGUF escolhido.
 
 A interface mostra critérios aplicados, trechos da sinopse usados como evidência e títulos encontrados que foram omitidos por já estarem no catálogo. Cache breve reaproveita candidatos ao alternar a opção de incluir salvos ou refinar o mesmo pedido; a seleção é recalculada com o catálogo atual.
 
