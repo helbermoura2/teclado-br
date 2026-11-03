@@ -53,3 +53,7 @@ test('retrieval searches for the request before local reranking, enriches focuse
 test('a foreign president in an American film is not evidence of a US president',async()=>{
  const {evidenceFor}=await import('../web/similarity-criteria.js');assert.equal(evidenceFor(irrelevant[3],'president'),'');assert.ok(evidenceFor(presidential[0],'president'));
 });
+
+test('a mismatched metadata ID cannot lend its presidential plot to another title',async()=>{
+ const {getTitleDetails}=await import('../web/search-public.js');const item=irrelevant[0];const wrong=await getTitleDetails(item,async()=>({ok:true,json:async()=>({meta:{id:presidential[0].id,type:'movie',name:'Wrong identity',genres:['Action'],description:presidential[0].description}})}));assert.equal(wrong.description,item.description);assert.equal(rankSimilar(airForce,[wrong],{query:'presidente dos EUA'}).length,0);
+});
