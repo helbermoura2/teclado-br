@@ -1,0 +1,24 @@
+name: Limpeza aprovada do CENA
+on:
+  push:
+    branches: ['cena/android-preview']
+    paths: ['.github/workflows/cena-storage-cleanup.yml']
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: cena-approved-artifact-cleanup
+  cancel-in-progress: false
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testar proteção da lista aprovada
+        run: python3 -m unittest discover -s .github/cena-maintenance -p 'test_cleanup.py' -v
+      - name: Apagar somente os 108 artefatos antigos aprovados
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVED_PLAN_SHA256: '0a51453718a4dde63d3e3659ec83b51f5693f188c8c90910cf7285425496556e'
+        run: python3 .github/cena-maintenance/cleanup.py
