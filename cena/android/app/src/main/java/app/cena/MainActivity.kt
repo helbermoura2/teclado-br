@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
         if(state.optBoolean("connected")&&!historyScheduled){historyScheduled=true;WatchHistoryWorker.schedule(applicationContext)}else if(!state.optBoolean("connected"))historyScheduled=false
         traktWaitingAuth=state.optString("userCode").isNotBlank()
         val fingerprint=state.optBoolean("connected").toString()+state.optString("username")+state.optJSONArray("progress").toString()
-        if(fingerprint!=seriesFingerprint){seriesFingerprint=fingerprint;if(state.optBoolean("connected"))seriesTask()else{series.clear();emitSeries()}}
+        if(fingerprint!=seriesFingerprint||state.optLong("lastSync")>lastSeriesSync){seriesFingerprint=fingerprint;lastSeriesSync=state.optLong("lastSync");if(state.optBoolean("connected"))seriesTask()else{series.clear();emitSeries()}}
         runOnUiThread { if(!isDestroyed && pageReady) web.evaluateJavascript("window.CenaTraktResult && window.CenaTraktResult($state)",null) }
     }
     @Volatile private var traktVisible = false
@@ -64,7 +64,9 @@ class MainActivity : ComponentActivity() {
     private val seriesExecutor=Executors.newSingleThreadScheduledExecutor()
     private val series:SeriesRepository by lazy {SeriesRepository(applicationContext,changed={emitSeries()})}
     private var seriesFingerprint=""
+    private var lastSeriesSync=0L
     private var lastSeriesOpening=0L
+    private var lastTraktOpening=0L
     private fun emitSeries(){val state=series.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaSeriesResult && window.CenaSeriesResult($state)",null)}}
     private fun seriesTask(force:Boolean=false){try{seriesExecutor.execute{if(series.refresh(force))SeriesWorker.schedule(applicationContext);emitSeries()}}catch(_:java.util.concurrent.RejectedExecutionException){}}
     private val stremioExecutor = Executors.newSingleThreadScheduledExecutor()
@@ -268,12 +270,15 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         nuvioVisible=true
+        if(pageReady)web.evaluateJavascript("window.CenaResume && window.CenaResume()",null)
         if(pageReady){val current=System.currentTimeMillis();val force=current-lastNuvioOpening>60000;lastNuvioOpening=current;nuvioTask{nuvio.poll();nuvio.sync(force)}}
         traktVisible=true
+        val refreshTrakt=System.currentTimeMillis()-lastTraktOpening>=60000
+        lastTraktOpening=System.currentTimeMillis()
         if(::web.isInitialized) stremioTask {stremio.pollLink()}
         val forceSeries=System.currentTimeMillis()-lastSeriesOpening>=15*60*1000L
         if(forceSeries)lastSeriesOpening=System.currentTimeMillis()
-        if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync();seriesTask(forceSeries) }
+        if(::web.isInitialized) traktTask { trakt.pollAuth(); if(trakt.status().optBoolean("connected")) TraktWorker.schedule(applicationContext); trakt.sync(refresh=refreshTrakt);seriesTask(forceSeries) }
     }
 
     override fun onPause() { nuvioVisible=false;traktVisible=false;localAiClient.cancel();super.onPause() }
