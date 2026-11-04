@@ -5,7 +5,7 @@ on:
     paths: ['heliboard/**', '.github/workflows/heliboard.yml']
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   actions: read
 jobs:
   build:
@@ -41,6 +41,7 @@ jobs:
         run: python3 heliboard/signing.py
       - name: Guardar backup privado da assinatura de teste
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: teclado-br-heli-chave-teste-v1
           path: |
@@ -103,12 +104,14 @@ jobs:
         run: python3 heliboard/verify_signing.py
       - name: Guardar testes unitários
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         if: always()
         with:
           name: teclado-br-heli-unitarios
           path: heli-source/app/build/reports/tests/
       - name: Guardar APK compilado e fontes
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: teclado-br-heli-compilado
           path: |
@@ -117,32 +120,21 @@ jobs:
             heli-artifacts/signing-cert.sha256
       - name: Guardar APK separado
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: teclado-br-heli-apk
           path: heli-source/app/build/outputs/apk/debugNoMinify/*.apk
       - name: Guardar fontes separadas
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: teclado-br-heli-fontes
           path: heli-artifacts/teclado-br-heli-fontes.tar.gz
-  interaction:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: teclado-br-heli-compilado
-          path: heli-package
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
-          log-accepted-android-sdk-licenses: false
+      - name: Preparar arquivos para teste no mesmo runner
+        run: |
+          mkdir -p heli-package
+          cp heli-source/app/build/outputs/apk/debugNoMinify/*.apk heli-package/
+          cp heli-artifacts/teclado-br-heli-fontes.tar.gz heli-package/
       - name: Habilitar aceleração do emulador
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -174,12 +166,31 @@ jobs:
             python3 heliboard/smoke.py
       - name: Guardar diagnóstico
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         if: always()
         with:
           name: teclado-br-heli-testes
           path: heli-results/
       - name: Guardar APK verificado e fontes
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: teclado-br-heli-apk-e-fontes
           path: heli-package/
+      - name: Publicar atualização privada verificada
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          cp heli-package/*.apk heli-artifacts/teclado-br-heli-0.8.1.apk
+          cp heli-package/teclado-br-heli-fontes.tar.gz heli-artifacts/teclado-br-heli-0.8.1-fontes.tar.gz
+          zip -qr heli-artifacts/teclado-br-heli-0.8.1-testes.zip heli-results
+          sha256sum heli-artifacts/teclado-br-heli-0.8.1* > heli-artifacts/sha256-0.8.1.txt
+          cat > heli-artifacts/release-notes.txt <<'NOTES'
+          Correção de sugestões em campos de texto do Instagram e retorno da barra às palavras ao digitar.
+          Instale por cima da versão atual, sem desinstalar, para preservar seus dados.
+          Compilação, testes unitários e interação Android executados antes desta publicação.
+          O teste de compatibilidade usa campos sintéticos; confirmar a DM no aparelho.
+          NOTES
+          gh release create heli-0.8.1 --target "$RELEASE_COMMIT" --title 'Teclado BR 0.8.1 — sugestões no Instagram' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.8.1.apk heli-artifacts/teclado-br-heli-0.8.1-fontes.tar.gz heli-artifacts/teclado-br-heli-0.8.1-testes.zip heli-artifacts/sha256-0.8.1.txt
