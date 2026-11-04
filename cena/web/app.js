@@ -1,3 +1,5 @@
+import {NuvioSeriesEngine} from './nuvio-series.js';
+import {seriesUniverse,seriesCards,nextEpisodeEntries,combineContinuity,traktPausedEntries} from './series-continuity.js';
 import {mountVisionModel} from './vision-model-panel.js';
 import {mountBackup} from './backup.js';
 import {readCollections,createCollection,collectionItems,mountTitleCollections} from './collections.js';
@@ -39,6 +41,7 @@ window.CenaVisionModelState=value=>{visualModelState=value;renderVisionModel();}
 function renderVisionModel(){mountVisionModel($('#vision-model-panel'),{state:visualModelState,bridge:window.CenaAndroid});}
 let activeCollection='',collectionResults=[];
 let items = [], tab = 'home', filter = 'watchlist', searchResults = [], config = null;
+let nuvioSeriesRows=[],nuvioSeriesTicket=0,seriesResults=[];
 let seriesState={items:[],reading:false,pending:0,lastCheck:0};
 let discoveryRefreshing=false,discoveryRequest=0;
 let discoveryResults=[],discoveryMode='recommend',discoveryFilter='all',discoveryInfo=null,discoveryFingerprint='';
@@ -133,6 +136,7 @@ async function hydrateScore(element){
 const ratingObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.target.isConnected){ratingObserver.unobserve(entry.target);continue;}if(entry.isIntersecting)hydrateScore(entry.target);}},{rootMargin:'200px'}):null;
 function wireRatings(){for(const element of document.querySelectorAll('[data-rating-key]')){if(ratingObserved.has(element))continue;ratingObserved.add(element);if(ratingObserver)ratingObserver.observe(element);else hydrateScore(element);}}
 
+const nuvioSeriesEngine=new NuvioSeriesEngine({storage});
 const recommendationEngine=new RecommendationEngine({storage:storage});
 const similarEngine=new SimilarEngine({storage:storage,engine:recommendationEngine});
 let similarResults=[],similarTicket=0;
@@ -188,20 +192,21 @@ async function findSimilar(seed,includeSaved=true,query=''){
 window.CenaNuvioResult=state=>{
  if(!libraryReady){deferredNuvioState=state;return;}
  if(JSON.stringify(state)===JSON.stringify(nuvioState))return;
- nuvioState=state;renderSync();const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
+ const previousScope=nuvioState.scope;nuvioState=state;if(previousScope!==state.scope)nuvioSeriesRows=[];refreshNuvioEpisodes();renderSync();const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
  if(changed&&apiBase==='local'){items=merged;storage.setItem('cena.local.items.v1',JSON.stringify(items));}
  if(tab==='connect'&&!document.querySelector('#nuvio-profile:focus')){const panel=$('#nuvio-panel');renderNuvioPanel(panel,state,window.CenaAndroid);}
  if(!$('#detail').open){if(tab==='library'&&changed)patchLibrary();else if(tab==='home'&&changed){const y=window.scrollY;home();window.scrollTo(0,y);}}
  renderNuvioSections();renderSeriesSections();
 };
+async function refreshNuvioEpisodes(){const ticket=++nuvioSeriesTicket;if(!nuvioState.active){nuvioSeriesRows=[];return;}const scope=nuvioState.scope;await nuvioSeriesEngine.refresh(nuvioState,{isCurrent:()=>ticket===nuvioSeriesTicket&&scope===nuvioState.scope,onRow:row=>{nuvioSeriesRows=[...nuvioSeriesRows.filter(old=>old.id!==row.id),row];renderNuvioSections();renderSeriesSections();}});}
 function resumeScope(){return nuvioState.scope||String(nuvioState.profileId||'');}
 function renderNuvioSections(){
  const section=$('#nuvio-home');if(!section)return;
- const all=nuvioContinue(items,nuvioState),rows=visibleResume(all,resumeHidden,resumeScope());nuvioResults=rows.map(({item})=>({...item,...homeMetadata.get(`${item.type}:${item.id}`)}));
- if(!nuvioState.active||!rows.length&&!all.length){section.innerHTML='';return;}
+ const paused=nuvioContinue(items,nuvioState).map(entry=>({...entry,scope:resumeScope()}));const all=combineContinuity([...paused,...traktPausedEntries(traktState)],nextEpisodeEntries(items,seriesState,traktState,nuvioState,nuvioSeriesRows)),rows=visibleResume(all,resumeHidden,resumeScope());nuvioResults=rows.map(({item})=>({...item,...homeMetadata.get(`${item.type}:${item.id}`)}));
+ if(!rows.length&&!all.length){section.innerHTML='';return;}
  const hidden=all.filter(entry=>resumeHidden[resumeKey(entry,resumeScope())]).length;
  if(!rows.length&&!hidden){section.innerHTML='';return;}
- section.innerHTML=`<div class="section-heading"><div><span class="eyebrow">SEU PRÓXIMO PLAY</span><h2>Continuar assistindo</h2></div>${rows.length>6?`<button id="resume-expand">${resumeExpanded?'Mostrar menos':`Ver todos · ${rows.length}`}</button>`:''}</div>${rows.length?`<div class="resume-rail ${resumeExpanded?'expanded':''}">${rows.slice(0,resumeExpanded?20:6).map((entry,index)=>{const {row,label}=entry,item=nuvioResults[index],percent=row.duration>0?Math.max(0,Math.min(99,Math.round(row.position/row.duration*100))):null;return `<article class="resume-card"><button class="resume-open" data-nuvio-title="${escape(item.id)}" data-nuvio-type="${escape(item.type)}" aria-label="Ver ${escape(titleName(item))}"><div class="resume-art">${poster({...item,name:titleName(item)})}<span class="resume-play" aria-hidden="true">▶</span></div><div class="resume-copy"><strong>${escape(titleName(item))}</strong><small>${escape(label)}</small>${percent!==null?`<progress max="100" value="${percent}" aria-label="${percent}% assistido"></progress>`:''}${scoreMarkup(item)}</div></button><button class="resume-dismiss" data-resume-hide="${index}" aria-label="Remover ${escape(titleName(item))} de continuar assistindo">×</button></article>`;}).join('')}</div>`:'<p class="muted">Sua próxima sessão começa quando você quiser.</p>'}${hidden?`<button class="link-button restore-resume" id="resume-restore">Restaurar ${hidden} ${hidden===1?'título oculto':'títulos ocultos'}</button>`:''}`;
+ section.innerHTML=`<div class="section-heading"><div><span class="eyebrow">SEU PRÓXIMO PLAY</span><h2>Continuar assistindo</h2></div>${rows.length>6?`<button id="resume-expand">${resumeExpanded?'Mostrar menos':`Ver todos · ${rows.length}`}</button>`:''}</div>${rows.length?`<div class="resume-rail ${resumeExpanded?'expanded':''}">${rows.slice(0,resumeExpanded?rows.length:6).map((entry,index)=>{const {row,label}=entry,item=nuvioResults[index],percent=Number.isFinite(entry.percent)?entry.percent:row.duration>0?Math.max(0,Math.min(99,Math.round(row.position/row.duration*100))):null;return `<article class="resume-card"><button class="resume-open" data-nuvio-title="${escape(item.id)}" data-nuvio-type="${escape(item.type)}" aria-label="Ver ${escape(titleName(item))}"><div class="resume-art">${poster({...item,name:titleName(item)})}<span class="resume-play" aria-hidden="true">▶</span></div><div class="resume-copy"><strong>${escape(titleName(item))}</strong><small>${escape(label)}</small><small class="continuity-source">${escape(entry.source)} · ${entry.kind==='paused'?'Retomar episódio ou filme':entry.kind==='pending'?'Aguardando confirmação':'Próximo episódio confirmado'}</small>${percent!==null?`<progress max="100" value="${percent}" aria-label="${percent}% assistido"></progress>`:''}${scoreMarkup(item)}${(entry.also||[]).map(row=>`<small class="continuity-secondary">Também em ${escape(row.source)}: ${escape(row.label)}</small>`).join('')}</div></button>${entry.kind==='pending'?'':`<button class="resume-dismiss" data-resume-hide="${index}" aria-label="Remover ${escape(titleName(item))} de continuar assistindo">×</button>`}</article>`;}).join('')}</div>`:'<p class="muted">Sua próxima sessão começa quando você quiser.</p>'}${hidden?`<button class="link-button restore-resume" id="resume-restore">Restaurar ${hidden} ${hidden===1?'título oculto':'títulos ocultos'}</button>`:''}`;
  for(const button of section.querySelectorAll('[data-nuvio-title]'))button.onclick=()=>showDetail(nuvioResults.find(row=>row.id===button.dataset.nuvioTitle&&row.type===button.dataset.nuvioType));
  for(const button of section.querySelectorAll('[data-resume-hide]'))button.onclick=()=>{resumeHidden[resumeKey(rows[Number(button.dataset.resumeHide)],resumeScope())]=true;storage.setItem(resumeHiddenKey,JSON.stringify(resumeHidden));renderNuvioSections();toast('Oculto no CENA. O histórico do Nuvio foi mantido.');};
  if($('#resume-expand'))$('#resume-expand').onclick=()=>{resumeExpanded=!resumeExpanded;renderNuvioSections();};
@@ -214,7 +219,8 @@ async function hydrateHomeNames(rows){
  try{for(const [key,value]of homeMetadata){if(homeMetadataTried.has(key))continue;homeMetadataTried.add(key);try{const details=await getTitleDetails(value);if(details.id===value.id&&details.type===value.type){homeMetadata.set(key,details);const saved=items.find(item=>item.id===value.id&&item.type===value.type);if(saved&&(!saved.name||/^tt\d+$/.test(saved.name))&&details.name&&!/^tt\d+$/.test(details.name)){saved.name=details.name;if(apiBase==='local')storage.setItem('cena.local.items.v1',JSON.stringify(items));}}}catch{}if(tab==='home'){renderNuvioSections();renderSeriesSections();}}}
  finally{homeMetadataBusy=false;}
 }
-window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSync();renderSeriesSections();};
+window.CenaSeriesResult=state=>{if(JSON.stringify(state)===JSON.stringify(seriesState))return;seriesState=state;renderSync();renderNuvioSections();renderSeriesSections();};
+window.CenaResume=()=>{if(libraryReady){refreshNuvioEpisodes();renderNuvioSections();renderSeriesSections();}};
 const artworkModels = new Map();
 const artworkObserved = new WeakSet();
 const artworkLoading = new WeakSet();
@@ -280,12 +286,12 @@ window.CenaTraktResult = state => {
     if(tab==='library') { if(libraryChanged)patchLibrary();else updateArtworkProgress(); }
     else if(tab==='home'&&libraryChanged) {const position=window.scrollY;home();window.scrollTo(0,position);}
   }
-  renderSeriesSections();
+  renderNuvioSections();renderSeriesSections();
   const label=$('#trakt-item-state'); if(label && detailItem) label.textContent=traktItemLabel(detailItem,state);
 };
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
-  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...nuvioResults,...collectionResults,...items].find(item => item.id === card.dataset.id));
+  if (card) showDetail([...searchResults,...discoveryResults,...similarResults,...nuvioResults,...seriesResults,...collectionResults,...items].find(item => item.id === card.dataset.id));
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -426,26 +432,24 @@ function refreshCurrentView(){
   if(tab==='discover'){renderRecommendations();renderSeriesSections();}
   else if(tab==='library')patchLibrary();else if(tab==='home'){const position=window.scrollY;home();window.scrollTo(0,position);}
 }
-function seriesRows(){return items.filter(item=>item.type==='series').map(item=>({item,state:seriesState.items?.find(row=>row.id===item.id)})).sort((a,b)=>(b.state?.newEpisodes||0)-(a.state?.newEpisodes||0)||(b.state?.available||0)-(a.state?.available||0));}
+function seriesRows(){return homeSeries(items,seriesState,nuvioState,{trakt:traktState,nuvioRows:nuvioSeriesRows});}
 function seriesContent(limit=Infinity){
-  if(nuvioState.active){const rows=homeSeries(items,seriesState,nuvioState);return `<p class="muted">Episódios vistos recebidos do Nuvio. Reproduções em andamento aparecem no Início.</p>${rows.length?`<div class="series-list">${rows.slice(0,limit).map(({item,headline})=>`<button class="series-card" data-series-id="${escape(item.id)}"><div class="series-cover">${poster({...item,name:titleName(item)})}</div><span><strong>${escape(titleName(item))}</strong>${scoreMarkup(item)}<b class="series-status">${escape(headline)}</b><small>Sem informação confirmada do próximo episódio nesta fonte.</small></span></button>`).join('')}</div>`:'<p class="muted">Adicione uma série para acompanhar seus episódios.</p>'}`;}
-
-  if(!traktState.connected)return '<div class="notice">Conecte a mesma conta Trakt usada no Nuvio para consultar os episódios vistos e disponíveis.</div>';
-  const rows=seriesRows();
-  return `<p class="muted">${seriesState.lastCheck?`Última consulta: ${new Date(seriesState.lastCheck).toLocaleString('pt-BR')}.`:'Aguardando a primeira consulta.'} Atualização automática a cada 12 horas; o Android pode adiar a execução.</p><div class="actions"><button class="secondary" data-series-refresh ${seriesState.reading?'disabled':''}>${seriesState.reading?'Consultando séries…':'Atualizar episódios'}</button></div>${seriesState.pending?`<p class="muted" role="status">${seriesState.pending} série(s) aguardam consulta. A lista é processada em lotes.</p>`:''}${seriesState.error?`<p class="notice">${escape(seriesState.error)}</p>`:''}${!rows.length?'<div class="empty"><p>Adicione uma série ao catálogo para acompanhar seus episódios.</p></div>':`<div class="series-list">${rows.slice(0,limit).map(({item,state})=>{const summary=seriesSummary(state);return `<button class="series-card" data-series-id="${escape(item.id)}"><div class="series-cover">${poster(item)}</div><span><strong>${escape(item.name)}</strong>${historyBadge(item)}${scoreMarkup(item)}<b class="series-status ${summary.state}">${escape(summary.headline)}</b><small>${escape(summary.detail)}</small>${state?.error?'<small class="error-text">Consulta pendente · dados podem estar desatualizados</small>':''}${state?.warning?`<small>${escape(state.warning)}</small>`:''}</span></button>`;}).join('')}</div>`}`;
+ const rows=seriesRows();seriesResults=rows.map(row=>row.item);
+ return `<p class="muted">Progresso identificado por fonte. Nuvio e Trakt podem ter perfis ou horários diferentes; as contagens não são somadas.</p><div class="actions"><button class="secondary" data-series-refresh>Atualizar episódios</button></div>${seriesState.error?`<p class="notice">${escape(seriesState.error)}</p>`:''}${!rows.length?'<p class="muted">As séries iniciadas recebidas das suas contas aparecerão automaticamente aqui.</p>':`<div class="series-list">${rows.slice(0,limit).map(({item,headline,detail,source,state})=>`<button class="series-card" data-series-id="${escape(item.id)}"><div class="series-cover">${poster({...item,name:titleName(item)})}</div><span><strong>${escape(titleName(item))}</strong>${scoreMarkup(item)}<b class="series-status">${escape(headline)}</b><small>${escape(detail)}</small>${state?.warning?`<small>${escape(state.warning)}</small>`:''}<small>Fonte: ${escape(source)}</small></span></button>`).join('')}</div>`}`;
 }
+
 function renderSeriesSections(){
   const position=window.scrollY;
   const homeSection=$('#series-home');if(homeSection){
-   const rows=homeSeries(items,seriesState,nuvioState);
+   const rows=seriesRows();seriesResults=rows.map(row=>row.item);
    homeSection.innerHTML=rows.length?`<div class="section-heading"><div><span class="eyebrow">EPISÓDIO POR EPISÓDIO</span><h2>${nuvioState.active?'Suas séries':'Próximos episódios'}</h2></div><button id="see-series">Ver todas</button></div><div class="poster-rail series-rail">${rows.slice(0,6).map(({item,headline,detail})=>`<button class="poster-card" data-series-id="${escape(item.id)}">${poster({...item,name:titleName(item)})}<strong>${escape(titleName(item))}</strong><span class="series-status">${escape(headline)}</span><small>${escape(detail)}</small></button>`).join('')}</div>`:'';
    if($('#see-series'))$('#see-series').onclick=()=>{discoveryMode='series';setTab('discover');};
   }
   const section=$('#series-discovery');if(section)section.innerHTML=seriesContent();
   const details=$('#series-detail-state');if(details){const state=seriesState.items?.find(row=>row.id===detailItem?.id);if(detailItem?.type==='series'&&traktState.connected){const summary=seriesSummary(state);details.innerHTML=`<div class="notice"><strong>${escape(summary.headline)}</strong><p>${escape(summary.detail)}</p>${state?.error?'<p>Consulta pendente. Os dados anteriores foram preservados.</p>':''}</div>`;}else details.innerHTML='';}
-  for(const button of document.querySelectorAll('[data-series-refresh]'))button.onclick=()=>{if(typeof window.CenaAndroid?.refreshSeries==='function'){window.CenaAndroid.refreshSeries();toast('Consulta de episódios solicitada.');}else toast('A consulta de episódios usa a conexão Trakt no APK Android.');};
-  for(const button of document.querySelectorAll('[data-series-id]'))button.onclick=()=>showDetail(items.find(item=>item.id===button.dataset.seriesId&&item.type==='series'));
-  for(const id of ['#calendar-panel','#home-calendar']){const target=$(id);if(target){mountCalendar(target,{items,state:seriesState,nuvioActive:nuvioState.active,onOpen:showDetail});if(id==='#home-calendar'&&!target.querySelector('.calendar-row'))target.replaceChildren();}}
+  for(const button of document.querySelectorAll('[data-series-refresh]'))button.onclick=()=>{if(typeof window.CenaAndroid?.refreshSeries==='function'){window.CenaAndroid.refreshSeries();refreshNuvioEpisodes();toast('Consulta de episódios solicitada.');}else toast('A consulta de episódios usa a conexão Trakt no APK Android.');};
+  for(const button of document.querySelectorAll('[data-series-id]'))button.onclick=()=>showDetail(seriesResults.find(item=>item.id===button.dataset.seriesId));
+  for(const id of ['#calendar-panel','#home-calendar']){const target=$(id);if(target){mountCalendar(target,{items:seriesUniverse(items,traktState,nuvioState,seriesState),state:seriesState,nuvioActive:nuvioState.active,onOpen:showDetail});if(id==='#home-calendar'&&!target.querySelector('.calendar-row'))target.replaceChildren();}}
   wireImages();if(window.scrollY!==position)window.scrollTo(0,position);
 }
 function discover(){
