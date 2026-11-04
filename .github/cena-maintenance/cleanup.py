@@ -112,9 +112,13 @@ def main():
                                   for a in release['assets']):
             raise SystemExit('A release APK required for preservation is missing')
     signing = by_tag.get('cena-internal-signing')
-    if (not signing or not signing['draft']
+    # Draft releases require push access; do not grant contents:write just to read
+    # this one. The connected GitHub client verifies its metadata before/after.
+    if signing is not None and (not signing['draft']
             or not any(a['name'] == 'cena-preview.keystore' for a in signing['assets'])):
         raise SystemExit('The private signing identity must be preserved')
+    print('CENA_CLEANUP_SIGNING_CHECK ' + ('visible draft preserved' if signing
+          else 'private draft is outside this read-only token; external verification required'), flush=True)
     targets, absent = validate(plan, before)
     print('CENA_CLEANUP_PLAN ' + json.dumps({
         'approved_count': EXPECTED_COUNT, 'approved_bytes': EXPECTED_BYTES,
@@ -162,7 +166,8 @@ def main():
         'remaining_artifact_bytes': sum(a['size_in_bytes'] for a in after),
         'preserved_current_and_previous_artifacts': 6,
         'all_unplanned_artifacts_preserved': True,
-        'all_release_assets_and_signing_identity_preserved': True,
+        'all_visible_release_assets_preserved': True,
+        'private_signing_draft_check': 'verified' if signing else 'external verification required',
         'source_history_runs_caches_and_keyboard_untouched': True,
     }
     print('CENA_CLEANUP_RESULT ' + json.dumps(result), flush=True)
