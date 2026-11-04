@@ -6,6 +6,11 @@ from pathlib import Path
 
 def apply(context):
     root, here, replace = context.root, context.here, context.replace
+    # Instagram message composers may opt out of suggestions. Limit the workaround
+    # to ordinary prose; keep password, address, filter and numeric fields untouched.
+    replace('app/src/main/java/helium314/keyboard/compat/AppWorkarounds.kt',
+        '    fun adjustInputType(inputType: Int, packageName: String?): Int {\n        return when (packageName) {',
+        '    fun adjustInputType(inputType: Int, packageName: String?): Int {\n        if (packageName == "com.instagram.android"\n            && inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT) {\n            val variation = inputType and InputType.TYPE_MASK_VARIATION\n            if (variation == InputType.TYPE_TEXT_VARIATION_NORMAL\n                || variation == InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE\n                || variation == InputType.TYPE_TEXT_VARIATION_LONG_MESSAGE\n                || variation == InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT) {\n                return inputType and InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS.inv()\n            }\n        }\n        return when (packageName) {')
     # Native toolbar language switch, including all three icon styles.
     replace('app/src/main/java/helium314/keyboard/latin/utils/ToolbarUtils.kt',
         '    EMOJI -> KeyCode.EMOJI', '    LANGUAGE -> KeyCode.LANGUAGE_SWITCH\n    EMOJI -> KeyCode.EMOJI')
@@ -81,7 +86,7 @@ def apply(context):
     # A toolbar opened by the user stays open until the next actual text input.
     replace('app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt',
         '    private var suggestedWords = SuggestedWords.getEmptyInstance()',
-        '    private var toolbarManuallyExpanded = false\n    fun onKeyboardInput() { toolbarManuallyExpanded = false }\n    fun hideToolbarForSuggestions() { if (!toolbarManuallyExpanded) setToolbarVisibility(false) }\n    private var suggestedWords = SuggestedWords.getEmptyInstance()')
+        '    private var toolbarManuallyExpanded = false\n    fun onKeyboardInput() { toolbarManuallyExpanded = false; if (Settings.getValues().mAutoHideToolbar && Settings.getValues().isSuggestionsEnabledPerUserSettings()) setToolbarVisibility(false) }\n    fun hideToolbarForSuggestions() { if (!toolbarManuallyExpanded) setToolbarVisibility(false) }\n    private var suggestedWords = SuggestedWords.getEmptyInstance()')
     replace('app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripView.kt',
         '        if (view === toolbarExpandKey) {\n            setToolbarVisibility(toolbarContainer.visibility != VISIBLE)',
         '        if (view === toolbarExpandKey) {\n            toolbarManuallyExpanded = toolbarContainer.visibility != VISIBLE\n            setToolbarVisibility(toolbarManuallyExpanded)')

@@ -114,6 +114,51 @@ public final class HybridTrial {
             }
         } finally { c.unbindService(connection); }
     }
+    private static void instagram(HeliTrialInstrumentation test,Bundle result)throws Exception {
+        final int text=android.text.InputType.TYPE_CLASS_TEXT;
+        final int blocked=android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
+        int[] prose={0,android.text.InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE,android.text.InputType.TYPE_TEXT_VARIATION_LONG_MESSAGE,android.text.InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT};
+        for(int variation:prose) {
+            android.view.inputmethod.EditorInfo info=new android.view.inputmethod.EditorInfo();
+            info.packageName="com.instagram.android"; info.inputType=text|variation|blocked;
+            info.imeOptions=android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING;
+            helium314.keyboard.latin.InputAttributes attrs=new helium314.keyboard.latin.InputAttributes(info,false,"br.com.tecladobr.heli.debug");
+            check(attrs.mShouldShowSuggestions&&!attrs.mIsPasswordField&&attrs.mNoLearning,"Instagram prose compatibility or privacy failed");
+            check(info.inputType==(text|variation|blocked),"App EditorInfo was mutated");
+        }
+        int[] excluded={text|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD,text|android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,text|android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,text|android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,text|android.text.InputType.TYPE_TEXT_VARIATION_URI,text|android.text.InputType.TYPE_TEXT_VARIATION_FILTER,android.text.InputType.TYPE_CLASS_NUMBER,android.text.InputType.TYPE_CLASS_PHONE,0};
+        for(int type:excluded)check(helium314.keyboard.compat.AppWorkarounds.INSTANCE.adjustInputType(type|blocked,"com.instagram.android")== (type|blocked),"Sensitive/special field changed");
+        check(helium314.keyboard.compat.AppWorkarounds.INSTANCE.adjustInputType(text|blocked,"other.app")== (text|blocked),"Another app was changed");
+        // Real editor/InputConnection with the normalized type, not an Instagram account.
+        int original=test.trialInputType;
+        try {
+            test.trialInputType=helium314.keyboard.compat.AppWorkarounds.INSTANCE.adjustInputType(text|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE|blocked,"com.instagram.android");
+            test.launch(); test.clear();
+            test.runOnMainSync(()-> {
+                android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+                helium314.keyboard.latin.suggestions.SuggestionStripView strip=(helium314.keyboard.latin.suggestions.SuggestionStripView)test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+                strip.setToolbarVisibility(true);
+            });
+            test.type("voce");
+            long until=android.os.SystemClock.uptimeMillis()+20000;
+            final android.graphics.Rect candidate=new android.graphics.Rect();
+            do {
+                test.runOnMainSync(()-> {
+                    android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+                    android.view.View word=test.findView(root,v->v instanceof android.widget.TextView&&v.isShown()&&"você".equalsIgnoreCase(((android.widget.TextView)v).getText().toString()));
+                    if(word!=null){int[] xy=new int[2];word.getLocationOnScreen(xy);candidate.set(xy[0],xy[1],xy[0]+word.getWidth(),xy[1]+word.getHeight());}
+                });
+                if(!candidate.isEmpty())break;
+                Thread.sleep(200);
+            }while(android.os.SystemClock.uptimeMillis()<until);
+            check(!candidate.isEmpty(),"Visible suggestions did not replace toolbar: "+test.suggestions());
+            test.shot("27-sugestoes-campo-compativel");test.tap(candidate);
+            until=android.os.SystemClock.uptimeMillis()+10000;
+            while(!test.text().trim().equalsIgnoreCase("você")&&android.os.SystemClock.uptimeMillis()<until)Thread.sleep(150);
+            check(test.text().trim().equalsIgnoreCase("você"),"Candidate tap did not commit the word");
+            result.putString("instagram_compatibility","PASS: prose flags, excluded fields, no-learning retained, visible candidate and tap in synthetic editor; actual Instagram not accessed");
+        } finally {test.trialInputType=original;}
+    }
     public static void run(HeliTrialInstrumentation test,Bundle result)throws Exception {
         Context c=test.getTargetContext();
         AtomicBoolean cancelled=new AtomicBoolean();
@@ -281,6 +326,7 @@ public final class HybridTrial {
         int top=actualBars.get().top,bottom=actualBars.get().bottom;
         check(titleBounds.top>=top&&backBounds.bottom<=screenHeight-bottom,"Dictionary controls overlap system bars: title="+titleBounds+", back="+backBounds+", screen="+screenHeight+", status="+top+", nav="+bottom);
         test.shot("25-dicionario-e-backup");
+        instagram(test,result);
         result.putString("hybrid_contract","PASS: HTTPS payload, explicit modes, quota/auth/server/malformed/timeout fallback, no network offline, cancellation without fallback, encrypted key, diff, dictionary backup, settings touch flow");
     }
 }

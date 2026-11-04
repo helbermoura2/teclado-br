@@ -26,6 +26,7 @@ import java.util.function.Predicate;
 /** Debug-only real touch injection; no calls to the IME text insertion methods. */
 public final class HeliTrialInstrumentation extends Instrumentation {
     UiAutomation ui; File shots; final Bundle result=new Bundle();String phase="full";
+    int trialInputType=android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE|android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;
     static final String PIN_TEXT="Texto fixado para usar em outros dias.";
     static final String TEMP_TEXT="Texto temporário do teste de expiração.";
     @Override public void onCreate(Bundle args){super.onCreate(args);if(args!=null)phase=args.getString("phase","full");start();}
@@ -41,7 +42,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         try{launchOnce();}catch(AssertionError error){if(!String.valueOf(error.getMessage()).contains("window did not settle"))throw error;result.putInt("editor_window_retries",result.getInt("editor_window_retries",0)+1);Thread.sleep(500);launchOnce();}
     }
     void launchOnce()throws Exception{
-        getTargetContext().startActivity(new Intent(getTargetContext(),TrialEditor.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));Thread.sleep(2000);
+        getTargetContext().startActivity(new Intent(getTargetContext(),TrialEditor.class).putExtra("input_type",trialInputType).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TASK));Thread.sleep(2000);
         // Only dismiss an unrelated launcher ANR; never hide a keyboard/app ANR.
         AccessibilityNodeInfo launcher=find(n->n.getText()!=null&&n.getText().toString().contains("Quickstep")&&n.getText().toString().contains("respond"));
         if(launcher!=null){AccessibilityNodeInfo close=find(n->"Close app".contentEquals(n.getText()==null?"":n.getText()));if(close!=null)close.performAction(AccessibilityNodeInfo.ACTION_CLICK);}
