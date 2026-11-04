@@ -54,6 +54,6 @@ class SeriesRepositoryTest {
         val repo=SeriesRepository(context,source,{clock})
         assertTrue(repo.refresh());assertEquals(20,calls);assertEquals(5,repo.status().getInt("pending"));assertFalse(repo.refresh());assertEquals(25,calls)
         clock++;assertTrue(repo.refresh(true));assertFalse(repo.refresh());assertEquals(50,calls)
-        account="second";ids=listOf("tt2000000");repo.refresh();assertEquals(1,repo.status().getJSONArray("items").length());assertEquals("tt2000000",repo.status().getJSONArray("items").getJSONObject(0).getString("id"))
+        account="second";ids=listOf("tt2000000");assertEquals(0,repo.status().getJSONArray("items").length());repo.refresh();assertEquals(1,repo.status().getJSONArray("items").length());assertEquals("tt2000000",repo.status().getJSONArray("items").getJSONObject(0).getString("id"))
     }
 }
