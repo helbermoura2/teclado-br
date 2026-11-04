@@ -1,5 +1,16 @@
 # Teclado BR
 
+## Versão 0.8.1 — sugestões no Instagram
+
+Compatibilidade para sugestões nos campos comuns do Instagram e retorno da barra
+às palavras ao digitar. Preferências do usuário, campos especiais e no-learning
+são preservados. A instalação por cima mantém dados, pins e o modelo offline.
+
+[Baixar APK 0.8.1 e fontes](https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.8.1) ·
+[Detalhes e validação](heliboard/INSTAGRAM.md).
+Compilação e sete fases Android aprovadas. Teste do Instagram em campo simulado;
+confirmar a DM no aparelho.
+
 ## Versão 0.8.0 — IA híbrida e personalização
 
 Assistente no próprio teclado, com modos Offline (padrão), Automático e Online.
