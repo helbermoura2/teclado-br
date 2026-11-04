@@ -1,4 +1,5 @@
 name: Limpeza aprovada do CENA
+# The private signing draft is verified externally; the cleanup keeps contents:read.
 on:
   push:
     branches: ['cena/android-preview']
