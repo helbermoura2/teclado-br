@@ -35,14 +35,14 @@ class SeriesRepository(context:Context,private val source:SeriesSource=TraktSeri
     companion object {private val lock=Any();private val running=AtomicBoolean(false)}
     private val vault=TraktVault(context,"cena.series.v1","Trakt")
     private fun rows(value:JSONArray?)=(0 until (value?.length()?:0)).mapNotNull{value?.optJSONObject(it)}
-    fun status():JSONObject=synchronized(lock){val state=vault.read();JSONObject().put("reading",running.get()).put("lastCheck",state.optLong("lastCheck")).put("pending",state.optInt("pending")).put("error",state.optString("error")).put("items",state.optJSONArray("items")?:JSONArray()).put("intervalHours",12)}
+    fun status():JSONObject {val snapshot=source.snapshot();return synchronized(lock){val state=vault.read();val matching=snapshot.optBoolean("connected")&&snapshot.optString("account")==state.optString("account");JSONObject().put("source","Trakt").put("connected",snapshot.optBoolean("connected")).put("account",snapshot.optString("account")).put("reading",running.get()).put("lastCheck",if(matching)state.optLong("lastCheck")else 0).put("pending",if(matching)state.optInt("pending")else 0).put("error",if(matching)state.optString("error")else "").put("items",if(matching)state.optJSONArray("items")?:JSONArray()else JSONArray()).put("intervalHours",12)}}
     fun clear()=synchronized(lock){vault.clear()}
     /** At most twenty due shows per pass; continuations finish large libraries without blocking UI. */
     fun refresh(force:Boolean=false):Boolean {
         if(!running.compareAndSet(false,true))return false
         try{
             val snapshot=source.snapshot();if(!snapshot.optBoolean("connected")){clear();return false}
-            val account=snapshot.optString("account");val requested=rows(snapshot.optJSONArray("series")).filter{Regex("tt\\d{5,12}").matches(it.optString("id"))}.distinctBy{it.getString("id")}
+            val account=snapshot.optString("account");val requested=rows(snapshot.optJSONArray("series")).filter{Regex("tt\\d{5,12}").matches(it.optString("id"))}.distinctBy{it.getString("id")}.sortedWith(compareByDescending<JSONObject>{it.optInt("episodes")>0}.thenByDescending{it.optString("watchedAt")})
             var state=synchronized(lock){vault.read()}
             if(state.optString("account")!=account)state=JSONObject().put("account",account)
             val ids=requested.map{it.getString("id")}.toSet()
@@ -50,7 +50,7 @@ class SeriesRepository(context:Context,private val source:SeriesSource=TraktSeri
             val forced=if(force)ids.toMutableSet()else (0 until (state.optJSONArray("forceIds")?.length()?:0)).mapNotNull{state.optJSONArray("forceIds")?.optString(it)}.filter{it in ids}.toMutableSet()
             fun history(row:JSONObject)=row.optString("watchedAt")+":"+row.optInt("episodes")
             fun due(row:JSONObject):Boolean {val old=stored[row.getString("id")];return old==null||(force||now()>=old.optLong("retryAt"))&&(row.getString("id") in forced||now()-old.optLong("checkedAt")>=SeriesProgress.INTERVAL||old.optString("historyKey")!=history(row))}
-            val pending=requested.filter(::due);state.put("pending",pending.size).put("error","").put("forceIds",JSONArray(forced.toList()))
+            val pending=requested.filter(::due).sortedBy{if(stored[it.getString("id")]?.optString("historyKey")!=history(it))0 else 1};state.put("pending",pending.size).put("error","").put("forceIds",JSONArray(forced.toList()))
             synchronized(lock){state.put("items",JSONArray(stored.values.toList()));vault.write(state)};changed()
             for(row in pending.take(20)){
                 if(Thread.currentThread().isInterrupted)return requested.any(::due)
@@ -60,7 +60,7 @@ class SeriesRepository(context:Context,private val source:SeriesSource=TraktSeri
                 try{
                     val progress=source.progress(id);val next=progress.optJSONObject("next_episode")
                     var warning="";val details=if(next!=null&&next.optInt("season")>0&&next.optInt("number")>0)try{source.episode(id,next.getInt("season"),next.getInt("number"))}catch(_:Exception){warning="A data do próximo episódio ainda não foi confirmada.";null}else null
-                    stored[id]=SeriesProgress.parse(id,progress,details,stored[id],history(row),now()).put("warning",warning)
+                    stored[id]=SeriesProgress.parse(id,progress,details,stored[id],history(row),now()).put("warning",warning).put("name",row.optString("name",id)).put("year",row.opt("year")?:"").put("watchedAt",row.optString("watchedAt")).put("source","Trakt")
                 }catch(_:Exception){
                     val old=stored[id]?.let{JSONObject(it.toString())}?:JSONObject().put("id",id).put("checkedAt",0)
                     stored[id]=old.put("error","Não consegui atualizar esta série. Os dados anteriores foram preservados.").put("retryAt",now()+15*60*1000L)
