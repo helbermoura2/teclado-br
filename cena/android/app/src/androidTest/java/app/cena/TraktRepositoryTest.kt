@@ -62,4 +62,29 @@ class TraktRepositoryTest {
         val repo=TraktRepository(context,fake){clock};login(repo);repo.sync(true)
         assertEquals(1,repo.status().getJSONArray("watchlist").length());assertEquals(1,repo.status().getJSONArray("watched").length());assertTrue(repo.status().getLong("lastSync")>0)
     }
+    @Test fun watchedShowsAndPausedPlaybackAreDiscoveredOutsideTheLocalInventory() {
+        val show=JSONObject().put("title","Verônica com K").put("year",2024).put("ids",JSONObject().put("imdb","tt1234567"))
+        val episodes=JSONArray();for(number in 1..4)episodes.put(JSONObject().put("number",number).put("plays",1))
+        val fake=transport { _,path,_ -> when {
+            path.startsWith("/sync/watched/shows") -> response(JSONArray().put(JSONObject().put("show",show).put("last_watched_at","2026-11-04T00:00:00Z").put("seasons",JSONArray().put(JSONObject().put("number",1).put("episodes",episodes)))))
+            path.startsWith("/sync/playback") -> response(JSONArray().put(JSONObject().put("type","episode").put("show",show).put("episode",JSONObject().put("season",1).put("number",5)).put("progress",42.5).put("paused_at","2026-11-04T00:10:00Z")))
+            path.startsWith("/shows/tt1234567/progress") -> response(JSONObject().put("aired",8).put("completed",4).put("next_episode",JSONObject().put("season",1).put("number",5)))
+            path.startsWith("/shows/tt1234567/seasons") -> response(JSONObject().put("season",1).put("number",5).put("first_aired","2025-01-01T00:00:00Z"))
+            else -> response(JSONArray())
+        }}
+        val repo=TraktRepository(context,fake){clock};login(repo);repo.inventory(JSONArray());repo.sync(refresh=true)
+        assertEquals(0,repo.status().getJSONArray("watchlist").length());assertEquals(4,repo.status().getJSONArray("progress").getJSONObject(0).getInt("episodes"));assertEquals("Verônica com K",repo.seriesSnapshot().getJSONArray("series").getJSONObject(0).getString("name"));assertEquals(5,repo.status().getJSONArray("paused").getJSONObject(0).getInt("episode"))
+        val series=SeriesRepository(context,TraktSeriesSource(repo),{clock});try{series.refresh();val row=series.status().getJSONArray("items").getJSONObject(0);assertEquals(5,row.getJSONObject("next").getInt("number"));assertEquals(4,row.getInt("available"))}finally{series.clear()}
+    }
+    @Test fun failedPlaybackRefreshRetainsCompletedProgressAndItsPreviousPause() {
+        var fail=false
+        val fake=transport { _,path,_ -> if(path.startsWith("/sync/playback")){if(fail)response(JSONArray(),503)else response(JSONArray().put(JSONObject().put("type","movie").put("movie",JSONObject().put("title","Filme").put("ids",JSONObject().put("imdb","tt1335975"))).put("progress",15).put("paused_at","2026-11-04T00:00:00Z")))}else response(JSONArray()) }
+        val repo=TraktRepository(context,fake){clock};login(repo);repo.sync(true);assertEquals(1,repo.status().getJSONArray("paused").length());fail=true;clock+=1000;repo.sync(refresh=true);assertEquals(clock,repo.status().getLong("lastSync"));assertEquals(1,repo.status().getJSONArray("paused").length());assertTrue(repo.status().getString("playbackError").isNotBlank());assertTrue(repo.status().getString("error").isBlank())
+    }
+    @Test fun foregroundRefreshDoesNotRetryWritesBlockedByAnAccountLimit() {
+        var writes=0
+        val fake=transport { method,path,_ -> if(method=="POST"&&path=="/sync/watchlist"){writes++;response(JSONObject(),420)}else response(JSONArray()) }
+        val repo=TraktRepository(context,fake){clock};login(repo);repo.enqueue(JSONObject().put("id","tt1335975").put("type","movie").put("action","add"));repo.sync(true);assertTrue(repo.status().getBoolean("blocked"));clock+=1000;repo.sync(refresh=true);assertEquals(1,writes);assertEquals(1,repo.status().getJSONArray("pending").length())
+    }
+
 }
