@@ -47,4 +47,9 @@ class NuvioRepositoryTest {
   assertNull(NuvioCodec.watched(JSONObject("{\"content_id\":\"tt0903747\",\"content_type\":\"series\"}")))
   assertNull(NuvioCodec.progress(JSONObject("{\"content_id\":\"tt1335975\",\"content_type\":\"movie\",\"position\":0,\"duration\":0}")))
  }
+ @Test fun startedSeriesKeepExactEpisodeKeysOutsideTheLocalInventory(){
+  val f=Fixture();val repo=loggedIn(f)
+  try{repo.selectProfile(1);repo.inventory("[]");val state=repo.status();assertEquals(0,state.getJSONArray("watched").length());val show=state.getJSONArray("series").getJSONObject(0);assertEquals("tt0903747",show.getString("id"));assertEquals(1,show.getInt("episodes"));assertEquals("1:1",show.getJSONArray("seen").getString(0));repo.selectProfile(2);assertEquals(0,repo.status().getJSONArray("series").length())}finally{repo.disconnect()}
+ }
+
 }
