@@ -107,29 +107,9 @@ jobs:
         continue-on-error: true
         if: always()
         with:
+          retention-days: 7
           name: teclado-br-heli-unitarios
           path: heli-source/app/build/reports/tests/
-      - name: Guardar APK compilado e fontes
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: teclado-br-heli-compilado
-          path: |
-            heli-source/app/build/outputs/apk/debugNoMinify/*.apk
-            heli-artifacts/teclado-br-heli-fontes.tar.gz
-            heli-artifacts/signing-cert.sha256
-      - name: Guardar APK separado
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: teclado-br-heli-apk
-          path: heli-source/app/build/outputs/apk/debugNoMinify/*.apk
-      - name: Guardar fontes separadas
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: teclado-br-heli-fontes
-          path: heli-artifacts/teclado-br-heli-fontes.tar.gz
       - name: Preparar arquivos para teste no mesmo runner
         run: |
           mkdir -p heli-package
@@ -174,14 +154,9 @@ jobs:
         continue-on-error: true
         if: always()
         with:
+          retention-days: 7
           name: teclado-br-heli-testes
           path: heli-results/
-      - name: Guardar APK verificado e fontes
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: teclado-br-heli-apk-e-fontes
-          path: heli-package/
       - name: Publicar atualização privada verificada
         env:
           GH_TOKEN: ${{ github.token }}

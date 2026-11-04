@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "mode": "apply",
+  "mode": "inventory",
   "repository": "helbermoura2/teclado-br",
   "preserve_artifact_ids": [
     13143308299,
@@ -10,7 +10,16 @@
   ],
   "audit": {
     "inventory_run": 41905806051,
-    "description": "Redundant keyboard build archives; current 0.8.1 Release and rollback 0.8.0 retained; keys, CENA, benchmarks and caches excluded"
+    "description": "Redundant keyboard build archives; current 0.8.1 Release and rollback 0.8.0 retained; keys, CENA, benchmarks and caches excluded",
+    "completed_run": 41906337610,
+    "result": {
+      "removed_count": 127,
+      "removed_bytes": 3433201982,
+      "remaining_count": 248,
+      "remaining_bytes": 4803126360,
+      "all_unplanned_artifacts_preserved": true,
+      "releases_keys_runs_history_caches_untouched": true
+    }
   },
   "delete_artifacts": [
     {
