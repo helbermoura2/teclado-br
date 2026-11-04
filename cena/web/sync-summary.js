@@ -1,6 +1,7 @@
 const format=value=>value?new Date(value).toLocaleString('pt-BR'):'Ainda não consultado';
 export function syncRows({trakt,nuvio,history,series}){return [
  {name:'Lista e assistidos · Trakt',connected:Boolean(trakt.connected),at:trakt.lastSync,pending:trakt.pending?.length||0,error:trakt.error||'',note:'Envia alterações da lista e consulta assistidos.'},
+ {name:'Posições pausadas · Trakt',connected:Boolean(trakt.connected),at:trakt.pausedLastSync,pending:0,error:trakt.playbackError||'',note:'Posições fornecidas pelo Trakt, sem depender da lista local.'},
  {name:'Reprodução · Nuvio',connected:Boolean(nuvio.active),at:nuvio.lastSync,pending:0,error:nuvio.error||'',note:nuvio.active?`Perfil: ${nuvio.profileName||'selecionado'}. Consulta progresso e assistidos.`:'Selecione uma conta e perfil para acompanhar.'},
  {name:'Histórico por ano',connected:Boolean(history.connected),at:history.lastImport,pending:history.importing?1:0,error:history.error||'',note:history.importing?'Importação em andamento; a cópia anterior foi preservada.':history.coverage==='partial'?'A cobertura recebida do Trakt é parcial.':'Histórico completo disponível no aparelho após a importação.'},
  {name:'Datas e episódios · Trakt',connected:Boolean(trakt.connected),at:series.lastCheck,pending:series.pending||0,error:series.error||'',note:'Consulta lançamentos e progresso confirmado. Datas não anunciadas ficam em aberto.'}
