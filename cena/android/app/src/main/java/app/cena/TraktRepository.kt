@@ -84,12 +84,12 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
     fun status(): JSONObject = synchronized(lock) {
         val s = load()
         JSONObject().put("configured", id(s).isNotBlank()).put("clientId", id(s)).put("connected", connected(s))
-            .put("username", s.optString("username")).put("error", s.optString("error"))
+            .put("account",s.optString("account")).put("username", s.optString("username")).put("error", s.optString("error"))
             .put("needsUpload",s.optBoolean("needsUpload")).put("blocked",s.optBoolean("blocked")).put("lastSync", s.optLong("lastSync")).put("userCode", s.optString("userCode"))
             .put("verificationUrl", s.optString("verificationUrl")).put("authExpires", s.optLong("authExpires"))
             .put("pending", s.optJSONArray("queue") ?: JSONArray()).put("synced", s.optJSONArray("synced") ?: JSONArray())
             .put("watchlist", s.optJSONArray("watchlist") ?: JSONArray()).put("watched", s.optJSONArray("watched") ?: JSONArray())
-            .put("progress", s.optJSONArray("progress") ?: JSONArray()).put("limits", s.optJSONObject("limits") ?: JSONObject())
+            .put("paused",s.optJSONArray("paused")?:JSONArray()).put("playbackError",s.optString("playbackError")).put("pausedLastSync",s.optLong("pausedLastSync")).put("progress", s.optJSONArray("progress") ?: JSONArray()).put("limits", s.optJSONObject("limits") ?: JSONObject())
     }
     fun configure(clientId: String) = synchronized(lock) {
         require(Regex("[A-Za-z0-9_-]{20,200}").matches(clientId)) { "Informe somente o Client ID público do cadastro CENA no Trakt." }
@@ -149,8 +149,8 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
     }
     fun seriesSnapshot():JSONObject=synchronized(lock){
         val state=load();val progress=records(state.optJSONArray("progress")).associateBy{it.optString("id")}
-        val tracked=(records(state.optJSONArray("inventory"))+records(state.optJSONArray("watchlist"))).filter{it.optString("type")=="series"&&valid(it)}.distinctBy{it.getString("id")}
-        JSONObject().put("connected",connected(state)).put("account",state.optString("account")).put("series",JSONArray(tracked.map{row->val old=progress[row.getString("id")];JSONObject().put("id",row.getString("id")).put("episodes",old?.optInt("episodes")?:0).put("watchedAt",old?.optString("watchedAt")?:"")}))
+        val tracked=(records(state.optJSONArray("progress"))+records(state.optJSONArray("watchlist"))+records(state.optJSONArray("inventory"))).filter{it.optString("type")=="series"&&valid(it)}.distinctBy{it.getString("id")}
+        JSONObject().put("connected",connected(state)).put("account",state.optString("account")).put("series",JSONArray(tracked.map{row->val old=progress[row.getString("id")];JSONObject().put("id",row.getString("id")).put("name",row.optString("name",row.optString("id"))).put("year",row.opt("year")?:"").put("episodes",old?.optInt("episodes")?:0).put("watchedAt",old?.optString("watchedAt")?:"")}))
     }
     fun seriesRead(path:String):JSONObject=synchronized(lock){
         require(Regex("/shows/tt\\d{5,12}/progress/watched\\?hidden=false&specials=false&count_specials=false").matches(path)||Regex("/shows/tt\\d{5,12}/seasons/[1-9]\\d*/episodes/[1-9]\\d*\\?extended=full").matches(path))
@@ -196,15 +196,15 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         } while(page <= pages)
         return result
     }
-    fun sync(force: Boolean = false) = synchronized(lock) {
+    fun sync(force: Boolean = false,refresh:Boolean=false) = synchronized(lock) {
         val s=load(); if(!connected(s)) return@synchronized
         if(now()<s.optLong("retryAt")) return@synchronized
-        if(!force && now()-s.optLong("lastSync") < 60000 && records(s.optJSONArray("queue")).isEmpty()) return@synchronized
+        if(!force&&!refresh && now()-s.optLong("lastSync") < 60000 && records(s.optJSONArray("queue")).isEmpty()) return@synchronized
         if(force) s.put("blocked",false).put("queueError","")
         try {
             val settings=JSONObject(api(s,"GET","/users/settings").body)
             val account=settings.getJSONObject("user").getJSONObject("ids").getString("slug")
-            if(s.optString("account").isNotBlank() && s.optString("account") != account) { s.put("queue",JSONArray()).put("synced",JSONArray()).put("watched",JSONArray()).put("watchlist",JSONArray()) }
+            if(s.optString("account").isNotBlank() && s.optString("account") != account) { s.put("queue",JSONArray()).put("synced",JSONArray()).put("watched",JSONArray()).put("watchlist",JSONArray()).put("progress",JSONArray()).put("paused",JSONArray()).put("pausedLastSync",0).put("lastSync",0).put("playbackError","") }
             s.put("account",account).put("username",settings.getJSONObject("user").optString("username",account)).put("limits",settings.optJSONObject("limits") ?: JSONObject()); save(s)
             if(!s.optBoolean("blocked")) for(action in listOf("add","remove")) {
                 val batch=records(s.optJSONArray("queue")).filter { it.optString("action")==action }
@@ -236,11 +236,26 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
             val progress=mutableListOf<JSONObject>()
             for(row in all(s,"/sync/watched/shows")) {
                 val imdbId=row.optJSONObject("show")?.optJSONObject("ids")?.optString("imdb") ?: continue
-                if(imdbId !in tracked) continue
+                if(!imdb.matches(imdbId)) continue
                 val completed=records(row.optJSONArray("seasons")).filter { it.optInt("number") > 0 }.sumOf { season -> records(season.optJSONArray("episodes")).count { it.optInt("plays") > 0 } }
-                progress.add(JSONObject().put("id",imdbId).put("type","series").put("episodes",completed).put("watchedAt",row.optString("last_watched_at")))
+                progress.add(JSONObject().put("id",imdbId).put("type","series").put("name",row.optJSONObject("show")?.optString("title",imdbId)?:imdbId).put("year",row.optJSONObject("show")?.opt("year")?:"").put("episodes",completed).put("watchedAt",row.optString("last_watched_at")))
             }
             s.put("watchlist",JSONArray(remote)).put("watched",JSONArray(watched)).put("progress",JSONArray(progress)).put("lastSync",now()).put("error",if(s.optBoolean("blocked")) s.optString("queueError") else "").put("failures",0).put("retryAt",0); save(s)
+            // Playback is independent from next-episode progress. A failure here must not erase completed watches.
+            try {
+                val paused=JSONArray()
+                for(row in all(s,"/sync/playback?extended=full")){
+                    val kind=row.optString("type");if(kind !in setOf("movie","episode"))continue
+                    val title=row.optJSONObject(if(kind=="movie")"movie"else"show")?:continue
+                    val id=title.optJSONObject("ids")?.optString("imdb")?:continue
+                    val percent=row.optDouble("progress");if(!imdb.matches(id)||!percent.isFinite()||percent<=0||percent>=100)continue
+                    val episode=row.optJSONObject("episode");if(kind=="episode"&&(episode?.optInt("season")?:0)<1)continue
+                    if(kind=="episode"&&(episode?.optInt("number")?:0)<1)continue
+                    paused.put(JSONObject().put("id",id).put("type",if(kind=="movie")"movie"else"series").put("name",title.optString("title",id)).put("year",title.opt("year")?:"").put("percent",percent).put("pausedAt",row.optString("paused_at")).put("season",episode?.optInt("season")?:0).put("episode",episode?.optInt("number")?:0))
+                }
+                s.put("paused",paused).put("playbackError","").put("pausedLastSync",now());save(s)
+            }catch(_:Exception){s.put("playbackError","Não consegui atualizar as posições pausadas do Trakt. A cópia anterior foi mantida.");save(s)}
+
         } catch(e: Exception) {
             val failures=s.optInt("failures")+1
             if(s.optLong("retryAt") <= now()) s.put("retryAt",now()+minOf(300000L,30000L*(1L shl minOf(failures-1,3))))
