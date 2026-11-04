@@ -1,0 +1,22 @@
+name: Limpar arquivos antigos de testes
+on:
+  push:
+    branches: [main]
+    paths: ['.github/maintenance/storage-plan.json', '.github/maintenance/storage.py', '.github/workflows/storage-cleanup.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: teclado-br-storage-maintenance
+  cancel-in-progress: false
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventariar ou aplicar plano revisado
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/maintenance/storage.py

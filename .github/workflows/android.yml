@@ -2,7 +2,27 @@ name: Gerar APK de teste
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '*.gradle'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/android.yml'
   pull_request:
+    paths:
+      - 'app/**'
+      - 'scripts/**'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - '*.gradle'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 permissions:
   contents: read
