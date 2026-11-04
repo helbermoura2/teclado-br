@@ -1,7 +1,779 @@
 {
   "version": 1,
-  "mode": "inventory",
+  "mode": "apply",
   "repository": "helbermoura2/teclado-br",
-  "preserve_artifact_ids": [13143308299, 13144012909, 13144117861, 13144544046],
-  "delete_artifacts": []
+  "preserve_artifact_ids": [
+    13143308299,
+    13144012909,
+    13144117861,
+    13144544046
+  ],
+  "audit": {
+    "inventory_run": 41905806051,
+    "description": "Redundant keyboard build archives; current 0.8.1 Release and rollback 0.8.0 retained; keys, CENA, benchmarks and caches excluded"
+  },
+  "delete_artifacts": [
+    {
+      "id": 13145790004,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47834549,
+      "run_id": 41449779518
+    },
+    {
+      "id": 13144556372,
+      "name": "teclado-br-heli-testes",
+      "bytes": 156561,
+      "run_id": 41448079289
+    },
+    {
+      "id": 13144031148,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 32024,
+      "run_id": 41448079289
+    },
+    {
+      "id": 13143681409,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23058924,
+      "run_id": 41448079289
+    },
+    {
+      "id": 13143613133,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47834549,
+      "run_id": 41449779518
+    },
+    {
+      "id": 13143581560,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24777969,
+      "run_id": 41448079289
+    },
+    {
+      "id": 13143356724,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47837211,
+      "run_id": 41448079289
+    },
+    {
+      "id": 13142698433,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23056017,
+      "run_id": 41446325777
+    },
+    {
+      "id": 13142658625,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47834263,
+      "run_id": 41446325777
+    },
+    {
+      "id": 13142563719,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24777928,
+      "run_id": 41446325777
+    },
+    {
+      "id": 13142537288,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23062375,
+      "run_id": 41444488873
+    },
+    {
+      "id": 13142463781,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31851,
+      "run_id": 41446325777
+    },
+    {
+      "id": 13142372559,
+      "name": "teclado-br-heli-testes",
+      "bytes": 1934960,
+      "run_id": 41443301508
+    },
+    {
+      "id": 13142336622,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31990,
+      "run_id": 41444488873
+    },
+    {
+      "id": 13142329080,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47840014,
+      "run_id": 41444488873
+    },
+    {
+      "id": 13142291914,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24777321,
+      "run_id": 41444488873
+    },
+    {
+      "id": 13142084972,
+      "name": "teclado-br-heli-testes",
+      "bytes": 1967718,
+      "run_id": 41444488873
+    },
+    {
+      "id": 13142047117,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47840014,
+      "run_id": 41444488873
+    },
+    {
+      "id": 13142027523,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47838019,
+      "run_id": 41443301508
+    },
+    {
+      "id": 13141619763,
+      "name": "teclado-br-heli-testes",
+      "bytes": 157867,
+      "run_id": 41446325777
+    },
+    {
+      "id": 13141495930,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 32421,
+      "run_id": 41443301508
+    },
+    {
+      "id": 13141421125,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23061912,
+      "run_id": 41443301508
+    },
+    {
+      "id": 13141366239,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24775789,
+      "run_id": 41443301508
+    },
+    {
+      "id": 13141361193,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47838019,
+      "run_id": 41443301508
+    },
+    {
+      "id": 13130580813,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47740807,
+      "run_id": 41419040336
+    },
+    {
+      "id": 13130421414,
+      "name": "teclado-br-heli-testes",
+      "bytes": 1759281,
+      "run_id": 41419040336
+    },
+    {
+      "id": 13129985267,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24736861,
+      "run_id": 41419040336
+    },
+    {
+      "id": 13129835630,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31976,
+      "run_id": 41419040336
+    },
+    {
+      "id": 13129451610,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47740807,
+      "run_id": 41419040336
+    },
+    {
+      "id": 13128284930,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23003628,
+      "run_id": 41419040336
+    },
+    {
+      "id": 13126285167,
+      "name": "teclado-br-heli-testes",
+      "bytes": 1668555,
+      "run_id": 41409012543
+    },
+    {
+      "id": 13125530299,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31921,
+      "run_id": 41409012543
+    },
+    {
+      "id": 13125196168,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24736430,
+      "run_id": 41409012543
+    },
+    {
+      "id": 13125121924,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47744335,
+      "run_id": 41409012543
+    },
+    {
+      "id": 13124949403,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47744335,
+      "run_id": 41409012543
+    },
+    {
+      "id": 13124583844,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23007587,
+      "run_id": 41409012543
+    },
+    {
+      "id": 13122550517,
+      "name": "teclado-br-heli-testes",
+      "bytes": 408748,
+      "run_id": 41401275183
+    },
+    {
+      "id": 13122081209,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24736411,
+      "run_id": 41401275183
+    },
+    {
+      "id": 13121418236,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23021825,
+      "run_id": 41401275183
+    },
+    {
+      "id": 13121224483,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47758554,
+      "run_id": 41401275183
+    },
+    {
+      "id": 13121209529,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31901,
+      "run_id": 41401275183
+    },
+    {
+      "id": 13121062937,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24736646,
+      "run_id": 41399716739
+    },
+    {
+      "id": 13120910065,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31962,
+      "run_id": 41397802141
+    },
+    {
+      "id": 13120822904,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47741176,
+      "run_id": 41399716739
+    },
+    {
+      "id": 13120784087,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23004212,
+      "run_id": 41399716739
+    },
+    {
+      "id": 13120766507,
+      "name": "teclado-br-heli-testes",
+      "bytes": 353391,
+      "run_id": 41397802141
+    },
+    {
+      "id": 13120685953,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24736613,
+      "run_id": 41397802141
+    },
+    {
+      "id": 13120224906,
+      "name": "teclado-br-heli-testes",
+      "bytes": 623625,
+      "run_id": 41399716739
+    },
+    {
+      "id": 13120050543,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23020655,
+      "run_id": 41396802199
+    },
+    {
+      "id": 13120039796,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31878,
+      "run_id": 41399716739
+    },
+    {
+      "id": 13120000736,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31965,
+      "run_id": 41396802199
+    },
+    {
+      "id": 13119918857,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47741087,
+      "run_id": 41397802141
+    },
+    {
+      "id": 13119822358,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24735785,
+      "run_id": 41396444096
+    },
+    {
+      "id": 13119784845,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23004156,
+      "run_id": 41397802141
+    },
+    {
+      "id": 13119629042,
+      "name": "teclado-br-heli-testes",
+      "bytes": 185459,
+      "run_id": 41396444096
+    },
+    {
+      "id": 13119569529,
+      "name": "teclado-br-heli-testes",
+      "bytes": 201753,
+      "run_id": 41396802199
+    },
+    {
+      "id": 13119503941,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47756115,
+      "run_id": 41396444096
+    },
+    {
+      "id": 13119419121,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23020012,
+      "run_id": 41396444096
+    },
+    {
+      "id": 13119399217,
+      "name": "teclado-br-heli-unitarios",
+      "bytes": 31974,
+      "run_id": 41396444096
+    },
+    {
+      "id": 13119168948,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24735810,
+      "run_id": 41396802199
+    },
+    {
+      "id": 13118979446,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47756783,
+      "run_id": 41396802199
+    },
+    {
+      "id": 13101365216,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47724713,
+      "run_id": 41348340212
+    },
+    {
+      "id": 13101125676,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47727690,
+      "run_id": 41348374690
+    },
+    {
+      "id": 13101065450,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47726125,
+      "run_id": 41348294942
+    },
+    {
+      "id": 13100735107,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24730544,
+      "run_id": 41348374690
+    },
+    {
+      "id": 13100550791,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22996828,
+      "run_id": 41348374690
+    },
+    {
+      "id": 13100382373,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22995220,
+      "run_id": 41348294942
+    },
+    {
+      "id": 13100357572,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24730587,
+      "run_id": 41348294942
+    },
+    {
+      "id": 13100328067,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47724713,
+      "run_id": 41348340212
+    },
+    {
+      "id": 13100305279,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24730255,
+      "run_id": 41346773742
+    },
+    {
+      "id": 13100293327,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22993853,
+      "run_id": 41348340212
+    },
+    {
+      "id": 13100248135,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47736821,
+      "run_id": 41346773742
+    },
+    {
+      "id": 13100208748,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24730542,
+      "run_id": 41348340212
+    },
+    {
+      "id": 13100038990,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47726125,
+      "run_id": 41348294942
+    },
+    {
+      "id": 13099921752,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23006248,
+      "run_id": 41346773742
+    },
+    {
+      "id": 13099749070,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47727690,
+      "run_id": 41348374690
+    },
+    {
+      "id": 13099304807,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47736821,
+      "run_id": 41346773742
+    },
+    {
+      "id": 13099043148,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 23004908,
+      "run_id": 41345372836
+    },
+    {
+      "id": 13098858634,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47735207,
+      "run_id": 41345372836
+    },
+    {
+      "id": 13098798975,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24729981,
+      "run_id": 41345372836
+    },
+    {
+      "id": 13098506162,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24729647,
+      "run_id": 41342907596
+    },
+    {
+      "id": 13098291367,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22994617,
+      "run_id": 41341992654
+    },
+    {
+      "id": 13097907477,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22996137,
+      "run_id": 41342907596
+    },
+    {
+      "id": 13097817534,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24729637,
+      "run_id": 41341992654
+    },
+    {
+      "id": 13097772781,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47726102,
+      "run_id": 41342907596
+    },
+    {
+      "id": 13097672755,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47724572,
+      "run_id": 41341992654
+    },
+    {
+      "id": 13092050024,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 47704582,
+      "run_id": 41324324587
+    },
+    {
+      "id": 13090830239,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24721914,
+      "run_id": 41322694407
+    },
+    {
+      "id": 13090758441,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22984613,
+      "run_id": 41324324587
+    },
+    {
+      "id": 13090733373,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24719651,
+      "run_id": 41324324587
+    },
+    {
+      "id": 13090231604,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47703661,
+      "run_id": 41322694407
+    },
+    {
+      "id": 13090166873,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22981429,
+      "run_id": 41322694407
+    },
+    {
+      "id": 13090144367,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47704582,
+      "run_id": 41324324587
+    },
+    {
+      "id": 13089826383,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24721345,
+      "run_id": 41321296632
+    },
+    {
+      "id": 13089821415,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22984090,
+      "run_id": 41321296632
+    },
+    {
+      "id": 13089781880,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47705753,
+      "run_id": 41321296632
+    },
+    {
+      "id": 13088438765,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47700906,
+      "run_id": 41318228468
+    },
+    {
+      "id": 13088421211,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47711011,
+      "run_id": 41316699034
+    },
+    {
+      "id": 13088366503,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24720726,
+      "run_id": 41316699034
+    },
+    {
+      "id": 13088349421,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24720065,
+      "run_id": 41318228468
+    },
+    {
+      "id": 13088315312,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 46008248,
+      "run_id": 41315954169
+    },
+    {
+      "id": 13088240715,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24718898,
+      "run_id": 41315954169
+    },
+    {
+      "id": 13088149931,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22980523,
+      "run_id": 41318228468
+    },
+    {
+      "id": 13087854504,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22989967,
+      "run_id": 41316699034
+    },
+    {
+      "id": 13087793068,
+      "name": "teclado-br-heli-apk",
+      "bytes": 24718929,
+      "run_id": 41316470344
+    },
+    {
+      "id": 13087488757,
+      "name": "teclado-br-heli-fontes",
+      "bytes": 22989125,
+      "run_id": 41316470344
+    },
+    {
+      "id": 13087448728,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 47708372,
+      "run_id": 41316470344
+    },
+    {
+      "id": 13087118615,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 70727464,
+      "run_id": 41315954169
+    },
+    {
+      "id": 13066621630,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24469655,
+      "run_id": 41263274095
+    },
+    {
+      "id": 13066516081,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24469655,
+      "run_id": 41263274095
+    },
+    {
+      "id": 13065787641,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24467821,
+      "run_id": 41261586814
+    },
+    {
+      "id": 13065391572,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24468157,
+      "run_id": 41260781985
+    },
+    {
+      "id": 13065063903,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24467821,
+      "run_id": 41261586814
+    },
+    {
+      "id": 13064509148,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24467850,
+      "run_id": 41259835113
+    },
+    {
+      "id": 13062363894,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24462202,
+      "run_id": 41254195027
+    },
+    {
+      "id": 13061879726,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24462202,
+      "run_id": 41254195027
+    },
+    {
+      "id": 13057366985,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24460401,
+      "run_id": 41240289013
+    },
+    {
+      "id": 13056464919,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24460401,
+      "run_id": 41240289013
+    },
+    {
+      "id": 13055061876,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24454816,
+      "run_id": 41232773850
+    },
+    {
+      "id": 13054630895,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24454237,
+      "run_id": 41231773853
+    },
+    {
+      "id": 13054562175,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24454816,
+      "run_id": 41232773850
+    },
+    {
+      "id": 13054161291,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24454237,
+      "run_id": 41231773853
+    },
+    {
+      "id": 13052681180,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24442623,
+      "run_id": 41227695896
+    },
+    {
+      "id": 13052586781,
+      "name": "teclado-br-heli-apk-e-fontes",
+      "bytes": 24442623,
+      "run_id": 41227695896
+    },
+    {
+      "id": 13051989389,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24441741,
+      "run_id": 41226687394
+    },
+    {
+      "id": 13051509476,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24441661,
+      "run_id": 41226811725
+    },
+    {
+      "id": 13045122682,
+      "name": "teclado-br-heli-compilado",
+      "bytes": 24442342,
+      "run_id": 41207360211
+    }
+  ]
 }
