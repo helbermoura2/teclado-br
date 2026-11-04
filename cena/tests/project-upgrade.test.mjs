@@ -33,7 +33,7 @@ test('yearly retrospective uses watch-year statistics and labels time as estimat
  const state={years:[{year:2024,movies:3,series:1,episodes:5,plays:9,estimatedMinutes:600}]};assert.equal(recapData(state,'2024').minutes,600);assert.equal(recapData(state,'2024').movies,3);assert.throws(()=>recapData(state,'all'));assert.throws(()=>recapData(state,'2013'));
 });
 test('sync diagnostics distinguish pending work, errors and never-consulted sources',()=>{
- const rows=syncRows({trakt:{connected:true,pending:[{}],lastSync:123},nuvio:{active:true,lastSync:124,error:'offline'},history:{connected:true,coverage:'partial'},series:{}});assert.equal(rows[0].pending,1);assert.equal(rows[1].error,'offline');assert.match(rows[2].note,/parcial/);assert.equal(rows[3].at,undefined);
+ const rows=syncRows({trakt:{connected:true,pending:[{}],lastSync:123},nuvio:{active:true,lastSync:124,error:'offline'},history:{connected:true,coverage:'partial'},series:{}});assert.equal(rows[0].pending,1);assert.equal(rows.find(row=>row.name==='Reprodução · Nuvio').error,'offline');assert.match(rows.find(row=>row.name==='Histórico por ano').note,/parcial/);assert.equal(rows.find(row=>row.name==='Datas e episódios · Trakt').at,undefined);
 });
 
 test('restored history can produce an offline retrospective without mixing accounts or release years',async()=>{
