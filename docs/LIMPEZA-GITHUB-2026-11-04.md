@@ -35,5 +35,5 @@ limpeza ampla automática: uma exclusão futura exige uma nova lista de IDs
 revisada, com verificações de nome/tamanho/run e bloqueio de assinatura/retorno.
 
 O contador de uso/cota do GitHub pode levar 6–12 horas para refletir exclusões.
-Ainda restam cerca de 4,8 GB de artefatos, principalmente CENA; essa limpeza
-adicional depende da definição de escopo solicitada ao usuário.
+Ainda restam cerca de 4,8 GB de artefatos, principalmente CENA. O usuário escolheu
+explicitamente limpar somente o teclado; todos os arquivos do CENA foram preservados.
