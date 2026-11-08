@@ -4,11 +4,7 @@ name: Teclado BR One UI preview
 # spend the remaining monthly GitHub-hosted Actions minutes.
 on:
   workflow_dispatch:
-  # ONE-TIME scoped test for PR #3: second attempt after typography-anchor fix; only edits to THIS workflow file trigger a run.
-  # Subsequent code changes cannot automatically consume minutes.
-  push:
-    branches: [feat/oneui-keycaps-toolbar-refinement-20261108]
-    paths: ['.github/workflows/teclado-oneui-preview.yml']
+  # Builds stay manual after the single PR #3 diagnostic run.
 permissions:
   contents: read
   actions: read
