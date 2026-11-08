@@ -45,6 +45,7 @@ def apply(context):
                 stripRow.removeView(toolbarExpandKey)
                 stripRow.addView(toolbarExpandKey)
             }
+            tecladoBrRebuildPinnedKeys()
         }
     }
 
@@ -52,43 +53,89 @@ def apply(context):
         'Rearrange compact toolbar right toggle and relocate dictionary action')
     content = replace_once(content,
         '    private lateinit var listener: Listener',
-        '''    // In compact mode, suggestions take the entire available strip
-    // while typing. When selection starts, editing tools take priority.
-    // The native ⋯ expands all original actions without disabling them.
+        '''    // Compact shortcuts and suggestions are exclusive, just like on Samsung.
+    // No text is read by this view state machine.
     private var tecladoBrHasSelection = false
     private var tecladoBrHasPredictions = false
+    private var tecladoBrEditingMode = false
 
-    private fun tecladoBrApplyStripVisibility() {
-        if (!context.prefs().getBoolean("teclado_br_compact_toolbar_active", false)) return
-        val locked = isDeviceLocked(context)
-        val expanded = toolbarContainer.isVisible
-        // '+' remains a fully functional dictionary command in overflow.
-        // suggestions.py controls it in classic mode; in compact mode it
-        // must be hidden unless the overflow toolbox is visible.
-        findViewById<TextView>(R.id.teclado_add_word)?.isVisible =
-            !locked && expanded && !Settings.getValues().mIncognitoModeEnabled
-        if (locked || expanded) return
-        pinnedKeys.isVisible = tecladoBrHasSelection || !tecladoBrHasPredictions
-        suggestionsStrip.isVisible = !tecladoBrHasSelection
+    private fun tecladoBrCompact(): Boolean =
+        context.prefs().getBoolean("teclado_br_compact_toolbar_active", false)
+
+    private fun tecladoBrStyleFavorite(button: ImageButton) {
+        val background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.rgb(53, 54, 60))
+        }
+        button.background = android.graphics.drawable.InsetDrawable(
+            background, 7.dpToPx(resources), 3.dpToPx(resources),
+            7.dpToPx(resources), 3.dpToPx(resources))
+        val pad = 11.dpToPx(resources)
+        button.setPadding(pad, pad, pad, pad)
     }
 
-    fun updateTecladoBrSelection(hasSelection: Boolean) {
-        if (!context.prefs().getBoolean("teclado_br_compact_toolbar_active", false)
-                || tecladoBrHasSelection == hasSelection) return
-        tecladoBrHasSelection = hasSelection
-        if (Settings.getValues().mSuggestionStripHiddenPerUserSettings) return
+    private fun tecladoBrRebuildPinnedKeys() {
+        if (!tecladoBrCompact() || Settings.getValues().mSuggestionStripHiddenPerUserSettings)
+            return
         pinnedKeys.removeAllViews()
-        val keys = if (hasSelection) listOf(ToolbarKey.SELECT_ALL,
-            ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE)
-            else getPinnedToolbarKeys(context.prefs())
+        val keys = when {
+            tecladoBrHasSelection -> listOf(ToolbarKey.SELECT_ALL,
+                ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE)
+            tecladoBrEditingMode -> listOf(ToolbarKey.SELECT_ALL,
+                ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE,
+                ToolbarKey.UNDO, ToolbarKey.REDO)
+            else -> getPinnedToolbarKeys(context.prefs())
+        }
         val colors = Settings.getValues().mColors
+        val favorites = !tecladoBrHasSelection && !tecladoBrEditingMode
+        (pinnedKeys.layoutParams as? LinearLayout.LayoutParams)?.let {
+            it.width = 0
+            it.weight = 1f
+            pinnedKeys.layoutParams = it
+        }
+        if (tecladoBrEditingMode && !tecladoBrHasSelection) {
+            val back = ImageButton(context, null, R.attr.suggestionWordStyle)
+            back.contentDescription = "Voltar aos atalhos principais"
+            back.setImageDrawable(KeyboardIconsSet.instance.getNewDrawable(
+                KeyboardIconsSet.NAME_TOOLBAR_KEY, context))
+            back.layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            setupKey(back, colors)
+            back.setOnClickListener {
+                tecladoBrEditingMode = false
+                tecladoBrRebuildPinnedKeys()
+            }
+            back.setOnLongClickListener { true }
+            pinnedKeys.addView(back)
+        }
         for (key in keys) {
             val button = createToolbarKey(context, key)
-            button.layoutParams = toolbarKeyLayoutParams
+            button.layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
             setupKey(button, colors)
+            if (favorites) tecladoBrStyleFavorite(button)
             pinnedKeys.addView(button)
         }
         tecladoBrApplyStripVisibility()
+    }
+
+    private fun tecladoBrApplyStripVisibility() {
+        if (!tecladoBrCompact()) return
+        val locked = isDeviceLocked(context)
+        val expanded = toolbarContainer.isVisible
+        findViewById<TextView>(R.id.teclado_add_word)?.isVisible =
+            !locked && expanded && !Settings.getValues().mIncognitoModeEnabled
+        if (locked || expanded) return
+        val showTools = tecladoBrHasSelection || tecladoBrEditingMode || !tecladoBrHasPredictions
+        pinnedKeys.isVisible = showTools
+        suggestionsStrip.isVisible = !showTools
+    }
+
+    fun updateTecladoBrSelection(hasSelection: Boolean) {
+        if (!tecladoBrCompact() || tecladoBrHasSelection == hasSelection) return
+        tecladoBrHasSelection = hasSelection
+        if (hasSelection) tecladoBrEditingMode = false
+        tecladoBrRebuildPinnedKeys()
     }
 
     private lateinit var listener: Listener''',
@@ -100,6 +147,21 @@ def apply(context):
                 context.getDrawable(R.drawable.teclado_br_more) else toolbarArrowIcon)
             if (compact) toolbarExpandKey.contentDescription = "Mais ferramentas de edição"''',
         'SuggestionStripView expand icon')
+    # Keep the usual tap on Clipboard untouched: it still opens history.
+    # Long press only in the compact favorite row enters a dedicated
+    # edit-only strip with a Back button. Classic mode keeps paste-on-hold.
+    content = replace_once(content,
+        '''        val tag = view.tag as? ToolbarKey ?: return
+        if (!Settings.getValues().mQuickPinToolbarKeys || view.parent === pinnedKeys) {''',
+        '''        val tag = view.tag as? ToolbarKey ?: return
+        if (tag == ToolbarKey.CLIPBOARD && view.parent === pinnedKeys
+                && tecladoBrCompact()) {
+            tecladoBrEditingMode = true
+            tecladoBrRebuildPinnedKeys()
+            return
+        }
+        if (!Settings.getValues().mQuickPinToolbarKeys || view.parent === pinnedKeys) {''',
+        'Clipboard long press opens selection/copy/cut/paste/undo/redo')
     # Predictions must be given all the horizontal space, before the
     # native layout helper truncates word candidates. The state can change
     # without toggling the native expanded editing menu.
