@@ -30,6 +30,11 @@ def apply(context):
             val stripRow = toolbarExpandKey.parent as? LinearLayout
             val dictionary = findViewById<TextView>(R.id.teclado_add_word)
             if (stripRow != null && dictionary != null) {
+                // Upstream suggestions_strip.xml uses animateLayoutChanges=true.
+                // With rapid typing it can crossfade pinned favorites AND words
+                // in the same row. Compact mode must switch instantly so icons
+                // never draw over word candidates. Classic theme is untouched.
+                stripRow.layoutTransition = null
                 (dictionary.parent as? ViewGroup)?.removeView(dictionary)
                 toolbar.addView(dictionary, 0, LinearLayout.LayoutParams(
                     42.dpToPx(resources), LinearLayout.LayoutParams.MATCH_PARENT))
@@ -125,10 +130,24 @@ def apply(context):
         val expanded = toolbarContainer.isVisible
         findViewById<TextView>(R.id.teclado_add_word)?.isVisible =
             !locked && expanded && !Settings.getValues().mIncognitoModeEnabled
-        if (locked || expanded) return
+        if (locked || expanded) {
+            // Even when the overflow is displayed, make the background
+            // layers mutually exclusive. In particular, do not allow the
+            // upstream visibility callback to reveal suggestions underneath.
+            pinnedKeys.visibility = View.GONE
+            suggestionsStrip.visibility = View.GONE
+            return
+        }
         val showTools = tecladoBrHasSelection || tecladoBrEditingMode || !tecladoBrHasPredictions
-        pinnedKeys.isVisible = showTools
-        suggestionsStrip.isVisible = !showTools
+        // Hide the INACTIVE row first, then reveal the active row. This
+        // prevents a transient overlap on the UI thread.
+        if (showTools) {
+            suggestionsStrip.visibility = View.GONE
+            pinnedKeys.visibility = View.VISIBLE
+        } else {
+            pinnedKeys.visibility = View.GONE
+            suggestionsStrip.visibility = View.VISIBLE
+        }
     }
 
     fun updateTecladoBrSelection(hasSelection: Boolean) {
@@ -207,6 +226,18 @@ def apply(context):
 
     fun setExternalSuggestionView''',
         'SuggestionStripView retain prediction priority')
+    # The native onVisibilityChanged() resets the suggestions View to
+    # VISIBLE when the whole keyboard returns onscreen, even if compact
+    # favorites should be shown. Keep the exclusive state invariant.
+    content = replace_once(content,
+        '''        if (view === this)
+            suggestionsStrip.visibility = visibility''',
+        '''        if (view === this) {
+            suggestionsStrip.visibility = visibility
+            if (tecladoBrCompact()) tecladoBrApplyStripVisibility()
+        }''',
+        'SuggestionStripView preserve exclusive favorites on keyboard visibility')
+
     # Keep native long-press and popup access, but remove the visual
     # three-dot underline from the center prediction in compact mode.
     # More suggestions are still accessible through the existing gesture
