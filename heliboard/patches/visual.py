@@ -110,8 +110,8 @@ def apply(context):
     protected void onDrawKeyTopVisuals'''
     )
     once(
-        'paint.setTextSize(key.selectHintTextSize(params) * mFontSizeMultiplier);',
-        'paint.setTextSize(key.selectHintTextSize(params) * mFontSizeMultiplier * (mTecladoBrOneUi ? 0.83f : 1.0f));'
+        'paint.setTextSize(key.selectHintTextSize(params) * helium314.keyboard.latin.Typography.symbolScale());',
+        'paint.setTextSize(key.selectHintTextSize(params) * helium314.keyboard.latin.Typography.symbolScale() * (mTecladoBrOneUi ? 0.83f : 1.0f));'
     )
     once(
         'paint.setTextSize(params.mHintLetterSize);',
