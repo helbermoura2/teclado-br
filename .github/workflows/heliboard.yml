@@ -154,19 +154,28 @@ jobs:
             adb shell wm density 220
             adb install -r $(find heli-package -name '*.apk' -print -quit)
             python3 heliboard/smoke.py
-      - name: Guardar diagnóstico de falha por 1 dia
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
+      # The GitHub Actions artifact quota is exhausted. Preserve links to
+      # failures and the local diagnostic filenames in the run summary.
+      - name: Resumo de falha sem armazenamento de artefatos
         if: failure()
-        with:
-          retention-days: 1
-          compression-level: 9
-          name: teclado-br-heli-falha-${{ github.run_id }}
-          path: |
-            heli-results/
-            heli-package/unit-tests/
-          if-no-files-found: ignore
+        shell: bash
+        run: |
+          {
+            echo '## Teclado BR — falha na validação'
+            echo 'Consulte os logs desta execução para identificar o teste ou etapa que falhou.'
+            echo ''
+            echo '### Diagnósticos locais'
+            echo '```'
+            for dir in heli-results heli-package/unit-tests; do
+              if [ -d "$dir" ]; then
+                find "$dir" -type f | sort | head -100
+              fi
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Never publish a release when testing an unmerged feature branch.
       - name: Publicar atualização privada verificada
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -177,11 +186,12 @@ jobs:
           zip -qr heli-artifacts/teclado-br-heli-0.9.1-testes.zip heli-results heli-package/unit-tests
           sha256sum heli-artifacts/teclado-br-heli-0.9.1* > heli-artifacts/sha256-0.9.1.txt
           cat > heli-artifacts/release-notes.txt <<'NOTES'
-          Teclado BR 0.9.1: teclas mais arredondadas e símbolos menores na interface\n          inspirada na One UI 8.5 (opcional/reversível), com barra compacta opcional.
+          Teclado BR 0.9.1: teclas mais arredondadas e símbolos menores na interface
+          inspirada na One UI 8.5 (opcional/reversível), com barra compacta opcional.
           painel de IA redesenhado, tradução em cinco idiomas, tom do Compositor,
           respostas sugeridas e prancheta textual com IA acionada manualmente.
           Não é um teclado Samsung nem usa serviços oficiais Galaxy AI.
-          Instale por cima da versão 0.8.1, sem desinstalar, para preservar dados,
+          Instale por cima da versão atual, sem desinstalar, para preservar dados,
           pins, modelos e preferências. Assinatura, testes unitários e Android
           verificados na publicação; conferir também o Nothing Phone (1) real.
           NOTES
