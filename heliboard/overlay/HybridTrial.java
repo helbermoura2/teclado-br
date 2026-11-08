@@ -328,6 +328,30 @@ public final class HybridTrial {
         check(!themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,true),"Compact toolbar must not auto-expand");
         test.launch();
         test.shot("24c-teclado-oneui");
+        // Regression from actual beta4 device screenshots: an empty editor
+        // exposed native "! ? , : ;" suggestions rather than five favorites.
+        // PunctuationSuggestions is not an actively composed word.
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            helium314.keyboard.latin.suggestions.SuggestionStripView strip=
+                (helium314.keyboard.latin.suggestions.SuggestionStripView)
+                test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+            android.view.View pinned=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.pinned_keys);
+            android.view.View words=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.suggestions_strip);
+            check(strip!=null && pinned!=null && words!=null,
+                "Missing toolbar views for idle punctuation regression");
+            strip.setSuggestions(
+                helium314.keyboard.latin.PunctuationSuggestions.newPunctuationSuggestions(
+                    new String[]{"!", "?", ",", ":", ";"}), false);
+            strip.setToolbarVisibility(false);
+            check(pinned.isShown() && !words.isShown(),
+                "Idle punctuation candidates are incorrectly hiding circular favorites");
+            check(((android.view.ViewGroup)pinned).getChildCount()==5,
+                "Idle favorites missing after punctuation suggestions");
+        });
+        test.shot("24c-favoritos-sem-texto");
         // Favorites must match the requested Samsung-style order, in circles.
         // Long pressing Clipboard opens editing only; a normal tap still
         // retains HeliBoard's native clipboard history action.
