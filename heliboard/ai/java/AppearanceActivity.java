@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.widget.*;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import helium314.keyboard.latin.TecladoBrDefaultsKt;
 import android.content.SharedPreferences;
 import helium314.keyboard.latin.Typography;
 import helium314.keyboard.latin.settings.Settings;
@@ -12,6 +14,8 @@ public final class AppearanceActivity extends Activity {
     private LinearLayout root;
     private SharedPreferences prefs;
     private SeekBar height,letters,symbols;
+    private Switch oneUi;
+    private LinearLayout themePreview;
     private int dp(int n) {
         return (int)(n*getResources().getDisplayMetrics().density+.5f);
     }
@@ -43,6 +47,25 @@ public final class AppearanceActivity extends Activity {
         root.addView(bar,new LinearLayout.LayoutParams(-1,dp(48)));
         return bar;
     }
+    private void refreshPreview(boolean enabled) {
+        themePreview.removeAllViews();
+        themePreview.setBackgroundColor(enabled?0xff14151a:0xff171719);
+        for(String letter:new String[]{"Q","W","E","R","T","Y"}) {
+            TextView key=new TextView(this);
+            key.setText(letter);
+            key.setGravity(android.view.Gravity.CENTER);
+            key.setTextSize(20);
+            key.setTextColor(0xfff6f6f8);
+            GradientDrawable shape=new GradientDrawable();
+            shape.setColor(enabled?0xff37383d:0xff313133);
+            shape.setCornerRadius(dp(enabled?10:7));
+            key.setBackground(shape);
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);
+            p.setMargins(dp(2),dp(7),dp(2),dp(7));
+            themePreview.addView(key,p);
+        }
+        themePreview.setContentDescription(enabled?"Prévia do estilo One UI escuro":"Prévia do tema clássico");
+    }
     private float value(SeekBar bar) {
         return ((Integer)bar.getTag()+bar.getProgress())/100f;
     }
@@ -59,6 +82,22 @@ public final class AppearanceActivity extends Activity {
         setContentView(scroll);
         label("Aparência do teclado",24);
         label("Ajustes separados. A altura abaixo vale para o telefone em pé. Reabra o teclado para conferir o resultado.",14);
+        label("Tema visual",20);
+        oneUi=new Switch(this);
+        oneUi.setText("Estilo One UI 8.5 · inspirado no Samsung Keyboard");
+        oneUi.setTextColor(Color.WHITE);
+        oneUi.setTextSize(16);
+        oneUi.setMinHeight(dp(52));
+        oneUi.setContentDescription("appearance_oneui_theme");
+        oneUi.setChecked(prefs.getBoolean("teclado_br_one_ui_active",false));
+        root.addView(oneUi);
+        label("Opcional e reversível. Não instala Galaxy AI nem usa recursos proprietários; seus modelos, histórico de prancheta, palavras, pins, fontes e tamanhos continuam preservados.",13);
+        themePreview=new LinearLayout(this);
+        themePreview.setOrientation(LinearLayout.HORIZONTAL);
+        root.addView(themePreview,new LinearLayout.LayoutParams(-1,dp(64)));
+        oneUi.setOnCheckedChangeListener((button,checked)->refreshPreview(checked));
+        refreshPreview(oneUi.isChecked());
+        label("Dimensões e tipografia",20);
         height=slider("Altura","appearance_height",85,140,Math.round(prefs.getFloat(Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX+"_false",1.1f)*100));
         letters=slider("Letras","appearance_letters",80,125,Math.round(prefs.getFloat(Settings.PREF_FONT_SCALE,1f)*100));
         symbols=slider("Símbolos dos cantos","appearance_symbols",70,130,Math.round(prefs.getFloat(Typography.SYMBOL_SCALE,1f)*100));
@@ -67,9 +106,13 @@ public final class AppearanceActivity extends Activity {
         save.setText("Aplicar ajustes");
         save.setContentDescription("appearance_save");
         save.setOnClickListener(v-> {
-            prefs.edit().putFloat(Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX+"_false",value(height)).putFloat(Settings.PREF_FONT_SCALE,value(letters)).putFloat(Typography.SYMBOL_SCALE,value(symbols)).commit();
+            if(!prefs.edit().putFloat(Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX+"_false",value(height)).putFloat(Settings.PREF_FONT_SCALE,value(letters)).putFloat(Typography.SYMBOL_SCALE,value(symbols)).commit()) {
+                Toast.makeText(this,"Não foi possível salvar. Tente novamente.",Toast.LENGTH_LONG).show();
+                return;
+            }
+            TecladoBrDefaultsKt.applyTecladoBrOneUi(this,oneUi.isChecked());
             Typography.load(this);
-            Toast.makeText(this,"Ajustes aplicados. Reabra o teclado.",Toast.LENGTH_LONG).show();
+            Toast.makeText(this,"Aparência aplicada. Reabra o teclado para ver o novo tema.",Toast.LENGTH_LONG).show();
             finish();
         });
         root.addView(save);
