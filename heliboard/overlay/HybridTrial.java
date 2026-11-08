@@ -22,6 +22,41 @@ public final class HybridTrial {
     private static void check(boolean pass,String message) {
         if(!pass)throw new AssertionError(message);
     }
+    /** The real editing row is opened by holding the clipboard FAVORITE. */
+    private static void enterCompactEdit(HeliTrialInstrumentation test)throws Exception {
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            helium314.keyboard.latin.suggestions.SuggestionStripView strip=
+                (helium314.keyboard.latin.suggestions.SuggestionStripView)
+                    test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+            check(strip!=null,"Missing compact strip before clipboard long press");
+            strip.setToolbarVisibility(false);
+            android.view.View back=test.findView(root,
+                v->"Voltar aos atalhos principais".equals(v.getContentDescription())&&v.isShown());
+            if(back!=null)back.performClick();
+            android.view.View clip=test.findView(root,
+                v->v.getTag()==helium314.keyboard.latin.utils.ToolbarKey.CLIPBOARD&&v.isShown());
+            check(clip!=null,"Clipboard favorite not available before typing");
+            strip.onLongClick(clip);
+        });
+    }
+    /** Invokes the existing + listener in the scrollable clipboard editor. */
+    private static void addWordFromToolbar(HeliTrialInstrumentation test,boolean compact)throws Exception {
+        if(!compact) {
+            test.aiClick("Adicionar palavra ao dicionário");
+            return;
+        }
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            android.view.View dictionary=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.teclado_add_word);
+            check(dictionary!=null && dictionary.isShown() && dictionary.hasOnClickListeners(),
+                "Add word action not accessible in clipboard editor");
+            dictionary.requestRectangleOnScreen(new android.graphics.Rect(
+                0,0,dictionary.getWidth(),dictionary.getHeight()),true);
+            check(dictionary.performClick(),"Add word action failed");
+        });
+    }
     private static final class Server implements AutoCloseable {
         final ServerSocket listener;
         final ExecutorService worker=Executors.newSingleThreadExecutor();
@@ -534,8 +569,9 @@ public final class HybridTrial {
             .toString().equalsIgnoreCase("teste"),"Contextual copy did not preserve selected text");
         if(!themePreviouslyActive) {
             test.clear();
+            enterCompactEdit(test);
             test.type("teste");
-            test.aiClick("Adicionar palavra ao dicionário");
+            addWordFromToolbar(test,true);
             test.aiClick("keyboard_appearance");
             test.aiEnsureChecked("appearance_oneui_theme",false);
             test.aiPress("appearance_save");
@@ -548,8 +584,10 @@ public final class HybridTrial {
             test.launch();
         }
         test.clear();
+        boolean compactForDictionary=themes.getBoolean("teclado_br_compact_toolbar_active",false);
+        if(compactForDictionary)enterCompactEdit(test);
         test.type("teste");
-        test.aiClick("Adicionar palavra ao dicionário");
+        addWordFromToolbar(test,compactForDictionary);
         android.app.Instrumentation.ActivityMonitor monitor=test.addMonitor("helium314.keyboard.latin.ai.DictionaryActivity",null,false);
         test.aiClick("dictionary_manage");
         android.app.Activity dictionary=monitor.waitForActivityWithTimeout(5000);
