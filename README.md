@@ -16,36 +16,16 @@ Não há alteração no motor de digitação, dados pessoais ou nas opções de 
 A distribuição desta versão aguarda testes completos no Android 15 e inspeção
 visual no Nothing Phone (1); este PR não publica nem substitui a 0.9.1.
 
-## Em desenvolvimento: 0.9.1 — teclas arredondadas e barra compacta
+## Versões já publicadas
 
-Após teste visual no Nothing Phone (1), a versão 0.9.0 ainda ficou muito
-parecida com o HeliBoard tradicional. Esta **versão 0.9.1 é somente código
-em PR, não é um APK publicado**: aplica desenhos de teclas realmente mais
-arredondados, fonte padrão menos estreita, símbolos discretos e oferece
-uma barra superior compacta opcional, com restauração exata dos atalhos.
+- **0.9.1** — Teclas arredondadas, fontes mais legíveis e tema One UI opcional.
+  Compilação, testes JVM e emulador Android 15 aprovados. A experiência
+  visual real ainda pode ser aperfeiçoada.
+  [Baixar APK 0.9.1](https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.1).
+- **0.9.0** — Tema escuro inspirado na One UI e melhorias no painel de IA.
+  [Baixar APK 0.9.0](https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.0).
 
-Os testes Android **não são automáticos**, para poupar os minutos restantes
-do GitHub Actions. Revisão, build e teste no Nothing Phone (1) real ainda
-são necessários antes de atualizar o APK.
-
-[Detalhes, limites e plano de validação](heliboard/ONEUI-REFINEMENT.md).
-
-
-## Prévia 0.9.0 — visual One UI 8.5 e IA ampliada
-
-Em desenvolvimento numa branch separada. A variante HeliBoard existente
-passa a oferecer um **tema escuro opcional inspirado no teclado do Galaxy S26
-Ultra**, reversível, com prévia de teclas. O painel de IA recebe tradução
-para cinco idiomas, tons do Compositor, respostas sugeridas sob demanda e
-ações explícitas sobre texto da prancheta (sem substituição direta do campo).
-
-São mantidos os dados, os pins, os modelos GGUF, a assinatura do APK e
-o motor HeliBoard. Não são utilizados serviços, fontes ou códigos Samsung,
-e a IA online continua opcional via Groq.
-
-[Detalhes técnicos, limites, testes e capturas planejadas](heliboard/ONEUI85.md).
-**A prévia 0.9.0 não é uma atualização publicada.** A versão 0.8.1
-permanece disponível até a conclusão dos testes e da publicação assinada.
+[Histórico técnico da versão 0.9.1](heliboard/ONEUI-REFINEMENT.md).
 
 ## Versão 0.8.1 — sugestões no Instagram
 
