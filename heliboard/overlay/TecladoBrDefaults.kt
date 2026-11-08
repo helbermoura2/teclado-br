@@ -144,7 +144,7 @@ fun configureTecladoBr(context: Context) {
     // One-time lossless migration for users who enabled the compact toolbar
     // in 0.9.1. They should not need to open Settings just to recover editing.
     if (prefs.getBoolean("teclado_br_compact_toolbar_active", false)
-            && !prefs.getBoolean("teclado_br_compact_toolbar_v2", false)) {
+            && !prefs.getBoolean("teclado_br_compact_toolbar_v3", false)) {
         applyTecladoBrCompactToolbar(context, true)
     }
 
@@ -222,8 +222,9 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
     val prefs = context.prefs()
     val flag = "teclado_br_compact_toolbar_active"
     val v2 = "teclado_br_compact_toolbar_v2"
+    val v3 = "teclado_br_compact_toolbar_v3"
     val alreadyActive = prefs.getBoolean(flag, false)
-    if (alreadyActive == enabled && (!enabled || prefs.getBoolean(v2, false))) return true
+    if (alreadyActive == enabled && (!enabled || prefs.getBoolean(v3, false))) return true
     val previousKey = "teclado_br_compact_toolbar_previous"
     val pinnedKey = "teclado_br_compact_toolbar_previous_pinned"
     val modeKey = "teclado_br_compact_toolbar_previous_mode"
@@ -243,7 +244,7 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
         // All remaining configured shortcuts keep their prior state/order.
         val overflow = (editActions.map { it + ":true" } +
             originalItems.filter { it.substringBefore(":") !in editActions }).joinToString("|")
-        val favorites = listOf("AI", "CLIPBOARD", "EMOJI", "SETTINGS", "LANGUAGE")
+        val favorites = listOf("AI", "CLIPBOARD", "EMOJI", "TRANSLATE", "SETTINGS")
         val pinnedItems = originalPinned.split("|").filter { it.isNotBlank() }
         val compactPinned = (favorites.map { it + ":true" } +
             pinnedItems.filter { it.substringBefore(":") !in favorites }
@@ -267,6 +268,7 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
             .putBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR, true)
             .putBoolean(flag, true)
             .putBoolean(v2, true)
+            .putBoolean(v3, true)
             .commit()
     }
 
@@ -276,6 +278,7 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
         .putBoolean(flag, false)
         .remove(previousKey)
         .remove(v2)
+        .remove(v3)
     // Upgrading straight from v0.9.1 does not have these extra snapshots.
     if (prefs.contains(pinnedKey)) editor.putString(Settings.PREF_PINNED_TOOLBAR_KEYS,
         prefs.getString(pinnedKey, Defaults.PREF_PINNED_TOOLBAR_KEYS)).remove(pinnedKey)
