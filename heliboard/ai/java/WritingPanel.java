@@ -422,7 +422,7 @@ public final class WritingPanel {
         field.setBackground(round(0x8a2b3e4d,24));
         content.addView(field,new LinearLayout.LayoutParams(-1,0,1));
         TextView tone=action("Tom: "+composerTone+" ▾","ai_compose_tone",()-> {
-            PopupMenu menu=new PopupMenu(c,content.getChildAt(content.getChildCount()-1));
+            PopupMenu menu=new PopupMenu(c,content.getChildAt(content.getChildCount()-2));
             for(String option:new String[]{"Padrão","Profissional","Casual","Educado","Direto","Amigável"}) {
                 menu.getMenu().add(option).setOnMenuItemClickListener(item->{
                     composerTone=option;
