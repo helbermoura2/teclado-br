@@ -200,3 +200,36 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
             .commit()
     }
 }
+
+
+/**
+ * A separately opt-in compact row of frequently used shortcuts.
+ * The complete previous toolbar preference is kept verbatim and restored
+ * when disabled; no pinned clipboard entries or clipboard history are touched.
+ * This changes toolbar visibility/order, never key action mappings.
+ */
+fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
+    val prefs = context.prefs()
+    val flag = "teclado_br_compact_toolbar_active"
+    if (prefs.getBoolean(flag, false) == enabled) return true
+    if (enabled) {
+        val previous = prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS) ?: return false
+        val keys = previous.split("|").filter { it.isNotBlank() }
+        val visible = listOf("AI", "CLIPBOARD", "EMOJI", "SETTINGS", "LANGUAGE")
+        // All entries remain present for a lossless rollback; only 5 become visible.
+        val others = keys.filter { it.substringBefore(":") !in visible }
+            .map { it.substringBefore(":") + ":false" }
+        val compact = (visible.map { it + ":true" } + others).joinToString("|")
+        return prefs.edit()
+            .putString("teclado_br_compact_toolbar_previous", previous)
+            .putString(Settings.PREF_TOOLBAR_KEYS, compact)
+            .putBoolean(flag, true)
+            .commit()
+    }
+    val previous = prefs.getString("teclado_br_compact_toolbar_previous", null) ?: return false
+    return prefs.edit()
+        .putString(Settings.PREF_TOOLBAR_KEYS, previous)
+        .putBoolean(flag, false)
+        .remove("teclado_br_compact_toolbar_previous")
+        .commit()
+}
