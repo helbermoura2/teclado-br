@@ -17,7 +17,7 @@ def apply(context):
     content = strip.read_text()
     content = replace_once(content,
         'import android.widget.ImageButton',
-        'import android.widget.HorizontalScrollView\\nimport android.widget.ImageButton',
+        'import android.widget.HorizontalScrollView\nimport android.widget.ImageButton',
         'Use native Android horizontal scroll for clipboard editing actions')
     # The special '+' key was added by suggestions.py for the PERSONAL
     # DICTIONARY. It is a real action; keep it, but place it in the overflow
