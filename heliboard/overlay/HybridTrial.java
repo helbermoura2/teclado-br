@@ -328,6 +328,55 @@ public final class HybridTrial {
         check(!themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,true),"Compact toolbar must not auto-expand");
         test.launch();
         test.shot("24c-teclado-oneui");
+        // Favorites must match the requested Samsung-style order, in circles.
+        // Long pressing Clipboard opens editing only; a normal tap still
+        // retains HeliBoard's native clipboard history action.
+        test.clear();
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            android.view.View pinned=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.pinned_keys);
+            check(pinned instanceof android.view.ViewGroup && pinned.isShown(),"Compact favorites missing");
+            android.view.ViewGroup row=(android.view.ViewGroup)pinned;
+            helium314.keyboard.latin.utils.ToolbarKey[] favorites={
+                helium314.keyboard.latin.utils.ToolbarKey.AI,
+                helium314.keyboard.latin.utils.ToolbarKey.CLIPBOARD,
+                helium314.keyboard.latin.utils.ToolbarKey.EMOJI,
+                helium314.keyboard.latin.utils.ToolbarKey.TRANSLATE,
+                helium314.keyboard.latin.utils.ToolbarKey.SETTINGS};
+            check(row.getChildCount()==favorites.length,"Incorrect count of compact favorites");
+            for(int i=0;i<favorites.length;i++) {
+                android.view.View button=row.getChildAt(i);
+                check(button.getTag()==favorites[i],"Favorite order changed at "+i);
+                check(button.getBackground() instanceof android.graphics.drawable.InsetDrawable,
+                    "Missing round background at "+i);
+            }
+            helium314.keyboard.latin.suggestions.SuggestionStripView strip=
+                (helium314.keyboard.latin.suggestions.SuggestionStripView)
+                test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+            check(strip!=null,"SuggestionStripView missing for clipboard editing");
+            check(strip.onLongClick(row.getChildAt(1)),"Clipboard long press not consumed");
+            for(helium314.keyboard.latin.utils.ToolbarKey key:new helium314.keyboard.latin.utils.ToolbarKey[]{
+                helium314.keyboard.latin.utils.ToolbarKey.SELECT_ALL,
+                helium314.keyboard.latin.utils.ToolbarKey.COPY,
+                helium314.keyboard.latin.utils.ToolbarKey.CUT,
+                helium314.keyboard.latin.utils.ToolbarKey.PASTE,
+                helium314.keyboard.latin.utils.ToolbarKey.UNDO,
+                helium314.keyboard.latin.utils.ToolbarKey.REDO}) {
+                android.view.View action=test.findView(row,v->v.getTag()==key && v.isShown());
+                check(action!=null,"Edit action missing on long press: "+key);
+            }
+            android.view.View back=test.findView(row,
+                v->"Voltar aos atalhos principais".equals(v.getContentDescription()));
+            check(back!=null && back.isShown(),"No back control in clipboard editing toolbar");
+            back.performClick();
+            check(row.getChildAt(0).getTag()==helium314.keyboard.latin.utils.ToolbarKey.AI,
+                "Favorites did not return after editing mode");
+        });
+        // Translation is a dedicated shortcut, not a decorative icon.
+        test.tagged(helium314.keyboard.latin.utils.ToolbarKey.TRANSLATE);
+        test.aiNode("ai_translate_inglês");
+        test.aiClick("ai_back");
         // Verify the Samsung-like placement and that '+' was MOVED, not
         // removed. The exact same dictionary TextView retains its listener.
         test.runOnMainSync(()-> {
