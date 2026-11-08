@@ -129,7 +129,8 @@ def apply(context):
                 ToolbarKey.WORD_LEFT, ToolbarKey.WORD_RIGHT,
                 ToolbarKey.FULL_LEFT, ToolbarKey.FULL_RIGHT,
                 ToolbarKey.PAGE_UP, ToolbarKey.PAGE_DOWN,
-                ToolbarKey.PAGE_START, ToolbarKey.PAGE_END)
+                ToolbarKey.PAGE_START, ToolbarKey.PAGE_END,
+                ToolbarKey.CLEAR_CLIPBOARD)
             for (key in editingKeys) {
                 val button = createToolbarKey(context, key)
                 button.layoutParams = LinearLayout.LayoutParams(
