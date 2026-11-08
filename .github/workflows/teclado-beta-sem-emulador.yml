@@ -1,5 +1,5 @@
 name: Teclado BR 0.9.2 beta - APK sem emulador
-# Updating this workflow once creates beta 6. Other changes do not run this
+# Updating this workflow once creates beta 7. Other changes do not run this
 # expensive workflow. The official 0.9.1 release remains untouched.
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
           python3 - <<'PY'
           import json, pathlib
           lock = json.loads(pathlib.Path("heliboard/upstream.json").read_text())
-          assert lock["trial_version"] == "0.9.2-beta.6-heli3.6", lock["trial_version"]
+          assert lock["trial_version"] == "0.9.2-beta.7-heli3.6", lock["trial_version"]
           assert lock["commit"] == "f8ec91a982835911cc224fa99434c3396d4cd562"
           print("Build beta aprovado para a versão 0.9.2, sem merge na main.")
           PY
@@ -79,7 +79,7 @@ jobs:
         run: |
           python3 heliboard/prepare.py heli-source
           mkdir -p beta-package
-          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.6-fontes.tar.gz -C heli-source .
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.7-fontes.tar.gz -C heli-source .
 
       - name: Reutilizar motor de IA offline compilado
         id: native-cache
@@ -148,7 +148,20 @@ jobs:
           assert "suggestionsStrip.visibility = View.GONE" in patch
           assert "pinnedKeys.visibility = View.GONE" in patch
           assert "Compact toolbar animates favorites and words over each other" in trial
-          print("Regra de prioridade e regressão de pontuação presentes.")
+          preferences = Path("heliboard/overlay/TecladoBrDefaults.kt").read_text()
+          assert 'teclado_br_compact_toolbar_v4' in preferences
+          assert '&& !prefs.getBoolean("teclado_br_compact_toolbar_v4", false))' in preferences
+          assert 'val hiddenFromOverflow = (favorites + editActions).toSet()' in preferences
+          assert '.filter { it.substringBefore(":") !in hiddenFromOverflow }' in preferences
+          assert 'listOf("AI", "CLIPBOARD", "EMOJI", "TRANSLATE", "SETTINGS")' in preferences
+          assert 'val scroller = HorizontalScrollView(context)' in patch
+          assert 'ToolbarKey.PAGE_START, ToolbarKey.PAGE_END' in patch
+          assert 'ToolbarKey.CLEAR_CLIPBOARD' in patch
+          assert 'dictionary.isVisible = false' in patch
+          assert 'Clipboard long press not consumed' in trial
+          assert 'Main favorite duplicated in clipboard' in trial
+          assert 'Dictionary add-word should not appear in ⋯' in trial
+          print("Prioridade, migração v4 e separação das ferramentas verificadas estaticamente.")
           print("Este check estático NÃO substitui o teste visual da instrumentação.")
           PY
 
@@ -167,8 +180,8 @@ jobs:
           set -euo pipefail
           apk=(heli-source/app/build/outputs/apk/debugNoMinify/*.apk)
           test -f "${apk[0]}"
-          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.6.apk
-          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.6.apk teclado-br-heli-0.9.2-beta.6-fontes.tar.gz > sha256-0.9.2-beta.6.txt)
+          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.7.apk
+          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.7.apk teclado-br-heli-0.9.2-beta.7-fontes.tar.gz > sha256-0.9.2-beta.7.txt)
           echo "## Teclado BR 0.9.2 beta" >> "$GITHUB_STEP_SUMMARY"
           echo "APK compilado, testes JVM passaram e certificado verificado." >> "$GITHUB_STEP_SUMMARY"
           echo "**O emulador não foi executado.** Ações de edição exigem teste real no Nothing Phone (1)." >> "$GITHUB_STEP_SUMMARY"
@@ -180,21 +193,24 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="heli-0.9.2-beta.6"
+          tag="heli-0.9.2-beta.7"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::error::A beta já existe. Não sobrescrever APK publicado; usar uma nova versão beta."
             exit 1
           fi
           cat > beta-package/NOTAS.txt <<'NOTAS'
-          Teclado BR 0.9.2 beta 6 — APENAS PARA TESTES.
-          Beta 6 corrige a sobreposição entre ícones circulares e
-          sugestões observada na gravação da beta 5. O teclado agora
-          oculta a linha inativa antes de revelar a linha atual e
-          desativa a animação de layout apenas no modo compacto.
-          Os cinco favoritos ficam visíveis com o campo vazio;
-          as palavras ganham a linha ao digitar. IA, Prancheta,
-          Emoji, Tradução, Ajustes, menu ⋯, edição por toque longo
-          e dicionário pessoal são preservados.
+          Teclado BR 0.9.2 beta 7 — APENAS PARA TESTES.
+          Organização dos atalhos de edição:
+          IA, Prancheta, Emoji, Tradução e Ajustes na barra principal,
+          sem repetição. Toque na prancheta abre o histórico; SEGURAR
+          abre uma faixa horizontal rolável com Selecionar tudo,
+          Selecionar palavra, Copiar, Recortar, Colar, Desfazer,
+          Refazer, setas, navegação por palavra/linha/página,
+          Limpar prancheta e + de dicionário.
+          O botão ⋯ contém apenas ações extras que não sejam edição.
+          Migração automática da beta 6 sem apagar preferências,
+          textos copiados nem itens fixados.
+          As sugestões permanecem separadas durante a digitação.
           A instrumentação visual ainda precisa de aparelho/emulador.
           APK compilado, testes unitários aprovados e assinatura conferida.
           Esta beta não passou pelo emulador Android. Conferir a disposição
@@ -203,10 +219,10 @@ jobs:
           Instale por cima da 0.9.1; não desinstale para não perder dados.
           NOTAS
           gh release create "$tag" --target "$GITHUB_SHA" \
-            --prerelease --title 'Teclado BR 0.9.2 beta 6 — teste sem emulador' \
+            --prerelease --title 'Teclado BR 0.9.2 beta 7 — teste sem emulador' \
             --notes-file beta-package/NOTAS.txt \
-            beta-package/teclado-br-heli-0.9.2-beta.6.apk \
-            beta-package/teclado-br-heli-0.9.2-beta.6-fontes.tar.gz \
-            beta-package/sha256-0.9.2-beta.6.txt
+            beta-package/teclado-br-heli-0.9.2-beta.7.apk \
+            beta-package/teclado-br-heli-0.9.2-beta.7-fontes.tar.gz \
+            beta-package/sha256-0.9.2-beta.7.txt
           echo "### Prévia publicada" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
