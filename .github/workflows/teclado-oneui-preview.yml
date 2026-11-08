@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
   actions: read
+# Keep only the newest expensive Android emulator build per pull request.
+concurrency:
+  group: teclado-oneui-preview-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: ubuntu-24.04
