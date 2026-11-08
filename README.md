@@ -1,6 +1,11 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.2 beta 4 — favoritos circulares e edição na prancheta
+## Em desenvolvimento: 0.9.2 beta 5 — favoritos visíveis sem texto
+
+A beta 4 expôs um defeito real no telefone: sem texto, a faixa exibiu
+`! ? , : ;` em vez dos favoritos. A beta 5 distingue **pontuação e
+previsões de próxima palavra** de **sugestões durante a digitação**;
+quando não existe composição ativa, exibe os cinco favoritos circulares.
 
 A versão 0.9.1 já foi publicada. A proposta **0.9.2**, ainda em teste, mantém
 uma linha compacta de cinco favoritos circulares, nesta ordem:
