@@ -31,10 +31,10 @@ replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.1-hel
 # the pinned SDK with checksum verification in CI.
 replace('app/build.gradle.kts',
     '            isIncludeAndroidResources = true',
-    '            isIncludeAndroidResources = true\\n'
-    '            all {\\n'
-    '                it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")\\n'
-    '                it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")\\n'
+    '            isIncludeAndroidResources = true\n'
+    '            all {\n'
+    '                it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")\n'
+    '                it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")\n'
     '            }')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
