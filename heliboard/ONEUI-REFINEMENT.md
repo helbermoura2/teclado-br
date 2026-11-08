@@ -42,6 +42,33 @@ A **versão 0.9.1 é uma proposta em desenvolvimento, ainda sem APK validado**.
 O painel escuro de IA e sua tradução continuam os da 0.9.0.
 Esta implementação **não inclui Galaxy AI da Samsung, nem arquivos Samsung**.
 
+## Correção da instabilidade Robolectric (8 de novembro de 2026)
+
+A execução [#42492505003](https://github.com/helbermoura2/teclado-br/actions/runs/42492505003)
+não alcançou o emulador. O build compilou o código, mas 137 dos 146
+testes JVM falharam com `MavenArtifactFetcher.java:129` e uma
+`IOException` ao baixar o Android SDK de testes pela rede. É uma
+falha coletiva de obtenção do runtime do Robolectric, **não uma reprovação
+das mudanças visuais**. A falha anterior no emulador (`One UI theme was
+not saved`) continua aguardando novo teste com a correção dos cliques.
+
+- O `prepare.py` agora aponta o resolvedor de runtime Robolectric para
+  `https://repo.maven.apache.org/maven2`, configuração oficial suportada
+  pelo Robolectric 4.14.1.
+- `heliboard/ci/preload-robolectric.sh` baixa antecipadamente o JAR
+  Android 15 exato (`15-robolectric-12650502-i7`) e seu POM. Usa
+  retries HTTP, verifica SHA-512 de cada arquivo e armazena em
+  `~/.m2/repository`, localização nativa do Robolectric.
+- Os workflows de **prévia** e **publicação** reutilizam esse runtime com
+  `actions/cache`. Se a rede estiver indisponível, falham cedo, antes
+  de compilar a IA e inicializar o emulador.
+- Não relaxamos, ignoramos ou excluímos nenhum teste unitário.
+  Os builds permanecem **somente manuais** para evitar esgotar os minutos
+  privados restantes. O PR não pode ser integrado até a próxima
+  validação Android passar.
+
+Referência técnica: https://robolectric.org/blog/2023/11/11/improving-android-all-downloading/
+
 ## Testes e custos
 
 - O teste Android `HybridTrial.java` foi estendido para verificar que
