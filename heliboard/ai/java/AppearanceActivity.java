@@ -110,7 +110,10 @@ public final class AppearanceActivity extends Activity {
                 Toast.makeText(this,"Não foi possível salvar. Tente novamente.",Toast.LENGTH_LONG).show();
                 return;
             }
-            TecladoBrDefaultsKt.applyTecladoBrOneUi(this,oneUi.isChecked());
+            if(!TecladoBrDefaultsKt.applyTecladoBrOneUi(this,oneUi.isChecked())) {
+                Toast.makeText(this,"Não foi possível aplicar o tema. Tente novamente.",Toast.LENGTH_LONG).show();
+                return;
+            }
             Typography.load(this);
             Toast.makeText(this,"Aparência aplicada. Reabra o teclado para ver o novo tema.",Toast.LENGTH_LONG).show();
             finish();
