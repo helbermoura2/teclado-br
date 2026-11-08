@@ -1,10 +1,12 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.2 — atalhos de edição sempre acessíveis
+## Em desenvolvimento: 0.9.2 beta 2 — sugestões com largura total
 
 A versão 0.9.1 já foi publicada. A proposta **0.9.2**, ainda em teste, mantém
 uma linha compacta de favoritos (IA, prancheta, emoji, ajustes, idioma),
-com um botão **⋯** para abrir o menu completo. Selecionar texto oferece
+com um botão **⋯** para abrir o menu completo. **Enquanto digita, os favoritos
+são recolhidos e as três sugestões usam toda a faixa**, como na referência
+do teclado Samsung. Selecionar texto oferece
 Copiar, Recortar, Colar e Selecionar tudo diretamente na linha contextual.
 Desfazer, Refazer e movimentação do cursor continuam no menu expandido.
 
