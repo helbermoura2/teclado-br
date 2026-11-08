@@ -1,9 +1,10 @@
-# Teclado BR 0.9.2 beta 2 — sugestões sem cortes e edição preservada
+# Teclado BR 0.9.2 beta 3 — menu à direita, dicionário preservado
 
 A versão 0.9.1 passou na compilação, Robolectric e emulador Android 15 e foi publicada.
 Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de validação.
 
-- Modo compacto: cinco favoritos fixados e botão ⋯ com a barra HeliBoard expandida.
+- Modo compacto: cinco favoritos fixados e botão ⋯ à DIREITA com a barra HeliBoard expandida.
+- O botão + é o comando de adicionar palavra ao dicionário pessoal. Foi movido para o menu ⋯, sem perder clique ou acessibilidade.
 - Durante digitação, os favoritos somem temporariamente para que as três sugestões não fiquem truncadas.
 - Sem texto, voltam os favoritos; durante seleção, prevalecem os comandos contextuais.
 - No menu extra, Selecionar tudo, Copiar, Recortar, Colar, Desfazer, Refazer e setas continuam ativos.
@@ -11,7 +12,8 @@ Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de val
 - O botão ⋯ abre/fecha os comandos. Não depende de rede ou IA.
 - Migração da preferência compacta da 0.9.1 usa a lista original salva, sem apagar dados.
 - Ao desligar o compacto, restaura configuração anterior dos favoritos, atalhos, modo e exibição automática.
-- Indicadores de toque longo ficam menores e mais internos nas teclas arredondadas.
+- Pontinhos inferiores do HeliBoard são omitidos apenas no visual One UI para não gerar fragmentos brancos. O toque longo continua funcionando.
+- O indicador de mais sugestões sob a palavra central também é ocultado apenas no modo compacto, preservando o acesso a candidatos adicionais por gesto/toque longo.
 - Ainda é necessário executar a validação manual antes de integrar/publicar.
 
 ---
