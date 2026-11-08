@@ -203,33 +203,80 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
 
 
 /**
- * A separately opt-in compact row of frequently used shortcuts.
- * The complete previous toolbar preference is kept verbatim and restored
- * when disabled; no pinned clipboard entries or clipboard history are touched.
- * This changes toolbar visibility/order, never key action mappings.
+ * Teclado BR 0.9.2: a clean pinned row PLUS an expandable editing toolbox.
+ * Do not replace the user's edit actions with disabled entries: the expanded
+ * HeliBoard toolbar is the overflow menu, so Select All / Copy / Cut / Paste
+ * remain usable at all times. Selecting text also offers contextual actions.
+ *
+ * Snapshots preserve the exact original order, visibility, toolbar mode and
+ * auto-show preferences. The old 0.9.1 compact setting is migrated in place.
  */
 fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
     val prefs = context.prefs()
     val flag = "teclado_br_compact_toolbar_active"
-    if (prefs.getBoolean(flag, false) == enabled) return true
+    val v2 = "teclado_br_compact_toolbar_v2"
+    val alreadyActive = prefs.getBoolean(flag, false)
+    if (alreadyActive == enabled && (!enabled || prefs.getBoolean(v2, false))) return true
+    val previousKey = "teclado_br_compact_toolbar_previous"
+    val pinnedKey = "teclado_br_compact_toolbar_previous_pinned"
+    val modeKey = "teclado_br_compact_toolbar_previous_mode"
+    val showKey = "teclado_br_compact_toolbar_previous_auto_show"
+    val hideKey = "teclado_br_compact_toolbar_previous_auto_hide"
+
     if (enabled) {
-        val previous = prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS) ?: return false
-        val keys = previous.split("|").filter { it.isNotBlank() }
-        val visible = listOf("AI", "CLIPBOARD", "EMOJI", "SETTINGS", "LANGUAGE")
-        // All entries remain present for a lossless rollback; only 5 become visible.
-        val others = keys.filter { it.substringBefore(":") !in visible }
-            .map { it.substringBefore(":") + ":false" }
-        val compact = (visible.map { it + ":true" } + others).joinToString("|")
-        return prefs.edit()
-            .putString("teclado_br_compact_toolbar_previous", previous)
-            .putString(Settings.PREF_TOOLBAR_KEYS, compact)
+        // If 0.9.1 already enabled compact mode, use its PRE-compact snapshot
+        // rather than treating hidden shortcuts as the user's original set.
+        val original = (if (alreadyActive) prefs.getString(previousKey, null)
+            else prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS)) ?: return false
+        val originalPinned = prefs.getString(Settings.PREF_PINNED_TOOLBAR_KEYS, Defaults.PREF_PINNED_TOOLBAR_KEYS)
+            ?: return false
+        val originalItems = original.split("|").filter { it.isNotBlank() }
+        val editActions = listOf("SELECT_ALL", "COPY", "CUT", "PASTE",
+            "UNDO", "REDO", "LEFT", "RIGHT")
+        // All remaining configured shortcuts keep their prior state/order.
+        val overflow = (editActions.map { it + ":true" } +
+            originalItems.filter { it.substringBefore(":") !in editActions }).joinToString("|")
+        val favorites = listOf("AI", "CLIPBOARD", "EMOJI", "SETTINGS", "LANGUAGE")
+        val pinnedItems = originalPinned.split("|").filter { it.isNotBlank() }
+        val compactPinned = (favorites.map { it + ":true" } +
+            pinnedItems.filter { it.substringBefore(":") !in favorites }
+                .map { it.substringBefore(":") + ":false" }).joinToString("|")
+
+        val editor = prefs.edit()
+        if (!alreadyActive) editor.putString(previousKey, original)
+        // In 0.9.1 pinned shortcuts and auto-mode were never overwritten.
+        if (!prefs.contains(pinnedKey)) editor.putString(pinnedKey, originalPinned)
+        if (!prefs.contains(modeKey)) editor.putString(modeKey,
+            prefs.getString(Settings.PREF_TOOLBAR_MODE, Defaults.PREF_TOOLBAR_MODE))
+        if (!prefs.contains(showKey)) editor.putBoolean(showKey,
+            prefs.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR, Defaults.PREF_AUTO_SHOW_TOOLBAR))
+        if (!prefs.contains(hideKey)) editor.putBoolean(hideKey,
+            prefs.getBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR, Defaults.PREF_AUTO_HIDE_TOOLBAR))
+        return editor
+            .putString(Settings.PREF_TOOLBAR_KEYS, overflow)
+            .putString(Settings.PREF_PINNED_TOOLBAR_KEYS, compactPinned)
+            .putString(Settings.PREF_TOOLBAR_MODE, "EXPANDABLE")
+            .putBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR, false)
+            .putBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR, true)
             .putBoolean(flag, true)
+            .putBoolean(v2, true)
             .commit()
     }
-    val previous = prefs.getString("teclado_br_compact_toolbar_previous", null) ?: return false
-    return prefs.edit()
-        .putString(Settings.PREF_TOOLBAR_KEYS, previous)
+
+    val original = prefs.getString(previousKey, null) ?: return false
+    val editor = prefs.edit()
+        .putString(Settings.PREF_TOOLBAR_KEYS, original)
         .putBoolean(flag, false)
-        .remove("teclado_br_compact_toolbar_previous")
-        .commit()
+        .remove(previousKey)
+        .remove(v2)
+    // Upgrading straight from v0.9.1 does not have these extra snapshots.
+    if (prefs.contains(pinnedKey)) editor.putString(Settings.PREF_PINNED_TOOLBAR_KEYS,
+        prefs.getString(pinnedKey, Defaults.PREF_PINNED_TOOLBAR_KEYS)).remove(pinnedKey)
+    if (prefs.contains(modeKey)) editor.putString(Settings.PREF_TOOLBAR_MODE,
+        prefs.getString(modeKey, Defaults.PREF_TOOLBAR_MODE)).remove(modeKey)
+    if (prefs.contains(showKey)) editor.putBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,
+        prefs.getBoolean(showKey, Defaults.PREF_AUTO_SHOW_TOOLBAR)).remove(showKey)
+    if (prefs.contains(hideKey)) editor.putBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR,
+        prefs.getBoolean(hideKey, Defaults.PREF_AUTO_HIDE_TOOLBAR)).remove(hideKey)
+    return editor.commit()
 }
