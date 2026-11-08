@@ -101,7 +101,7 @@ public final class AppearanceActivity extends Activity {
         compactToolbar.setChecked(prefs.getBoolean("teclado_br_compact_toolbar_active",false));
         compactToolbar.setEnabled(oneUi.isChecked());
         root.addView(compactToolbar);
-        label("A barra compacta mostra IA, prancheta, emoji, ajustes e idioma. Toque em ⋯ para Selecionar tudo, Copiar, Recortar, Colar, Desfazer e Refazer. Ao selecionar texto, os comandos de edição aparecem temporariamente. Seus atalhos anteriores, histórico e pins são restaurados ao desligar.",13);
+        label("A barra compacta mostra IA, prancheta, emoji, tradução e ajustes, com ícones circulares. Toque na prancheta para abrir o histórico; mantenha pressionado para abrir Selecionar tudo, Copiar, Recortar, Colar, Desfazer e Refazer. O botão ⋯ abre todas as ferramentas. Ao selecionar texto, os comandos contextuais aparecem. Preferências, histórico e pins são preservados.",13);
         themePreview=new LinearLayout(this);
         themePreview.setOrientation(LinearLayout.HORIZONTAL);
         root.addView(themePreview,new LinearLayout.LayoutParams(-1,dp(64)));
