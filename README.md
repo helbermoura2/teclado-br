@@ -1,10 +1,14 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.2 beta 3 — barra organizada como referência Samsung
+## Em desenvolvimento: 0.9.2 beta 4 — favoritos circulares e edição na prancheta
 
 A versão 0.9.1 já foi publicada. A proposta **0.9.2**, ainda em teste, mantém
-uma linha compacta de favoritos (IA, prancheta, emoji, ajustes, idioma),
-com o botão **⋯** à direita para abrir o menu completo. O botão **+** de
+uma linha compacta de cinco favoritos circulares, nesta ordem:
+**IA, prancheta, emoji, tradução e ajustes**, seguida do botão **⋯**.
+O toque normal na prancheta mantém o histórico; **segurar a prancheta
+abre a faixa de edição** com Selecionar tudo, Copiar, Recortar, Colar,
+Desfazer, Refazer e Voltar. Tradução abre diretamente o seletor de idioma
+da própria IA. O botão **⋯** abre o menu completo. O botão **+** de
 adicionar ao dicionário continua funcionando, agora no menu de ferramentas.
 **Enquanto digita, os favoritos
 são recolhidos e as três sugestões usam toda a faixa**, sem o indicador
