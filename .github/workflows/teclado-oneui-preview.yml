@@ -1,7 +1,8 @@
 name: Teclado BR One UI preview
+# Cost control: this private-repository workflow runs ONLY when requested
+# using Actions > Run workflow. Automated pushes and PR edits must not
+# spend the remaining monthly GitHub-hosted Actions minutes.
 on:
-  pull_request:
-    paths: ['heliboard/**', '.github/workflows/teclado-oneui-preview.yml']
   workflow_dispatch:
 permissions:
   contents: read
