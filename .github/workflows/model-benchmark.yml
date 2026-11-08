@@ -1,8 +1,8 @@
 name: Comparar modelos offline em português
+# Cost control: this private-repository workflow runs ONLY when requested
+# using Actions > Run workflow. Automated pushes and PR edits must not
+# spend the remaining monthly GitHub-hosted Actions minutes.
 on:
-  push:
-    branches: [main]
-    paths: ['benchmarks/cases.json', 'benchmarks/run_models.py', '.github/workflows/model-benchmark.yml']
   workflow_dispatch:
 permissions:
   contents: read
