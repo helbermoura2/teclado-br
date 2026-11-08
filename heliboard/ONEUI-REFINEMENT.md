@@ -1,9 +1,11 @@
-# Teclado BR 0.9.2 beta 3 — menu à direita, dicionário preservado
+# Teclado BR 0.9.2 beta 4 — IA em primeiro, prancheta com edição por toque longo
 
 A versão 0.9.1 passou na compilação, Robolectric e emulador Android 15 e foi publicada.
 Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de validação.
 
-- Modo compacto: cinco favoritos fixados e botão ⋯ à DIREITA com a barra HeliBoard expandida.
+- Modo compacto: favoritos circulares em ordem IA, prancheta, emoji, tradução e ajustes; botão ⋯ à DIREITA mantém a barra HeliBoard expandida.
+- Toque normal na prancheta preserva o histórico; toque longo abre faixa dedicada Selecionar tudo, Copiar, Recortar, Colar, Desfazer, Refazer com botão Voltar.
+- Tradução é um atalho próprio, que abre diretamente a tela de idiomas do painel de IA já existente.
 - O botão + é o comando de adicionar palavra ao dicionário pessoal. Foi movido para o menu ⋯, sem perder clique ou acessibilidade.
 - Durante digitação, os favoritos somem temporariamente para que as três sugestões não fiquem truncadas.
 - Sem texto, voltam os favoritos; durante seleção, prevalecem os comandos contextuais.
