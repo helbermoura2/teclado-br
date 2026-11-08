@@ -154,9 +154,9 @@ def apply(context):
                 dictionary.isVisible = !Settings.getValues().mIncognitoModeEnabled
                 row.addView(dictionary)
             }
-            scroller.addView(row, HorizontalScrollView.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.MATCH_PARENT))
+            scroller.addView(row, android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.MATCH_PARENT))
             pinnedKeys.addView(scroller, LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
         } else {
