@@ -572,7 +572,10 @@ public final class WritingPanel {
                     if(resultView!=null)resultView.setText(value);
                 }
                 else if(code==4) {
-                    if(status!=null)status.setText(value);
+                    // ResultReceiver callbacks may already be queued after a final response.
+                    // A late "Processando no aparelho…" must not overwrite a completed
+                    // result; completion enables edit/copy/replace and owns the final status.
+                    if(busy&&status!=null)status.setText(value);
                 }
                 else if(code==2) {
                     busy=false;
