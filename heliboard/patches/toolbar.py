@@ -79,32 +79,31 @@ def apply(context):
         button.setPadding(pad, pad, pad, pad)
     }
 
+    // Editing toolbox is INSIDE the clipboard's long-press view, not ⋯.
+    // Its native action buttons are horizontally scrollable: arrows, word
+    // navigation and page movements must not be crushed into 40px of width.
     private fun tecladoBrRebuildPinnedKeys() {
         if (!tecladoBrCompact() || Settings.getValues().mSuggestionStripHiddenPerUserSettings)
             return
+
+        // Move the SAME dictionary '+' view between its hidden holder and
+        // the editing scroller. Never clone it or lose its real click listener.
+        val dictionary = findViewById<TextView>(R.id.teclado_add_word)
+        (dictionary?.parent as? ViewGroup)?.removeView(dictionary)
         pinnedKeys.removeAllViews()
-        val keys = when {
-            tecladoBrHasSelection -> listOf(ToolbarKey.SELECT_ALL,
-                ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE)
-            tecladoBrEditingMode -> listOf(ToolbarKey.SELECT_ALL,
-                ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE,
-                ToolbarKey.UNDO, ToolbarKey.REDO)
-            else -> getPinnedToolbarKeys(context.prefs())
-        }
         val colors = Settings.getValues().mColors
-        val favorites = !tecladoBrHasSelection && !tecladoBrEditingMode
         (pinnedKeys.layoutParams as? LinearLayout.LayoutParams)?.let {
             it.width = 0
             it.weight = 1f
             pinnedKeys.layoutParams = it
         }
+
         if (tecladoBrEditingMode && !tecladoBrHasSelection) {
             val back = ImageButton(context, null, R.attr.suggestionWordStyle)
             back.contentDescription = "Voltar aos atalhos principais"
-            back.setImageDrawable(KeyboardIconsSet.instance.getNewDrawable(
-                KeyboardIconsSet.NAME_TOOLBAR_KEY, context))
+            back.setImageDrawable(context.getDrawable(android.R.drawable.ic_media_previous))
             back.layoutParams = LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                42.dpToPx(resources), LinearLayout.LayoutParams.MATCH_PARENT)
             setupKey(back, colors)
             back.setOnClickListener {
                 tecladoBrEditingMode = false
@@ -112,14 +111,71 @@ def apply(context):
             }
             back.setOnLongClickListener { true }
             pinnedKeys.addView(back)
-        }
-        for (key in keys) {
-            val button = createToolbarKey(context, key)
-            button.layoutParams = LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-            setupKey(button, colors)
-            if (favorites) tecladoBrStyleFavorite(button)
-            pinnedKeys.addView(button)
+
+            val scroller = HorizontalScrollView(context).apply {
+                isHorizontalScrollBarEnabled = false
+                overScrollMode = View.OVER_SCROLL_NEVER
+            }
+            val row = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            val editingKeys = listOf(
+                ToolbarKey.SELECT_ALL, ToolbarKey.SELECT_WORD,
+                ToolbarKey.COPY, ToolbarKey.CUT, ToolbarKey.PASTE,
+                ToolbarKey.UNDO, ToolbarKey.REDO,
+                ToolbarKey.LEFT, ToolbarKey.RIGHT, ToolbarKey.UP, ToolbarKey.DOWN,
+                ToolbarKey.WORD_LEFT, ToolbarKey.WORD_RIGHT,
+                ToolbarKey.FULL_LEFT, ToolbarKey.FULL_RIGHT,
+                ToolbarKey.PAGE_UP, ToolbarKey.PAGE_DOWN,
+                ToolbarKey.PAGE_START, ToolbarKey.PAGE_END)
+            for (key in editingKeys) {
+                val button = createToolbarKey(context, key)
+                button.layoutParams = LinearLayout.LayoutParams(
+                    44.dpToPx(resources), LinearLayout.LayoutParams.MATCH_PARENT)
+                setupKey(button, colors)
+                // Don't enter upstream quick-pin logic from a scroll row.
+                // Preserve the native longer-press action for navigation.
+                button.setOnLongClickListener {
+                    val code = getCodeForToolbarKeyLongClick(key)
+                    if (code != KeyCode.UNSPECIFIED) {
+                        listener.onCodeInput(code,
+                            Constants.SUGGESTION_STRIP_COORDINATE,
+                            Constants.SUGGESTION_STRIP_COORDINATE, false)
+                    }
+                    true
+                }
+                row.addView(button)
+            }
+            if (dictionary != null) {
+                dictionary.layoutParams = LinearLayout.LayoutParams(
+                    44.dpToPx(resources), LinearLayout.LayoutParams.MATCH_PARENT)
+                dictionary.isVisible = !Settings.getValues().mIncognitoModeEnabled
+                row.addView(dictionary)
+            }
+            scroller.addView(row, HorizontalScrollView.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.MATCH_PARENT))
+            pinnedKeys.addView(scroller, LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.MATCH_PARENT, 1f))
+        } else {
+            // The ⋯ overflow is now miscellaneous tools ONLY. '+' belongs to
+            // the clipboard editing panel and must be invisible in ⋯.
+            if (dictionary != null) {
+                dictionary.isVisible = false
+                toolbar.addView(dictionary, 0, LinearLayout.LayoutParams(
+                    42.dpToPx(resources), LinearLayout.LayoutParams.MATCH_PARENT))
+            }
+            val keys = if (tecladoBrHasSelection)
+                listOf(ToolbarKey.SELECT_ALL, ToolbarKey.COPY,
+                    ToolbarKey.CUT, ToolbarKey.PASTE)
+                else getPinnedToolbarKeys(context.prefs())
+            val favorites = !tecladoBrHasSelection
+            for (key in keys) {
+                val button = createToolbarKey(context, key)
+                button.layoutParams = LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+                setupKey(button, colors)
+                if (favorites) tecladoBrStyleFavorite(button)
+                pinnedKeys.addView(button)
+            }
         }
         tecladoBrApplyStripVisibility()
     }
@@ -129,7 +185,12 @@ def apply(context):
         val locked = isDeviceLocked(context)
         val expanded = toolbarContainer.isVisible
         findViewById<TextView>(R.id.teclado_add_word)?.isVisible =
-            !locked && expanded && !Settings.getValues().mIncognitoModeEnabled
+            !locked && !expanded && tecladoBrEditingMode && !tecladoBrHasSelection
+                && !Settings.getValues().mIncognitoModeEnabled
+        // Hide the misc ⋯ button while inside the scrollable edit panel.
+        // It reappears with the five favorites and stays available when
+        // its own miscellaneous panel is already open.
+        toolbarExpandKey.isVisible = !locked && (expanded || !tecladoBrEditingMode)
         if (locked || expanded) {
             // Even when the overflow is displayed, make the background
             // layers mutually exclusive. In particular, do not allow the
