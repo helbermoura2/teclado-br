@@ -1,28 +1,8 @@
 name: Gerar APK de teste
+# Cost control: this private-repository workflow runs ONLY when requested
+# using Actions > Run workflow. Automated pushes and PR edits must not
+# spend the remaining monthly GitHub-hosted Actions minutes.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'app/**'
-      - 'scripts/**'
-      - 'gradle/**'
-      - 'gradlew'
-      - 'gradlew.bat'
-      - '*.gradle'
-      - '*.gradle.kts'
-      - 'gradle.properties'
-      - '.github/workflows/android.yml'
-  pull_request:
-    paths:
-      - 'app/**'
-      - 'scripts/**'
-      - 'gradle/**'
-      - 'gradlew'
-      - 'gradlew.bat'
-      - '*.gradle'
-      - '*.gradle.kts'
-      - 'gradle.properties'
-      - '.github/workflows/android.yml'
   workflow_dispatch:
 permissions:
   contents: read
