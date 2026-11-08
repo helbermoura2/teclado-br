@@ -117,4 +117,24 @@ def apply(context):
         'paint.setTextSize(params.mHintLetterSize);',
         'paint.setTextSize(params.mHintLetterSize * (mTecladoBrOneUi ? 0.83f : 1.0f));'
     )
+    # Popup indicators belong INSIDE their keycap. On narrow phone screens
+    # HeliBoard can paint the baseline at the very bottom, leaving bright
+    # specks that look detached from the rounded keys. Keep long-press
+    # behavior unchanged and inset only the One UI visual indicator.
+    once(
+        '''        final float hintY = keyHeight - mKeyPopupHintLetterPadding;
+        canvas.drawText(mKeyPopupHintLetter, hintX, hintY, paint);''',
+        '''        final float hintY = keyHeight - mKeyPopupHintLetterPadding;
+        if (mTecladoBrOneUi && !(this instanceof PopupKeysKeyboardView)
+                && !(this instanceof EmojiPageKeyboardView)) {
+            final float inset = 3.5f * getResources().getDisplayMetrics().density;
+            paint.setTextSize(paint.getTextSize() * 0.82f);
+            final float safeX = Math.max(inset, Math.min(keyWidth - inset, hintX));
+            final float safeY = Math.max(inset, Math.min(keyHeight - inset, hintY - inset * 0.4f));
+            canvas.drawText(mKeyPopupHintLetter, safeX, safeY, paint);
+        } else {
+            canvas.drawText(mKeyPopupHintLetter, hintX, hintY, paint);
+        }'''
+    )
+
     path.write_text(text)
