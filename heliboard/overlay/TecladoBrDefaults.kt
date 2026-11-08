@@ -223,8 +223,9 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
     val flag = "teclado_br_compact_toolbar_active"
     val v2 = "teclado_br_compact_toolbar_v2"
     val v3 = "teclado_br_compact_toolbar_v3"
+    val v4 = "teclado_br_compact_toolbar_v4"
     val alreadyActive = prefs.getBoolean(flag, false)
-    if (alreadyActive == enabled && (!enabled || prefs.getBoolean(v3, false))) return true
+    if (alreadyActive == enabled && (!enabled || prefs.getBoolean(v4, false))) return true
     val previousKey = "teclado_br_compact_toolbar_previous"
     val pinnedKey = "teclado_br_compact_toolbar_previous_pinned"
     val modeKey = "teclado_br_compact_toolbar_previous_mode"
@@ -239,12 +240,21 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
         val originalPinned = prefs.getString(Settings.PREF_PINNED_TOOLBAR_KEYS, Defaults.PREF_PINNED_TOOLBAR_KEYS)
             ?: return false
         val originalItems = original.split("|").filter { it.isNotBlank() }
-        val editActions = listOf("SELECT_ALL", "COPY", "CUT", "PASTE",
-            "UNDO", "REDO", "LEFT", "RIGHT")
-        // All remaining configured shortcuts keep their prior state/order.
-        val overflow = (editActions.map { it + ":true" } +
-            originalItems.filter { it.substringBefore(":") !in editActions }).joinToString("|")
         val favorites = listOf("AI", "CLIPBOARD", "EMOJI", "TRANSLATE", "SETTINGS")
+        // Every editing/selection/navigation action belongs ONLY to the
+        // clipboard's long-press panel. Neither the ⋯ overflow nor the five
+        // circular favorites repeats those actions.
+        val editActions = listOf("SELECT_ALL", "SELECT_WORD", "COPY", "CUT",
+            "PASTE", "UNDO", "REDO", "LEFT", "RIGHT", "UP", "DOWN",
+            "WORD_LEFT", "WORD_RIGHT", "FULL_LEFT", "FULL_RIGHT",
+            "PAGE_UP", "PAGE_DOWN", "PAGE_START", "PAGE_END",
+            "CLEAR_CLIPBOARD")
+        val hiddenFromOverflow = (favorites + editActions).toSet()
+        // Retain the user's original non-editor tools and their enabled
+        // states/order. Never read from the previous beta's expanded list.
+        val overflow = originalItems
+            .filter { it.substringBefore(":") !in hiddenFromOverflow }
+            .joinToString("|")
         val pinnedItems = originalPinned.split("|").filter { it.isNotBlank() }
         val compactPinned = (favorites.map { it + ":true" } +
             pinnedItems.filter { it.substringBefore(":") !in favorites }
@@ -269,6 +279,7 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
             .putBoolean(flag, true)
             .putBoolean(v2, true)
             .putBoolean(v3, true)
+            .putBoolean(v4, true)
             .commit()
     }
 
@@ -279,6 +290,7 @@ fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
         .remove(previousKey)
         .remove(v2)
         .remove(v3)
+        .remove(v4)
     // Upgrading straight from v0.9.1 does not have these extra snapshots.
     if (prefs.contains(pinnedKey)) editor.putString(Settings.PREF_PINNED_TOOLBAR_KEYS,
         prefs.getString(pinnedKey, Defaults.PREF_PINNED_TOOLBAR_KEYS)).remove(pinnedKey)
