@@ -328,6 +328,18 @@ public final class HybridTrial {
         check(!themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,true),"Compact toolbar must not auto-expand");
         test.launch();
         test.shot("24c-teclado-oneui");
+        // While a Portuguese word is being typed, predictions must have the
+        // full strip. Previously five pinned favorites truncated every word.
+        test.clear();test.type("voce");
+        Thread.sleep(900);
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            android.view.View pinned=test.findView(root,v->v.getId()==helium314.keyboard.latin.R.id.pinned_keys);
+            android.view.View predictions=test.findView(root,v->v.getId()==helium314.keyboard.latin.R.id.suggestions_strip);
+            check(predictions!=null && predictions.isShown(),"Prediction strip missing during typing");
+            check(pinned!=null && !pinned.isShown(),"Pinned favorites are crowding word predictions");
+        });
+        test.shot("24c-predicoes-sem-icones");
         // Exercise the REAL editing actions after compacting: overflow is
         // opened via the native expand control, and selection changes the
         // pinned row. No hidden shortcuts or fake copy buttons are allowed.
