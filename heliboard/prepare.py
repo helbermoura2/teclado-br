@@ -78,6 +78,10 @@ shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
 
 for module in (suggestions, typing, assistant):
     module.apply(context)
+# Native/JVM assertions for the new writing actions ship with the prepared source.
+ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
+ai_tests.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(here/'tests/PromptBuilderOneUiTest.java', ai_tests/'PromptBuilderOneUiTest.java')
 context.report(lock)
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
