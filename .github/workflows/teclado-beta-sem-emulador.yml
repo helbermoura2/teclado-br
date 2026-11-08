@@ -1,5 +1,5 @@
 name: Teclado BR 0.9.2 beta - APK sem emulador
-# One scoped push creates the first beta. Other changes do not run this
+# Updating this workflow once creates beta 2. Other changes do not run this
 # expensive workflow. The official 0.9.1 release remains untouched.
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
           python3 - <<'PY'
           import json, pathlib
           lock = json.loads(pathlib.Path("heliboard/upstream.json").read_text())
-          assert lock["trial_version"] == "0.9.2-heli3.6", lock["trial_version"]
+          assert lock["trial_version"] == "0.9.2-beta.2-heli3.6", lock["trial_version"]
           assert lock["commit"] == "f8ec91a982835911cc224fa99434c3396d4cd562"
           print("Build beta aprovado para a versão 0.9.2, sem merge na main.")
           PY
@@ -79,7 +79,7 @@ jobs:
         run: |
           python3 heliboard/prepare.py heli-source
           mkdir -p beta-package
-          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.1-fontes.tar.gz -C heli-source .
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.2-fontes.tar.gz -C heli-source .
 
       - name: Reutilizar motor de IA offline compilado
         id: native-cache
@@ -145,8 +145,8 @@ jobs:
           set -euo pipefail
           apk=(heli-source/app/build/outputs/apk/debugNoMinify/*.apk)
           test -f "${apk[0]}"
-          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.1.apk
-          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.1.apk teclado-br-heli-0.9.2-beta.1-fontes.tar.gz > sha256-0.9.2-beta.1.txt)
+          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.2.apk
+          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.2.apk teclado-br-heli-0.9.2-beta.2-fontes.tar.gz > sha256-0.9.2-beta.2.txt)
           echo "## Teclado BR 0.9.2 beta" >> "$GITHUB_STEP_SUMMARY"
           echo "APK compilado, testes JVM passaram e certificado verificado." >> "$GITHUB_STEP_SUMMARY"
           echo "**O emulador não foi executado.** Ações de edição exigem teste real no Nothing Phone (1)." >> "$GITHUB_STEP_SUMMARY"
@@ -158,13 +158,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="heli-0.9.2-beta.1"
+          tag="heli-0.9.2-beta.2"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::error::A beta já existe. Não sobrescrever APK publicado; usar uma nova versão beta."
             exit 1
           fi
           cat > beta-package/NOTAS.txt <<'NOTAS'
-          Teclado BR 0.9.2 beta 1 — APENAS PARA TESTES.
+          Teclado BR 0.9.2 beta 2 — APENAS PARA TESTES.
           Barra compacta de favoritos com menu ⋯ para Selecionar tudo, Copiar,
           Recortar, Colar, Desfazer e Refazer, além de atalhos contextuais
           quando texto está selecionado.
@@ -176,10 +176,10 @@ jobs:
           Instale por cima da 0.9.1; não desinstale para não perder dados.
           NOTAS
           gh release create "$tag" --target "$GITHUB_SHA" \
-            --prerelease --title 'Teclado BR 0.9.2 beta 1 — teste sem emulador' \
+            --prerelease --title 'Teclado BR 0.9.2 beta 2 — teste sem emulador' \
             --notes-file beta-package/NOTAS.txt \
-            beta-package/teclado-br-heli-0.9.2-beta.1.apk \
-            beta-package/teclado-br-heli-0.9.2-beta.1-fontes.tar.gz \
-            beta-package/sha256-0.9.2-beta.1.txt
+            beta-package/teclado-br-heli-0.9.2-beta.2.apk \
+            beta-package/teclado-br-heli-0.9.2-beta.2-fontes.tar.gz \
+            beta-package/sha256-0.9.2-beta.2.txt
           echo "### Prévia publicada" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
