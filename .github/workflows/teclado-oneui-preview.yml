@@ -38,16 +38,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 heliboard/signing.py
-      - name: Guardar backup privado da assinatura de teste
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: teclado-br-heli-chave-teste-v1
-          path: |
-            ~/.android/debug.keystore
-            heli-artifacts/signing-cert.sha256
-          retention-days: 90
-          include-hidden-files: true
+      # The signing key is restored from existing private backup/cache; do NOT
+      # create a new key artifact on every PR validation run.
       - uses: gradle/actions/setup-gradle@v4
       - name: Preparar variante brasileira e fontes correspondentes
         run: |
@@ -101,14 +93,8 @@ jobs:
           ./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify
       - name: Conferir certificado do APK
         run: python3 heliboard/verify_signing.py
-      - name: Guardar testes unitários
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        if: always()
-        with:
-          retention-days: 7
-          name: teclado-br-heli-unitarios
-          path: heli-source/app/build/reports/tests/
+      # Unit tests are verified in the Gradle build step and retained in the run log.
+      # Keep their HTML/XML reports locally for the combined diagnostic package.
       - name: Preparar arquivos para teste no mesmo runner
         run: |
           mkdir -p heli-package
@@ -148,11 +134,15 @@ jobs:
             adb shell wm density 220
             adb install -r $(find heli-package -name '*.apk' -print -quit)
             python3 heliboard/smoke.py
-      - name: Guardar diagnóstico
+      - name: Guardar diagnóstico compacto da prévia (1 dia)
         uses: actions/upload-artifact@v4
         continue-on-error: true
         if: always()
         with:
-          retention-days: 7
-          name: teclado-br-heli-testes
-          path: heli-results/
+          retention-days: 1
+          compression-level: 9
+          name: teclado-br-oneui-previa-${{ github.run_id }}
+          path: |
+            heli-results/
+            heli-package/unit-tests/
+          if-no-files-found: ignore
