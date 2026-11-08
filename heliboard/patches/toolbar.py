@@ -15,6 +15,41 @@ def apply(context):
         return text.replace(old, new, 1)
 
     content = strip.read_text()
+    # The special '+' key was added by suggestions.py for the PERSONAL
+    # DICTIONARY. It is a real action; keep it, but place it in the overflow
+    # toolbox in compact mode instead of stealing width from word candidates.
+    # Move the existing View, not a copy, so its listener and accessibility
+    # name remain intact. The classic theme keeps its original layout.
+    content = replace_once(content,
+        '''        updateKeys()
+    }
+
+    private lateinit var listener: Listener''',
+        '''        updateKeys()
+        if (context.prefs().getBoolean("teclado_br_compact_toolbar_active", false)) {
+            val stripRow = toolbarExpandKey.parent as? LinearLayout
+            val dictionary = findViewById<TextView>(R.id.teclado_add_word)
+            if (stripRow != null && dictionary != null) {
+                (dictionary.parent as? ViewGroup)?.removeView(dictionary)
+                toolbar.addView(dictionary, 0, LinearLayout.LayoutParams(
+                    42.dpToPx(resources), LinearLayout.LayoutParams.MATCH_PARENT))
+                dictionary.isVisible = false
+
+                // The toolbar scroller cannot keep MATCH_PARENT width when
+                // the ⋯ toggle is placed AFTER it (Samsung-like placement).
+                (toolbarContainer.layoutParams as? LinearLayout.LayoutParams)?.let {
+                    it.width = 0
+                    it.weight = 1f
+                    toolbarContainer.layoutParams = it
+                }
+                stripRow.removeView(toolbarExpandKey)
+                stripRow.addView(toolbarExpandKey)
+            }
+        }
+    }
+
+    private lateinit var listener: Listener''',
+        'Rearrange compact toolbar right toggle and relocate dictionary action')
     content = replace_once(content,
         '    private lateinit var listener: Listener',
         '''    // In compact mode, suggestions take the entire available strip
@@ -24,8 +59,15 @@ def apply(context):
     private var tecladoBrHasPredictions = false
 
     private fun tecladoBrApplyStripVisibility() {
-        if (!context.prefs().getBoolean("teclado_br_compact_toolbar_active", false)
-                || isDeviceLocked(context) || toolbarContainer.isVisible) return
+        if (!context.prefs().getBoolean("teclado_br_compact_toolbar_active", false)) return
+        val locked = isDeviceLocked(context)
+        val expanded = toolbarContainer.isVisible
+        // '+' remains a fully functional dictionary command in overflow.
+        // suggestions.py controls it in classic mode; in compact mode it
+        // must be hidden unless the overflow toolbox is visible.
+        findViewById<TextView>(R.id.teclado_add_word)?.isVisible =
+            !locked && expanded && !Settings.getValues().mIncognitoModeEnabled
+        if (locked || expanded) return
         pinnedKeys.isVisible = tecladoBrHasSelection || !tecladoBrHasPredictions
         suggestionsStrip.isVisible = !tecladoBrHasSelection
     }
@@ -90,6 +132,21 @@ def apply(context):
 
     fun setExternalSuggestionView''',
         'SuggestionStripView retain prediction priority')
+    # Keep native long-press and popup access, but remove the visual
+    # three-dot underline from the center prediction in compact mode.
+    # More suggestions are still accessible through the existing gesture
+    # and the long-press word menu.
+    helper = context.root / 'app/src/main/java/helium314/keyboard/latin/suggestions/SuggestionStripLayoutHelper.java'
+    helper_text = helper.read_text()
+    helper_text = replace_once(helper_text,
+        'if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable) {',
+        '''if (positionInStrip == mCenterPositionInStrip && mMoreSuggestionsAvailable
+                && !helium314.keyboard.latin.utils.DeviceProtectedUtils
+                    .getSharedPreferences(context)
+                    .getBoolean("teclado_br_compact_toolbar_active", false)) {''',
+        'Hide only the compact theme decorative suggestion dots')
+    helper.write_text(helper_text)
+
     strip.write_text(content)
 
     content = ime.read_text()
