@@ -95,6 +95,17 @@ jobs:
         with:
           path: heli-source/app/src/main/jniLibs/
           key: tecladoai-ndk28-b12020-${{ hashFiles('heliboard/ai/native/**', 'heliboard/ai/build-native.sh') }}
+      # Robolectric 4.14.1 requests its Android 15 runtime dynamically,
+      # bypassing Gradle's cache. The repo1 Maven endpoint intermittently
+      # rejects that 190 MB download, failing 100+ unrelated JVM tests.
+      - name: Cache do Android 15 para os testes Robolectric
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric/android-all-instrumented/15-robolectric-12650502-i7
+          key: teclado-br-robolectric-4.14.1-android35-i7-v1
+      - name: Pré-carregar runtime Android do Robolectric com verificação SHA-512
+        shell: bash
+        run: bash heliboard/ci/preload-robolectric.sh
       - name: Testar e compilar a base
         working-directory: heli-source
         run: |
@@ -143,35 +154,45 @@ jobs:
             adb shell wm density 220
             adb install -r $(find heli-package -name '*.apk' -print -quit)
             python3 heliboard/smoke.py
-      - name: Guardar diagnóstico de falha por 1 dia
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
+      # The GitHub Actions artifact quota is exhausted. Preserve links to
+      # failures and the local diagnostic filenames in the run summary.
+      - name: Resumo de falha sem armazenamento de artefatos
         if: failure()
-        with:
-          retention-days: 1
-          compression-level: 9
-          name: teclado-br-heli-falha-${{ github.run_id }}
-          path: |
-            heli-results/
-            heli-package/unit-tests/
-          if-no-files-found: ignore
+        shell: bash
+        run: |
+          {
+            echo '## Teclado BR — falha na validação'
+            echo 'Consulte os logs desta execução para identificar o teste ou etapa que falhou.'
+            echo ''
+            echo '### Diagnósticos locais'
+            echo '```'
+            for dir in heli-results heli-package/unit-tests; do
+              if [ -d "$dir" ]; then
+                find "$dir" -type f | sort | head -100
+              fi
+            done
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Never publish a release when testing an unmerged feature branch.
       - name: Publicar atualização privada verificada
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_COMMIT: ${{ github.sha }}
         run: |
-          cp heli-package/*.apk heli-artifacts/teclado-br-heli-0.9.0.apk
-          cp heli-package/teclado-br-heli-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.0-fontes.tar.gz
-          zip -qr heli-artifacts/teclado-br-heli-0.9.0-testes.zip heli-results heli-package/unit-tests
-          sha256sum heli-artifacts/teclado-br-heli-0.9.0* > heli-artifacts/sha256-0.9.0.txt
+          cp heli-package/*.apk heli-artifacts/teclado-br-heli-0.9.1.apk
+          cp heli-package/teclado-br-heli-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.1-fontes.tar.gz
+          zip -qr heli-artifacts/teclado-br-heli-0.9.1-testes.zip heli-results heli-package/unit-tests
+          sha256sum heli-artifacts/teclado-br-heli-0.9.1* > heli-artifacts/sha256-0.9.1.txt
           cat > heli-artifacts/release-notes.txt <<'NOTES'
-          Teclado BR 0.9.0: tema visual escuro inspirado na One UI 8.5 (opcional/reversível),
+          Teclado BR 0.9.1: teclas mais arredondadas e símbolos menores na interface
+          inspirada na One UI 8.5 (opcional/reversível), com barra compacta opcional.
           painel de IA redesenhado, tradução em cinco idiomas, tom do Compositor,
           respostas sugeridas e prancheta textual com IA acionada manualmente.
           Não é um teclado Samsung nem usa serviços oficiais Galaxy AI.
-          Instale por cima da versão 0.8.1, sem desinstalar, para preservar dados,
+          Instale por cima da versão atual, sem desinstalar, para preservar dados,
           pins, modelos e preferências. Assinatura, testes unitários e Android
           verificados na publicação; conferir também o Nothing Phone (1) real.
           NOTES
-          gh release create heli-0.9.0 --target "$RELEASE_COMMIT" --title 'Teclado BR 0.9.0 — estilo One UI e IA ampliada' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.9.0.apk heli-artifacts/teclado-br-heli-0.9.0-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.0-testes.zip heli-artifacts/sha256-0.9.0.txt
+          gh release create heli-0.9.1 --target "$RELEASE_COMMIT" --title 'Teclado BR 0.9.1 — estilo One UI e IA ampliada' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.9.1.apk heli-artifacts/teclado-br-heli-0.9.1-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.1-testes.zip heli-artifacts/sha256-0.9.1.txt

@@ -14,7 +14,7 @@ public final class AppearanceActivity extends Activity {
     private LinearLayout root;
     private SharedPreferences prefs;
     private SeekBar height,letters,symbols;
-    private Switch oneUi;
+    private Switch oneUi, compactToolbar;
     private LinearLayout themePreview;
     private int dp(int n) {
         return (int)(n*getResources().getDisplayMetrics().density+.5f);
@@ -92,10 +92,23 @@ public final class AppearanceActivity extends Activity {
         oneUi.setChecked(prefs.getBoolean("teclado_br_one_ui_active",false));
         root.addView(oneUi);
         label("Opcional e reversível. Não instala Galaxy AI nem usa recursos proprietários; seus modelos, histórico de prancheta, palavras, pins, fontes e tamanhos continuam preservados.",13);
+        compactToolbar=new Switch(this);
+        compactToolbar.setText("Barra compacta: IA, prancheta, emoji, ajustes e idioma");
+        compactToolbar.setTextColor(Color.WHITE);
+        compactToolbar.setTextSize(16);
+        compactToolbar.setMinHeight(dp(50));
+        compactToolbar.setContentDescription("appearance_compact_toolbar");
+        compactToolbar.setChecked(prefs.getBoolean("teclado_br_compact_toolbar_active",false));
+        compactToolbar.setEnabled(oneUi.isChecked());
+        root.addView(compactToolbar);
+        label("Barra compacta é opcional. Oculta atalhos extras enquanto ativa e restaura exatamente a organização anterior ao desligar. O histórico e os pins da prancheta não são apagados.",13);
         themePreview=new LinearLayout(this);
         themePreview.setOrientation(LinearLayout.HORIZONTAL);
         root.addView(themePreview,new LinearLayout.LayoutParams(-1,dp(64)));
-        oneUi.setOnCheckedChangeListener((button,checked)->refreshPreview(checked));
+        oneUi.setOnCheckedChangeListener((button,checked)->{
+            refreshPreview(checked);
+            compactToolbar.setEnabled(checked);
+        });
         refreshPreview(oneUi.isChecked());
         label("Dimensões e tipografia",20);
         height=slider("Altura","appearance_height",85,140,Math.round(prefs.getFloat(Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX+"_false",1.1f)*100));
@@ -112,6 +125,11 @@ public final class AppearanceActivity extends Activity {
             }
             if(!TecladoBrDefaultsKt.applyTecladoBrOneUi(this,oneUi.isChecked())) {
                 Toast.makeText(this,"Não foi possível aplicar o tema. Tente novamente.",Toast.LENGTH_LONG).show();
+                return;
+            }
+            if(!TecladoBrDefaultsKt.applyTecladoBrCompactToolbar(this,
+                oneUi.isChecked() && compactToolbar.isChecked())) {
+                Toast.makeText(this,"Não foi possível aplicar a barra compacta. Tente novamente.",Toast.LENGTH_LONG).show();
                 return;
             }
             Typography.load(this);

@@ -297,15 +297,26 @@ public final class HybridTrial {
         test.aiNode("appearance_letters");
         test.aiNode("appearance_symbols");
         test.aiNode("appearance_oneui_theme");
+        test.aiNode("appearance_compact_toolbar");
         test.shot("24-ajustes-de-aparencia");
         android.content.SharedPreferences themes=DeviceProtectedUtils.getSharedPreferences(c);
         boolean themePreviouslyActive=themes.getBoolean("teclado_br_one_ui_active",false);
         String previousTheme=themes.getString(Settings.PREF_THEME_COLORS,"darker");
-        if(!themePreviouslyActive)test.aiClick("appearance_oneui_theme");
+        String previousToolbar=themes.getString(Settings.PREF_TOOLBAR_KEYS, "");
+        boolean toolbarPreviouslyCompact=themes.getBoolean("teclado_br_compact_toolbar_active",false);
+        test.aiEnsureChecked("appearance_oneui_theme",true);
+        test.aiEnsureChecked("appearance_compact_toolbar",true);
+        test.aiEnsureChecked("appearance_oneui_theme",true);
         test.shot("24b-preview-visual-oneui");
-        test.aiClick("appearance_save");
-        check(themes.getBoolean("teclado_br_one_ui_active",false),"One UI theme was not saved");
+        test.aiPress("appearance_save");
+        check(themes.getBoolean("teclado_br_one_ui_active",false),
+            "One UI theme was not saved; theme="+themes.getString(Settings.PREF_THEME_COLORS,"")+
+            ", compact="+themes.getBoolean("teclado_br_compact_toolbar_active",false)+
+            ", prevActive="+themePreviouslyActive+
+            ", prevCompact="+toolbarPreviouslyCompact);
         check("Teclado BR · Estilo One UI".equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"One UI palette not selected");
+        check(themes.getBoolean("teclado_br_compact_toolbar_active",false),"One UI compact toolbar was not saved");
+        check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("AI:true"),"AI shortcut hidden in compact toolbar");
         test.launch();
         test.shot("24c-teclado-oneui");
         if(!themePreviouslyActive) {
@@ -313,10 +324,12 @@ public final class HybridTrial {
             test.type("teste");
             test.aiClick("Adicionar palavra ao dicionário");
             test.aiClick("keyboard_appearance");
-            test.aiClick("appearance_oneui_theme");
-            test.aiClick("appearance_save");
+            test.aiEnsureChecked("appearance_oneui_theme",false);
+            test.aiPress("appearance_save");
             check(!themes.getBoolean("teclado_br_one_ui_active",false),"Classic theme was not restored");
             check(previousTheme.equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"Previous user theme was not restored");
+            check(!themes.getBoolean("teclado_br_compact_toolbar_active",false),"Compact toolbar not disabled with theme");
+            check(previousToolbar.equals(themes.getString(Settings.PREF_TOOLBAR_KEYS,"")),"Original toolbar shortcuts were not restored");
             test.launch();
         }
         test.clear();

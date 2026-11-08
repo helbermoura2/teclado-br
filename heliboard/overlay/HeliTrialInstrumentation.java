@@ -140,6 +140,27 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         throw new AssertionError("AI control missing: "+description);
     }
     void aiClick(String description)throws Exception {AccessibilityNodeInfo n=aiNode(description);Rect bounds=new Rect();n.getBoundsInScreen(bounds);check(!bounds.isEmpty(),"AI control has no touch area: "+description);check(bounds.bottom<=getTargetContext().getResources().getDisplayMetrics().heightPixels,"AI control clipped: "+description);tap(bounds);Thread.sleep(600);}
+    // ScrollView can reposition child switches while a visual preview redraws.
+    // Use Android's accessibility click for deterministic settings activation,
+    // then verify the real checked state instead of assuming a touch worked.
+    void aiEnsureChecked(String description,boolean expected)throws Exception {
+        AccessibilityNodeInfo node=aiNode(description);
+        if(node.isChecked()!=expected){
+            check(node.isEnabled(),"Settings switch disabled: "+description);
+            check(node.performAction(AccessibilityNodeInfo.ACTION_CLICK),"Settings switch rejected click: "+description);
+            Thread.sleep(450);
+        }
+        AccessibilityNodeInfo updated=aiNode(description);
+        check(updated.isChecked()==expected,"Settings switch did not change: "+description+
+            " expected="+expected+" actual="+updated.isChecked());
+    }
+    void aiPress(String description)throws Exception {
+        AccessibilityNodeInfo node=aiNode(description);
+        check(node.isEnabled(),"Settings button disabled: "+description);
+        check(node.performAction(AccessibilityNodeInfo.ACTION_CLICK),
+            "Settings button rejected accessibility action: "+description);
+        Thread.sleep(450);
+    }
     void aiSet(String description,String value)throws Exception {Bundle args=new Bundle();args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);check(aiNode(description).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,args),"AI edit rejected");}
     String aiText(String description)throws Exception {CharSequence t=aiNode(description).getText();return t==null?"":t.toString();}
     AccessibilityNodeInfo aiOption(String label)throws Exception {
