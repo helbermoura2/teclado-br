@@ -1,7 +1,16 @@
-# Teclado BR 0.9.2 beta 4 — IA em primeiro, prancheta com edição por toque longo
+# Teclado BR 0.9.2 beta 5 — corrigir favoritos ocultos por pontuação
 
 A versão 0.9.1 passou na compilação, Robolectric e emulador Android 15 e foi publicada.
 Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de validação.
+
+**Regressão beta 4:** captura real mostrou a barra de pontuação
+`! ? , : ;` ocupando o lugar dos cinco favoritos com o campo vazio.
+A prioridade foi corrigida para reservar a faixa de palavras somente a
+composição ativa (digitação, correção e sugestões fornecidas pelo editor).
+Pontuação e previsão de próxima palavra não escondem os favoritos.
+A instrumentação agora simula PunctuationSuggestions com a linha vazia e
+verifica os cinco atalhos visíveis. Esta instrumentação exige o Android de
+teste completo; a beta rápida executa apenas testes JVM e compilação.
 
 - Modo compacto: favoritos circulares em ordem IA, prancheta, emoji, tradução e ajustes; botão ⋯ à DIREITA mantém a barra HeliBoard expandida.
 - Toque normal na prancheta preserva o histórico; toque longo abre faixa dedicada Selecionar tudo, Copiar, Recortar, Colar, Desfazer, Refazer com botão Voltar.
