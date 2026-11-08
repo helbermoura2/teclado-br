@@ -328,6 +328,33 @@ public final class HybridTrial {
         check(!themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,true),"Compact toolbar must not auto-expand");
         test.launch();
         test.shot("24c-teclado-oneui");
+        // Verify the Samsung-like placement and that '+' was MOVED, not
+        // removed. The exact same dictionary TextView retains its listener.
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            android.view.View row=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.suggestions_strip_wrapper);
+            android.view.View more=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.suggestions_strip_toolbar_key);
+            android.view.View dictionary=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.teclado_add_word);
+            android.view.View toolbox=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.toolbar);
+            check(row instanceof android.view.ViewGroup && more!=null &&
+                ((android.view.ViewGroup)row).indexOfChild(more)==((android.view.ViewGroup)row).getChildCount()-1,
+                "More button must be at the right edge");
+            check(dictionary!=null && dictionary.getParent()==toolbox &&
+                dictionary.hasOnClickListeners(),
+                "Dictionary add-word action missing from overflow");
+            check(!dictionary.isShown(),"Dictionary button crowds word predictions");
+            helium314.keyboard.latin.suggestions.SuggestionStripView strip=
+                (helium314.keyboard.latin.suggestions.SuggestionStripView)
+                test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+            check(strip!=null,"Suggestion strip missing for overflow test");
+            strip.setToolbarVisibility(true);
+            check(dictionary.isShown(),"Dictionary add-word action not visible in overflow");
+            strip.setToolbarVisibility(false);
+        });
         // While a Portuguese word is being typed, predictions must have the
         // full strip. Previously five pinned favorites truncated every word.
         test.clear();test.type("voce");
