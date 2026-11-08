@@ -210,13 +210,14 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
 
 
 /**
- * Teclado BR 0.9.2: a clean pinned row PLUS an expandable editing toolbox.
- * Do not replace the user's edit actions with disabled entries: the expanded
- * HeliBoard toolbar is the overflow menu, so Select All / Copy / Cut / Paste
- * remain usable at all times. Selecting text also offers contextual actions.
+ * Teclado BR compact: five favorites, plus a separate clipboard editor.
+ * The ⋯ overflow contains miscellaneous non-editing tools ONLY.
+ * All text editing and navigation actions are reached by long-pressing
+ * Clipboard (its regular tap still opens the native clipboard history).
+ * There are no duplicates of the five favorites in the editing panel.
  *
- * Snapshots preserve the exact original order, visibility, toolbar mode and
- * auto-show preferences. The old 0.9.1 compact setting is migrated in place.
+ * Snapshots preserve the exact original order, visibility, toolbar mode
+ * and auto-show preferences. Existing compact betas migrate losslessly.
  */
 fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
     val prefs = context.prefs()
