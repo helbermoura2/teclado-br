@@ -1,5 +1,20 @@
 # Teclado BR
 
+## Em desenvolvimento: 0.9.1 — teclas arredondadas e barra compacta
+
+Após teste visual no Nothing Phone (1), a versão 0.9.0 ainda ficou muito
+parecida com o HeliBoard tradicional. Esta **versão 0.9.1 é somente código
+em PR, não é um APK publicado**: aplica desenhos de teclas realmente mais
+arredondados, fonte padrão menos estreita, símbolos discretos e oferece
+uma barra superior compacta opcional, com restauração exata dos atalhos.
+
+Os testes Android **não são automáticos**, para poupar os minutos restantes
+do GitHub Actions. Revisão, build e teste no Nothing Phone (1) real ainda
+são necessários antes de atualizar o APK.
+
+[Detalhes, limites e plano de validação](heliboard/ONEUI-REFINEMENT.md).
+
+
 ## Prévia 0.9.0 — visual One UI 8.5 e IA ampliada
 
 Em desenvolvimento numa branch separada. A variante HeliBoard existente
