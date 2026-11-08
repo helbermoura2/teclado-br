@@ -328,6 +328,31 @@ public final class HybridTrial {
         check(!themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,true),"Compact toolbar must not auto-expand");
         test.launch();
         test.shot("24c-teclado-oneui");
+        // Exercise the REAL editing actions after compacting: overflow is
+        // opened via the native expand control, and selection changes the
+        // pinned row. No hidden shortcuts or fake copy buttons are allowed.
+        test.clear();test.type("teste");
+        test.toolbar(helium314.keyboard.latin.utils.ToolbarKey.SELECT_ALL);
+        Thread.sleep(450);
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            helium314.keyboard.latin.suggestions.SuggestionStripView strip=
+                (helium314.keyboard.latin.suggestions.SuggestionStripView)
+                test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+            check(strip!=null,"Missing suggestion strip");
+            strip.setToolbarVisibility(false);
+            android.view.View copy=test.findView(root,
+                v->v.getTag()==helium314.keyboard.latin.utils.ToolbarKey.COPY && v.isShown());
+            android.view.View cut=test.findView(root,
+                v->v.getTag()==helium314.keyboard.latin.utils.ToolbarKey.CUT && v.isShown());
+            check(copy!=null && cut!=null,"Contextual copy/cut shortcuts not visible after selection");
+        });
+        test.shot("24d-atalhos-contextuais");
+        test.tagged(helium314.keyboard.latin.utils.ToolbarKey.COPY);
+        android.content.ClipboardManager copiedText=(android.content.ClipboardManager)
+            c.getSystemService(Context.CLIPBOARD_SERVICE);
+        check(copiedText.hasPrimaryClip() && copiedText.getPrimaryClip().getItemAt(0).getText()
+            .toString().equalsIgnoreCase("teste"),"Contextual copy did not preserve selected text");
         if(!themePreviouslyActive) {
             test.clear();
             test.type("teste");
