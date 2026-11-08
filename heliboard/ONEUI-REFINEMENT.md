@@ -1,9 +1,11 @@
-# Teclado BR 0.9.2 — atalhos sem perda de funções
+# Teclado BR 0.9.2 beta 2 — sugestões sem cortes e edição preservada
 
 A versão 0.9.1 passou na compilação, Robolectric e emulador Android 15 e foi publicada.
 Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de validação.
 
 - Modo compacto: cinco favoritos fixados e botão ⋯ com a barra HeliBoard expandida.
+- Durante digitação, os favoritos somem temporariamente para que as três sugestões não fiquem truncadas.
+- Sem texto, voltam os favoritos; durante seleção, prevalecem os comandos contextuais.
 - No menu extra, Selecionar tudo, Copiar, Recortar, Colar, Desfazer, Refazer e setas continuam ativos.
 - Seleção de texto: favoritos se tornam temporariamente Selecionar tudo, Copiar, Recortar e Colar; ao desfazer a seleção, os favoritos retornam.
 - O botão ⋯ abre/fecha os comandos. Não depende de rede ou IA.
