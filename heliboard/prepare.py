@@ -21,9 +21,9 @@ if (root/'.git').exists():
         raise RuntimeError('Prepare requires the pinned upstream commit from upstream.json')
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 8001')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9000')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.8.1-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.0-heli3.6"')
 replace('app/build.gradle.kts', 'listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")', 'listOf("arm64-v8a", "x86_64")')
 replace('app/src/main/java/helium314/keyboard/latin/App.kt', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026', '        AppUpgrade.transferOldPinnedClips(this) // todo: remove in a few months, maybe mid 2026\n        configureTecladoBr(this)\n        SubtypeSettings.reloadEnabledSubtypes(this)')
 replace('app/src/main/res/values/donottranslate.xml', '<item>qwerty</item>', '<item>qwerty</item>\n        <item>tecladobr</item>')
@@ -78,6 +78,10 @@ shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
 
 for module in (suggestions, typing, assistant):
     module.apply(context)
+# Native/JVM assertions for the new writing actions ship with the prepared source.
+ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
+ai_tests.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(here/'tests/PromptBuilderOneUiTest.java', ai_tests/'PromptBuilderOneUiTest.java')
 context.report(lock)
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
 print('Prepared', lock['trial_version'], 'from', lock['commit'])

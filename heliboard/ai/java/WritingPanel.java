@@ -9,6 +9,7 @@ import android.text.TextUtils;
 import android.view.*;
 import android.view.inputmethod.*;
 import android.widget.*;
+import helium314.keyboard.latin.utils.DeviceProtectedUtils;
 import helium314.keyboard.latin.LatinIME;
 import helium314.keyboard.latin.R;
 import helium314.keyboard.keyboard.KeyboardSwitcher;
@@ -94,12 +95,15 @@ public final class WritingPanel {
     private final String originPackage;
     private final int originField,originType;
     private final int height,stripVisibility;
+    private final boolean oneUiTheme;
     private FrameLayout overlay;
     private LinearLayout content,header,editorBar;
     private TextView resultView,status;
     private EditText localEditor;
     private InputConnection localConnection;
-    private String prompt="",answer="",task="",style="";
+    private String prompt="",answer="",task="",style="",composerTone="Padrão";
+    private String clipboardSource;
+    private boolean fromClipboard,homeScroll;
     private boolean closed,busy,bound,applied,replaceAllowed;
     private int safeBottom,request;
     private TextSnapshot snapshot;
@@ -132,6 +136,7 @@ public final class WritingPanel {
         originType=origin.inputType;
         input=root;
         c=root.getContext();
+        oneUiTheme=DeviceProtectedUtils.getSharedPreferences(c).getBoolean("teclado_br_one_ui_active",false);
         frame=root.findViewById(R.id.main_keyboard_frame);
         strip=root.findViewById(R.id.strip_container);
         stripVisibility=strip.getVisibility();
@@ -165,6 +170,7 @@ public final class WritingPanel {
         t.setContentDescription(id);
         t.setOnClickListener(v->click.run());
         t.setFocusable(true);
+        if(oneUiTheme)t.setBackground(round(0xff292b32,15));
         return t;
     }
     private View icon(String name,int size) {
@@ -177,12 +183,13 @@ public final class WritingPanel {
     private void screen(String title,boolean home) {
         if(closed)return;
         endEditing(false);
+        homeScroll=false;
         frame.setVisibility(View.INVISIBLE);
         if(overlay!=null)input.removeView(overlay);
         overlay=new FrameLayout(c);
         overlay.setContentDescription("ai_panel");
         overlay.setElevation(dp(16));
-        overlay.setBackground(WritingGraphics.background());
+        overlay.setBackground(WritingGraphics.background(oneUiTheme));
         overlay.setClickable(true);
         input.addView(overlay,new FrameLayout.LayoutParams(-1,height,Gravity.BOTTOM));
         LinearLayout all=new LinearLayout(c);
@@ -201,11 +208,12 @@ public final class WritingPanel {
         keyboard.setOnClickListener(v->close());
         header.addView(keyboard,new LinearLayout.LayoutParams(dp(38),-1));
         View line=new View(c);
-        line.setBackgroundColor(0x55ffffff);
+        line.setBackgroundColor(oneUiTheme?0x33ffffff:0x55ffffff);
         LinearLayout.LayoutParams divider=new LinearLayout.LayoutParams(dp(1),dp(20));
         divider.setMargins(dp(6),0,dp(12),0);
         header.addView(line,divider);
-        TextView heading=label(title,16);
+        TextView heading=label(title,oneUiTheme?17:16);
+        if(oneUiTheme)heading.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
         heading.setSingleLine(true);
         heading.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(heading,new LinearLayout.LayoutParams(0,-1,1));
@@ -230,8 +238,10 @@ public final class WritingPanel {
     private LinearLayout rowCard(float weight) {
         LinearLayout row=new LinearLayout(c);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setBackground(round(0x8a2b3e4d,28));
-        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,weight);
+        row.setBackground(round(oneUiTheme?0xff272930:0x8a2b3e4d,oneUiTheme?21:28));
+        LinearLayout.LayoutParams lp=oneUiTheme&&homeScroll
+            ?new LinearLayout.LayoutParams(-1,dp(weight>=2?105:68))
+            :new LinearLayout.LayoutParams(-1,0,weight);
         lp.setMargins(0,dp(8),0,0);
         content.addView(row,lp);
         return row;
@@ -244,6 +254,7 @@ public final class WritingPanel {
         tile.setContentDescription(id);
         tile.setOnClickListener(v->action.run());
         tile.setFocusable(true);
+        if(oneUiTheme)tile.setBackground(round(0xff30323a,15));
         tile.addView(icon(glyph,25));
         TextView text=label(title,15);
         text.setGravity(Gravity.CENTER);
@@ -260,7 +271,18 @@ public final class WritingPanel {
     }
     private void home() {
         cancelRequest();
-        screen("Assistente de escrita",true);
+        screen(oneUiTheme?"Escrita com IA":"Assistente de escrita",true);
+        if(oneUiTheme){
+            ScrollView scroll=new ScrollView(c);
+            scroll.setFillViewport(false);
+            scroll.setVerticalScrollBarEnabled(false);
+            content.addView(scroll,new LinearLayout.LayoutParams(-1,-1));
+            LinearLayout list=new LinearLayout(c);
+            list.setOrientation(1);
+            scroll.addView(list,new ScrollView.LayoutParams(-1,-2));
+            content=list;
+            homeScroll=true;
+        }
         LinearLayout row=rowCard(2);
         tile(row,"spelling","Ortografia e\ngramática","ai_review",true,()->choose("Ortografia e gramática"));
         separator(row);
@@ -273,8 +295,18 @@ public final class WritingPanel {
         tile(row,"table","Tabela","ai_table",false,()->choose("Tabela"));
         row=rowCard(1);
         tile(row,"compose","Compositor","ai_compositor",false,this::composer);
-        TextView translation=action("Traduzir para português","ai_translate",()->choose("Traduzir para português"));
+        TextView translation=action("Traduzir · escolher idioma","ai_translate",()->translationMenu(false));
         content.addView(translation,new LinearLayout.LayoutParams(-1,dp(40)));
+        if(oneUiTheme) {
+            TextView reply=action("Respostas sugeridas · texto selecionado","ai_reply",()->choose("Sugerir resposta"));
+            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(40));
+            rp.topMargin=dp(5);
+            content.addView(reply,rp);
+            TextView clip=action("Prancheta com IA · toque para escolher","ai_clipboard_ai",this::clipboardMenu);
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(40));
+            cp.topMargin=dp(5);
+            content.addView(clip,cp);
+        }
         if(!AiPreferences.canStart(ime)) {
             TextView hint=action("Adicione um modelo em ⚙","ai_missing_model",this::settings);
             hint.setTextSize(13);
@@ -284,6 +316,49 @@ public final class WritingPanel {
             View space=new View(c);
             content.addView(space,new LinearLayout.LayoutParams(-1,0,.6f));
         }
+    }
+    private void translationMenu(boolean copied) {
+        cancelRequest();
+        screen("Traduzir · escolher idioma",false);
+        String[] targets={"português","inglês","espanhol","francês","italiano"};
+        for(String target:targets) {
+            String taskName="Traduzir para "+target;
+            TextView option=action(target.substring(0,1).toUpperCase(java.util.Locale.ROOT)+target.substring(1),
+                "ai_translate_"+target,()->{if(copied)chooseClipboard(taskName);else choose(taskName);});
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,dp(42));
+            p.topMargin=dp(4);
+            content.addView(option,p);
+        }
+        content.addView(action("Voltar","ai_home",copied?this::clipboardMenu:this::home),
+            new LinearLayout.LayoutParams(-1,dp(38)));
+    }
+    private void clipboardMenu() {
+        cancelRequest();
+        screen("Prancheta · IA",false);
+        TextView note=label("Somente o último texto copiado, após escolher uma ação. Sem leitura automática de histórico. O resultado pode ser copiado, mas não substitui a conversa.",13);
+        content.addView(note,new LinearLayout.LayoutParams(-1,dp(74)));
+        TextView summary=action("Resumir texto copiado","ai_clipboard_summary",()->chooseClipboard("Resumir"));
+        content.addView(summary,new LinearLayout.LayoutParams(-1,dp(45)));
+        TextView translate=action("Traduzir texto copiado","ai_clipboard_translate",()->translationMenu(true));
+        content.addView(translate,new LinearLayout.LayoutParams(-1,dp(45)));
+        TextView reply=action("Sugerir resposta ao texto copiado","ai_clipboard_reply",()->chooseClipboard("Sugerir resposta"));
+        content.addView(reply,new LinearLayout.LayoutParams(-1,dp(45)));
+        content.addView(action("Voltar","ai_home",this::home),new LinearLayout.LayoutParams(-1,dp(38)));
+    }
+    private void chooseClipboard(String taskName) {
+        ClipboardManager manager=(ClipboardManager)ime.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData data=manager==null?null:manager.getPrimaryClip();
+        CharSequence copied=data!=null&&data.getItemCount()>0?data.getItemAt(0).getText():null;
+        if(copied==null||copied.toString().trim().isEmpty()) {
+            toast("Copie um texto para usar a prancheta com IA.");
+            return;
+        }
+        if(copied.length()>4000) {
+            toast("Selecione um texto de até 4.000 caracteres.");
+            return;
+        }
+        clipboardSource=copied.toString();
+        choose(taskName);
     }
     private String modeLabel() {
         switch(AiPreferences.mode(ime)) {
@@ -346,6 +421,19 @@ public final class WritingPanel {
         field.setPadding(dp(18),dp(18),dp(18),dp(18));
         field.setBackground(round(0x8a2b3e4d,24));
         content.addView(field,new LinearLayout.LayoutParams(-1,0,1));
+        final TextView[] toneAnchor=new TextView[1];
+        toneAnchor[0]=action("Tom: "+composerTone+" ▾","ai_compose_tone",()-> {
+            PopupMenu menu=new PopupMenu(c,toneAnchor[0]);
+            for(String option:new String[]{"Padrão","Profissional","Casual","Educado","Direto","Amigável"}) {
+                menu.getMenu().add(option).setOnMenuItemClickListener(item->{
+                    composerTone=option;
+                    composer();
+                    return true;
+                });
+            }
+            menu.show();
+        });
+        content.addView(toneAnchor[0],new LinearLayout.LayoutParams(-1,dp(38)));
         TextView go=action("Gerar texto","ai_generate",()-> {
             if(prompt.trim().isEmpty()) {
                 toast("Escreva um pedido para o Compositor.");
@@ -359,10 +447,19 @@ public final class WritingPanel {
         content.addView(go,p);
     }
     private void choose(String value) {
+        final String copied=clipboardSource;
+        clipboardSource=null;
         snapshot=TextSnapshot.capture(ime);
+        fromClipboard=copied!=null;
+        if(fromClipboard&&snapshot!=null) {
+            snapshot.source=copied;
+            // A clipboard item is NOT part of this editor's original text.
+            // Never permit replacing the editor with an unrelated clipboard response.
+            snapshot.complete=false;
+        }
         task=value;
         applied=false;
-        replaceAllowed=snapshot!=null&&snapshot.complete;
+        replaceAllowed=!fromClipboard&&snapshot!=null&&snapshot.complete;
         if(snapshot==null||(snapshot.source.trim().isEmpty()&&!task.equals("Compositor"))) {
             screen(value,false);
             notice("Digite ou selecione um texto na conversa para usar esta opção.");
@@ -378,7 +475,7 @@ public final class WritingPanel {
             notice("Configure a Groq ou importe um modelo offline na engrenagem.");
             return;
         }
-        if(!task.equals("Compositor"))snapshot.highlight(ime);
+        if(!task.equals("Compositor")&&!fromClipboard)snapshot.highlight(ime);
         answer="";
         lastBackend="";
         showChanges=false;
@@ -449,7 +546,7 @@ public final class WritingPanel {
             a.setAlpha(a.isEnabled()?1:.4f);
             actions.addView(a,new LinearLayout.LayoutParams(-2,-1));
         }
-        status=label(busy?"Processando…":(lastBackend.isEmpty()?"":lastBackend+" · "+String.format(java.util.Locale.ROOT,"%.1f s",lastDuration/1000.0)+"\n")+"Revise antes de substituir.",13);
+        status=label(busy?"Processando…":(lastBackend.isEmpty()?"":lastBackend+" · "+String.format(java.util.Locale.ROOT,"%.1f s",lastDuration/1000.0)+"\n")+(fromClipboard?"Texto copiado · use Copiar; substituição desativada.":"Revise antes de substituir."),13);
         status.setContentDescription("ai_status");
         status.setMaxLines(3);
         status.setEllipsize(TextUtils.TruncateAt.END);
@@ -475,7 +572,10 @@ public final class WritingPanel {
                     if(resultView!=null)resultView.setText(value);
                 }
                 else if(code==4) {
-                    if(status!=null)status.setText(value);
+                    // ResultReceiver callbacks may already be queued after a final response.
+                    // A late "Processando no aparelho…" must not overwrite a completed
+                    // result; completion enables edit/copy/replace and owns the final status.
+                    if(busy&&status!=null)status.setText(value);
                 }
                 else if(code==2) {
                     busy=false;
@@ -493,7 +593,7 @@ public final class WritingPanel {
             Message m=Message.obtain(null,1);
             Bundle b=new Bundle();
             b.putString("mode",AiPreferences.mode(ime));
-            b.putString("prompt",PromptBuilder.build(task,style,prompt,snapshot.source));
+            b.putString("prompt",PromptBuilder.build(task,task.equals("Compositor")?composerTone:style,prompt,snapshot.source));
             b.putInt("limit",WritingLauncher.syntheticTest?32:256);
             Parcel parcel=Parcel.obtain();
             try {
@@ -538,6 +638,10 @@ public final class WritingPanel {
         }
     }
     private void replace() {
+        if(!replaceAllowed) {
+            if(status!=null)status.setText("Esta origem não pode substituir o texto atual. Use Copiar.");
+            return;
+        }
         if(snapshot==null||answer.length()>12000||!snapshot.apply(ime,answer)) {
             replaceAllowed=false;
             replaceButton.setEnabled(false);
@@ -560,7 +664,7 @@ public final class WritingPanel {
         editorBar=new LinearLayout(c);
         editorBar.setOrientation(1);
         editorBar.setPadding(dp(10),0,dp(10),dp(8));
-        editorBar.setBackground(WritingGraphics.background());
+        editorBar.setBackground(WritingGraphics.background(oneUiTheme));
         LinearLayout row=new LinearLayout(c);
         row.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=label(isPrompt?"Pedido para o Compositor":"Editar resultado",14);

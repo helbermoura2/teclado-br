@@ -4,22 +4,31 @@ import android.graphics.*;
 import android.graphics.drawable.Drawable;
 final class WritingGraphics {
     static Drawable background() {
-        return new Atmosphere();
+        return new Atmosphere(false);
+    }
+    static Drawable background(boolean oneUiTheme) {
+        return new Atmosphere(oneUiTheme);
     }
     static Drawable icon(String name) {
         return new Symbol(name);
     }
     private static final class Atmosphere extends Drawable {
         private final Paint p=new Paint(3);
+        private final boolean oneUiTheme;
+        Atmosphere(boolean oneUiTheme) {
+            this.oneUiTheme=oneUiTheme;
+        }
         @Override public void draw(Canvas canvas) {
             Rect r=getBounds();
-            p.setShader(new LinearGradient(0,0,r.width(),r.height(),new int[] {
-                0xff81a8c7,0xff98c1b7,0xffb7c8c4
-            },null,Shader.TileMode.CLAMP));
+            p.setShader(new LinearGradient(0,0,r.width(),r.height(),
+                oneUiTheme ? new int[]{0xff17181d,0xff22242b,0xff1b1d25}
+                           : new int[]{0xff81a8c7,0xff98c1b7,0xffb7c8c4},
+                null,Shader.TileMode.CLAMP));
             canvas.drawRect(r,p);
-            p.setShader(new RadialGradient(0,r.height(),Math.max(1,r.width()),new int[] {
-                0xaaad8ed1,0x008f9bca
-            },null,Shader.TileMode.CLAMP));
+            p.setShader(new RadialGradient(0,r.height(),Math.max(1,r.width()),
+                oneUiTheme ? new int[]{0x275c7bd3,0x00232842}
+                           : new int[]{0xaaad8ed1,0x008f9bca},
+                null,Shader.TileMode.CLAMP));
             canvas.drawRect(r,p);
             p.setShader(null);
         }@Override public void setAlpha(int a) {

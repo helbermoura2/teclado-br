@@ -296,9 +296,29 @@ public final class HybridTrial {
         test.aiNode("appearance_height");
         test.aiNode("appearance_letters");
         test.aiNode("appearance_symbols");
+        test.aiNode("appearance_oneui_theme");
         test.shot("24-ajustes-de-aparencia");
+        android.content.SharedPreferences themes=DeviceProtectedUtils.getSharedPreferences(c);
+        boolean themePreviouslyActive=themes.getBoolean("teclado_br_one_ui_active",false);
+        String previousTheme=themes.getString(Settings.PREF_THEME_COLORS,"darker");
+        if(!themePreviouslyActive)test.aiClick("appearance_oneui_theme");
+        test.shot("24b-preview-visual-oneui");
         test.aiClick("appearance_save");
+        check(themes.getBoolean("teclado_br_one_ui_active",false),"One UI theme was not saved");
+        check("Teclado BR · Estilo One UI".equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"One UI palette not selected");
         test.launch();
+        test.shot("24c-teclado-oneui");
+        if(!themePreviouslyActive) {
+            test.clear();
+            test.type("teste");
+            test.aiClick("Adicionar palavra ao dicionário");
+            test.aiClick("keyboard_appearance");
+            test.aiClick("appearance_oneui_theme");
+            test.aiClick("appearance_save");
+            check(!themes.getBoolean("teclado_br_one_ui_active",false),"Classic theme was not restored");
+            check(previousTheme.equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"Previous user theme was not restored");
+            test.launch();
+        }
         test.clear();
         test.type("teste");
         test.aiClick("Adicionar palavra ao dicionário");

@@ -166,9 +166,13 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         clear();type("texto original");toolbar(ToolbarKey.AI);aiNode("ai_review");expect("texto original");
         boolean imePanel=false;for(AccessibilityWindowInfo w:ui.getWindows())if(w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD){AccessibilityNodeInfo root=w.getRoot();if(root!=null&&panelNode(root)!=null)imePanel=true;}
         check(imePanel,"Assistant must be inside IME window");shot("13-ia-menu-no-teclado");
+        aiClick("ai_translate");
+        for(String target:new String[]{"português","inglês","espanhol","francês","italiano"})aiNode("ai_translate_"+target);
+        shot("13b-ia-traducao-idiomas");
+        aiClick("ai_home");
         aiClick("ai_style");aiNode("ai_style_Profissional");aiNode("ai_style_Casual");aiNode("ai_style_Mídia");aiNode("ai_style_Educado");aiNode("ai_style_Com emojis");shot("14-ia-estilos");aiClick("ai_back");
         toolbar(ToolbarKey.AI);aiClick("ai_compositor");aiClick("ai_prompt");aiNode("ai_local_edit");type("ola");expect("texto original");check(!aiText("ai_local_edit").isEmpty(),"Native keys did not edit prompt");
-        aiSet("ai_local_edit","Escreva uma saudação curta em português, sem nomes.");shot("15-ia-prompt-com-teclas");aiClick("ai_done_edit");shot("16-ia-compositor");
+        aiSet("ai_local_edit","Escreva uma saudação curta em português, sem nomes.");shot("15-ia-prompt-com-teclas");aiClick("ai_done_edit");aiNode("ai_compose_tone");shot("16-ia-compositor");
         if(!withModel){aiClick("ai_back");toolbar(ToolbarKey.AI);aiNode("ai_missing_model");result.putString("model_path",new File(getTargetContext().getNoBackupFilesDir(),"offline-ai/model.gguf").getAbsolutePath());aiClick("ai_back");expect("texto original");return;}
         aiClick("ai_generate");String response=aiComplete();result.putString("offline_model_output",response);shot("17-ia-resposta-offline");
         aiClick("ai_edit_result");aiNode("ai_local_edit");type("ola");expect("texto original");aiSet("ai_local_edit","Texto revisado no aparelho.");aiClick("ai_done_edit");aiClick("ai_copy");aiClick("ai_replace");expect("Texto revisado no aparelho.");

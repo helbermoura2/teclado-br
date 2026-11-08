@@ -142,3 +142,61 @@ fun configureTecladoBr(context: Context) {
     }
 
 }
+
+
+/**
+ * Optional original palette inspired by One UI 8.5's dark keyboard.
+ * No Samsung assets, names, fonts or proprietary code are distributed.
+ * This toggles colors only: dictionary, typing, key layout, user font,
+ * height, symbols, models, shortcuts and pinned clipboard stay untouched.
+ */
+fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
+    val prefs = context.prefs()
+    val key = "teclado_br_one_ui_active"
+    if (prefs.getBoolean(key, false) == enabled) return true
+    if (enabled) {
+        val theme = "Teclado BR · Estilo One UI"
+        val base = DefaultColors("Material", true,
+            Color.rgb(20, 21, 26), Color.BLACK, Color.rgb(55, 56, 61),
+            Color.rgb(32, 33, 38), Color.rgb(43, 44, 49), Color.rgb(248, 248, 251),
+            Color.rgb(214, 215, 222), Color.rgb(246, 246, 249), Color.rgb(230, 231, 236),
+            Color.rgb(133, 171, 243))
+        val palette = ColorType.entries.associateWith { base.get(it) }.toMutableMap()
+        palette[ColorType.ACTION_KEY_BACKGROUND] = Color.rgb(30, 31, 36)
+        palette[ColorType.ACTION_KEY_ICON] = Color.WHITE
+        palette[ColorType.SHIFT_KEY_ICON] = Color.rgb(133, 171, 243)
+        palette[ColorType.CLIPBOARD_PIN] = Color.rgb(133, 171, 243)
+        palette[ColorType.KEY_HINT_TEXT] = Color.rgb(214, 215, 222)
+        palette[ColorType.STRIP_BACKGROUND] = Color.rgb(20, 21, 26)
+        palette[ColorType.TOOL_BAR_EXPAND_KEY_BACKGROUND] = Color.rgb(43, 44, 49)
+        return prefs.edit()
+            .putString("teclado_br_one_ui_prev_style", prefs.getString(Settings.PREF_THEME_STYLE, "Material"))
+            .putString("teclado_br_one_ui_prev_day", prefs.getString(Settings.PREF_THEME_COLORS, "darker"))
+            .putString("teclado_br_one_ui_prev_night", prefs.getString(Settings.PREF_THEME_COLORS_NIGHT, "darker"))
+            .putBoolean("teclado_br_one_ui_prev_auto", prefs.getBoolean(Settings.PREF_THEME_DAY_NIGHT, false))
+            .putBoolean("teclado_br_one_ui_prev_borders", prefs.getBoolean(Settings.PREF_THEME_KEY_BORDERS, true))
+            .putString(Settings.PREF_USER_ALL_COLORS_PREFIX + theme, palette.entries.joinToString(";") { "${it.key},${it.value}" })
+            .putInt(Settings.PREF_USER_MORE_COLORS_PREFIX + theme, 2)
+            .putString(Settings.PREF_THEME_STYLE, "Material")
+            .putString(Settings.PREF_THEME_COLORS, theme)
+            .putString(Settings.PREF_THEME_COLORS_NIGHT, theme)
+            .putBoolean(Settings.PREF_THEME_DAY_NIGHT, false)
+            .putBoolean(Settings.PREF_THEME_KEY_BORDERS, true)
+            .putBoolean(key, true)
+            .commit()
+    } else {
+        return prefs.edit()
+            .putString(Settings.PREF_THEME_STYLE, prefs.getString("teclado_br_one_ui_prev_style", "Material"))
+            .putString(Settings.PREF_THEME_COLORS, prefs.getString("teclado_br_one_ui_prev_day", "darker"))
+            .putString(Settings.PREF_THEME_COLORS_NIGHT, prefs.getString("teclado_br_one_ui_prev_night", "darker"))
+            .putBoolean(Settings.PREF_THEME_DAY_NIGHT, prefs.getBoolean("teclado_br_one_ui_prev_auto", false))
+            .putBoolean(Settings.PREF_THEME_KEY_BORDERS, prefs.getBoolean("teclado_br_one_ui_prev_borders", true))
+            .putBoolean(key, false)
+            .remove("teclado_br_one_ui_prev_day")
+            .remove("teclado_br_one_ui_prev_style")
+            .remove("teclado_br_one_ui_prev_night")
+            .remove("teclado_br_one_ui_prev_auto")
+            .remove("teclado_br_one_ui_prev_borders")
+            .commit()
+    }
+}

@@ -1,6 +1,6 @@
 # Teclado BR — HeliBoard com assistente híbrido
 
-Variante 0.8.0-heli3.6, pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
+Variante 0.9.0-heli3.6 (prévia em desenvolvimento), pacote br.com.tecladobr.heli.debug, base HeliBorg/HeliBoard
 v3.6 fixada em upstream.json. Android mínimo 8 (API 26); Nothing Phone (1) usa arm64-v8a.
 Atualiza as versões 0.6.1–0.7.0 com a mesma assinatura de teste, preservando pins,
 idiomas e dicionário pessoal. O HeliBoard oficial e o aplicativo original 0.1–0.5
@@ -33,6 +33,14 @@ A execução Android com modelo pequeno valida o caminho de inferência; não me
 qualidade geral em português nem desempenho do modelo maior no telefone real.
 
 Validação da 0.8.0: [testes, capturas, hashes e limites](VALIDACAO-0.8.0.md).
+
+## Estilo One UI 8.5 opcional (0.9.0)
+
+A versão 0.9.0 adiciona o perfil **Teclado BR · Estilo One UI**, uma paleta escura independente do tema anterior e reversível em **IA → Configurações → Aparência do teclado**. Um seletor com prévia mostra as cores antes da aplicação. O tema anterior, fontes, altura, dicionário, modelos importados, pins e dados continuam preservados. Veja [ONEUI85.md](ONEUI85.md).
+
+A mesma versão inclui o painel escuro de escrita com IA, tradução em cinco idiomas, escolha de tom no Compositor, sugestões de resposta solicitadas pelo usuário e ações explícitas sobre o último texto da prancheta (resumir, traduzir e sugerir resposta). Resultados obtidos da prancheta **não podem substituir** diretamente o texto original; Copiar continua disponível. Não há monitoramento automático de conversas, nem acesso ao histórico completo, nem clonagem de código Samsung.
+
+A variante 0.9.0 não está disponível para instalação até a conclusão do PR e da distribuição privada com assinatura verificada. A versão anterior continua sendo a 0.8.1.
 
 ## Compilar
 
