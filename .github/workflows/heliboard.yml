@@ -163,14 +163,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_COMMIT: ${{ github.sha }}
         run: |
-          cp heli-package/*.apk heli-artifacts/teclado-br-heli-0.8.1.apk
-          cp heli-package/teclado-br-heli-fontes.tar.gz heli-artifacts/teclado-br-heli-0.8.1-fontes.tar.gz
-          zip -qr heli-artifacts/teclado-br-heli-0.8.1-testes.zip heli-results heli-package/unit-tests
-          sha256sum heli-artifacts/teclado-br-heli-0.8.1* > heli-artifacts/sha256-0.8.1.txt
+          cp heli-package/*.apk heli-artifacts/teclado-br-heli-0.9.0.apk
+          cp heli-package/teclado-br-heli-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.0-fontes.tar.gz
+          zip -qr heli-artifacts/teclado-br-heli-0.9.0-testes.zip heli-results heli-package/unit-tests
+          sha256sum heli-artifacts/teclado-br-heli-0.9.0* > heli-artifacts/sha256-0.9.0.txt
           cat > heli-artifacts/release-notes.txt <<'NOTES'
-          Correção de sugestões em campos de texto do Instagram e retorno da barra às palavras ao digitar.
-          Instale por cima da versão atual, sem desinstalar, para preservar seus dados.
-          Compilação, testes unitários e interação Android executados antes desta publicação.
-          O teste de compatibilidade usa campos sintéticos; confirmar a DM no aparelho.
+          Teclado BR 0.9.0: tema visual escuro inspirado na One UI 8.5 (opcional/reversível),
+          painel de IA redesenhado, tradução em cinco idiomas, tom do Compositor,
+          respostas sugeridas e prancheta textual com IA acionada manualmente.
+          Não é um teclado Samsung nem usa serviços oficiais Galaxy AI.
+          Instale por cima da versão 0.8.1, sem desinstalar, para preservar dados,
+          pins, modelos e preferências. Assinatura, testes unitários e Android
+          verificados na publicação; conferir também o Nothing Phone (1) real.
           NOTES
-          gh release create heli-0.8.1 --target "$RELEASE_COMMIT" --title 'Teclado BR 0.8.1 — sugestões no Instagram' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.8.1.apk heli-artifacts/teclado-br-heli-0.8.1-fontes.tar.gz heli-artifacts/teclado-br-heli-0.8.1-testes.zip heli-artifacts/sha256-0.8.1.txt
+          gh release create heli-0.9.0 --target "$RELEASE_COMMIT" --title 'Teclado BR 0.9.0 — estilo One UI e IA ampliada' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.9.0.apk heli-artifacts/teclado-br-heli-0.9.0-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.0-testes.zip heli-artifacts/sha256-0.9.0.txt
