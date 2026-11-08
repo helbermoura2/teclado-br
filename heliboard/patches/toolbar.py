@@ -176,7 +176,20 @@ def apply(context):
         '''        suggestedWords = suggestions
         startIndexOfMoreSuggestions = layoutHelper.layoutAndReturnStartIndexOfMoreSuggestions(''',
         '''        suggestedWords = suggestions
-        tecladoBrHasPredictions = suggestions.getWordCountToShow() > 0
+        // Punctuation rows ("! ? , : ;") and next-word predictions
+        // are not active composition. On an empty editor we must show
+        // the compact favorites instead of treating punctuation as words.
+        // Keep the FULL suggestion strip for actual typing/correction.
+        val composing = when (suggestions.mInputStyle) {
+            SuggestedWords.INPUT_STYLE_TYPING,
+            SuggestedWords.INPUT_STYLE_RECORRECTION,
+            SuggestedWords.INPUT_STYLE_UPDATE_BATCH,
+            SuggestedWords.INPUT_STYLE_TAIL_BATCH,
+            SuggestedWords.INPUT_STYLE_APPLICATION_SPECIFIED -> true
+            else -> false
+        }
+        tecladoBrHasPredictions = !suggestions.isPunctuationSuggestions()
+            && composing && suggestions.getWordCountToShow() > 0
         tecladoBrApplyStripVisibility()
         startIndexOfMoreSuggestions = layoutHelper.layoutAndReturnStartIndexOfMoreSuggestions(''',
         'SuggestionStripView prepare full-width predictions')
