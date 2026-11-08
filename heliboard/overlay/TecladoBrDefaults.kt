@@ -150,10 +150,10 @@ fun configureTecladoBr(context: Context) {
  * This toggles colors only: dictionary, typing, key layout, user font,
  * height, symbols, models, shortcuts and pinned clipboard stay untouched.
  */
-fun applyTecladoBrOneUi(context: Context, enabled: Boolean) {
+fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
     val prefs = context.prefs()
     val key = "teclado_br_one_ui_active"
-    if (prefs.getBoolean(key, false) == enabled) return
+    if (prefs.getBoolean(key, false) == enabled) return true
     if (enabled) {
         val theme = "Teclado BR · Estilo One UI"
         val base = DefaultColors("Material", true,
@@ -170,6 +170,7 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean) {
         palette[ColorType.STRIP_BACKGROUND] = Color.rgb(20, 21, 26)
         palette[ColorType.TOOL_BAR_EXPAND_KEY_BACKGROUND] = Color.rgb(43, 44, 49)
         prefs.edit()
+            .putString("teclado_br_one_ui_prev_style", prefs.getString(Settings.PREF_THEME_STYLE, "Material"))
             .putString("teclado_br_one_ui_prev_day", prefs.getString(Settings.PREF_THEME_COLORS, "darker"))
             .putString("teclado_br_one_ui_prev_night", prefs.getString(Settings.PREF_THEME_COLORS_NIGHT, "darker"))
             .putBoolean("teclado_br_one_ui_prev_auto", prefs.getBoolean(Settings.PREF_THEME_DAY_NIGHT, false))
@@ -182,15 +183,17 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean) {
             .putBoolean(Settings.PREF_THEME_DAY_NIGHT, false)
             .putBoolean(Settings.PREF_THEME_KEY_BORDERS, true)
             .putBoolean(key, true)
-            .commit()
+            .commit().also { return it }
     } else {
-        prefs.edit()
+        return prefs.edit()
+            .putString(Settings.PREF_THEME_STYLE, prefs.getString("teclado_br_one_ui_prev_style", "Material"))
             .putString(Settings.PREF_THEME_COLORS, prefs.getString("teclado_br_one_ui_prev_day", "darker"))
             .putString(Settings.PREF_THEME_COLORS_NIGHT, prefs.getString("teclado_br_one_ui_prev_night", "darker"))
             .putBoolean(Settings.PREF_THEME_DAY_NIGHT, prefs.getBoolean("teclado_br_one_ui_prev_auto", false))
             .putBoolean(Settings.PREF_THEME_KEY_BORDERS, prefs.getBoolean("teclado_br_one_ui_prev_borders", true))
             .putBoolean(key, false)
             .remove("teclado_br_one_ui_prev_day")
+            .remove("teclado_br_one_ui_prev_style")
             .remove("teclado_br_one_ui_prev_night")
             .remove("teclado_br_one_ui_prev_auto")
             .remove("teclado_br_one_ui_prev_borders")
