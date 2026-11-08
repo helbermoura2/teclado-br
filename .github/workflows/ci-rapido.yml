@@ -1,0 +1,36 @@
+name: CI rápido do Teclado BR (sem Android SDK)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'heliboard/**'
+      - 'app/**'
+      - 'scripts/**'
+      - '.github/workflows/ci-rapido.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: teclado-fast-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar scripts do overlay sem compilar APK
+        run: |
+          python3 -m compileall -q heliboard
+          bash -n heliboard/ci/preload-robolectric.sh
+          bash -n heliboard/ai/build-native.sh
+          git diff --check
+      - name: Validar metadados do upstream fixado
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          lock = json.loads(pathlib.Path('heliboard/upstream.json').read_text())
+          assert lock.get('commit'), 'Commit upstream não fixado'
+          assert pathlib.Path('heliboard/patches/visual.py').is_file(), 'Patch visual ausente'
+          print('Overlay e upstream presentes; compilação Android reservada para o workflow manual.')
+          PY
