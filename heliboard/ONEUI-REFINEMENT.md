@@ -1,43 +1,32 @@
-# Teclado BR 0.9.2 beta 6 — evitar sobreposição de palavras e ícones
+# Teclado BR 0.9.2 beta 7 — ações de edição concentradas na prancheta
 
-A versão 0.9.1 passou na compilação, Robolectric e emulador Android 15 e foi publicada.
-Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de validação.
+**Motivo:** após instalar a beta 6, o usuário observou que Selecionar tudo,
+Copiar, Recortar, Colar, Desfazer, Refazer e setas ainda apareciam no ⋯.
+A configuração v3 tinha incluído explicitamente os comandos de edição
+na lista do overflow, e a migração de usuários já em modo compacto
+não reexecutava ao mudar essa lista.
 
-**Regressão beta 5:** gravação real de 8,8 segundos confirmou os favoritos
-circulares na ordem combinada, mas revelou letras de sugestões sobrepostas
-aos ícones durante a digitação. A causa provável é a combinação do
-`animateLayoutChanges=true` nativo com as mudanças de visibilidade.
-A beta 6 desliga essa transição SOMENTE no modo compacto, oculta a linha
-inativa antes de exibir a nova e reaplica a regra após `onVisibilityChanged`.
-O teste de instrumentação exige layout transition desativada e exclusividade
-visual em repouso e com palavra composta. Essa instrumentação não roda na
-compilação rápida sem emulador.
+**Comportamento novo:**
+- Cinco favoritos circulares: IA, Prancheta, Emoji, Tradução, Ajustes.
+- Toque normal na Prancheta: histórico nativo, com fixados.
+- **Toque longo na Prancheta:** faixa de edição com horizontal scroll, botão
+  Voltar, 19 comandos nativos de edição/navegação, Limpar prancheta e o
+  botão + de dicionário, sem duplicar os cinco favoritos.
+- ⋯ contém **somente ferramentas adicionais não relacionadas à edição**,
+  preservadas a partir da lista original do usuário.
+- Flag de migração v4 aplica a nova organização à instalação existente
+  beta 6 automaticamente. Prefs originais e histórico permanecem intactos.
+- Enquanto digita: apenas três sugestões; sem composição: os favoritos.
+  Sem animação que sobreponha sugestões e ícones no modo compacto.
 
-**Regressão beta 4:** captura real mostrou a barra de pontuação
-`! ? , : ;` ocupando o lugar dos cinco favoritos com o campo vazio.
-A prioridade foi corrigida para reservar a faixa de palavras somente a
-composição ativa (digitação, correção e sugestões fornecidas pelo editor).
-Pontuação e previsão de próxima palavra não escondem os favoritos.
-A instrumentação agora simula PunctuationSuggestions com a linha vazia e
-verifica os cinco atalhos visíveis. Esta instrumentação exige o Android de
-teste completo; a beta rápida executa apenas testes JVM e compilação.
-
-- Modo compacto: favoritos circulares em ordem IA, prancheta, emoji, tradução e ajustes; botão ⋯ à DIREITA mantém a barra HeliBoard expandida.
-- Toque normal na prancheta preserva o histórico; toque longo abre faixa dedicada Selecionar tudo, Copiar, Recortar, Colar, Desfazer, Refazer com botão Voltar.
-- Tradução é um atalho próprio, que abre diretamente a tela de idiomas do painel de IA já existente.
-- O botão + é o comando de adicionar palavra ao dicionário pessoal. Foi movido para o menu ⋯, sem perder clique ou acessibilidade.
-- Durante digitação, os favoritos somem temporariamente para que as três sugestões não fiquem truncadas.
-- Sem texto, voltam os favoritos; durante seleção, prevalecem os comandos contextuais.
-- No menu extra, Selecionar tudo, Copiar, Recortar, Colar, Desfazer, Refazer e setas continuam ativos.
-- Seleção de texto: favoritos se tornam temporariamente Selecionar tudo, Copiar, Recortar e Colar; ao desfazer a seleção, os favoritos retornam.
-- O botão ⋯ abre/fecha os comandos. Não depende de rede ou IA.
-- Migração da preferência compacta da 0.9.1 usa a lista original salva, sem apagar dados.
-- Ao desligar o compacto, restaura configuração anterior dos favoritos, atalhos, modo e exibição automática.
-- Pontinhos inferiores do HeliBoard são omitidos apenas no visual One UI para não gerar fragmentos brancos. O toque longo continua funcionando.
-- O indicador de mais sugestões sob a palavra central também é ocultado apenas no modo compacto, preservando o acesso a candidatos adicionais por gesto/toque longo.
-- Ainda é necessário executar a validação manual antes de integrar/publicar.
+**Validação:** os testes de instrumentação incluem a ausência das ações
+de edição no ⋯, a presença dos comandos no painel da prancheta e o
+botão +. A beta rápida não executa instrumentação Android, somente
+compilação, testes unitários JVM, verificação estática e assinatura.
+É necessário conferir o toque longo e a rolagem horizontal no telefone.
 
 ---
+
 
 # Teclado BR 0.9.1 — Refinamento visual opcional
 
