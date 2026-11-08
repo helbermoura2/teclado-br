@@ -421,8 +421,9 @@ public final class WritingPanel {
         field.setPadding(dp(18),dp(18),dp(18),dp(18));
         field.setBackground(round(0x8a2b3e4d,24));
         content.addView(field,new LinearLayout.LayoutParams(-1,0,1));
-        TextView tone=action("Tom: "+composerTone+" ▾","ai_compose_tone",()-> {
-            PopupMenu menu=new PopupMenu(c,content.getChildAt(content.getChildCount()-2));
+        final TextView[] toneAnchor=new TextView[1];
+        toneAnchor[0]=action("Tom: "+composerTone+" ▾","ai_compose_tone",()-> {
+            PopupMenu menu=new PopupMenu(c,toneAnchor[0]);
             for(String option:new String[]{"Padrão","Profissional","Casual","Educado","Direto","Amigável"}) {
                 menu.getMenu().add(option).setOnMenuItemClickListener(item->{
                     composerTone=option;
@@ -432,7 +433,7 @@ public final class WritingPanel {
             }
             menu.show();
         });
-        content.addView(tone,new LinearLayout.LayoutParams(-1,dp(38)));
+        content.addView(toneAnchor[0],new LinearLayout.LayoutParams(-1,dp(38)));
         TextView go=action("Gerar texto","ai_generate",()-> {
             if(prompt.trim().isEmpty()) {
                 toast("Escreva um pedido para o Compositor.");
@@ -634,6 +635,10 @@ public final class WritingPanel {
         }
     }
     private void replace() {
+        if(!replaceAllowed) {
+            if(status!=null)status.setText("Esta origem não pode substituir o texto atual. Use Copiar.");
+            return;
+        }
         if(snapshot==null||answer.length()>12000||!snapshot.apply(ime,answer)) {
             replaceAllowed=false;
             replaceButton.setEnabled(false);
