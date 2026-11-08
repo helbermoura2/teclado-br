@@ -1,5 +1,21 @@
 # Teclado BR
 
+## Prévia 0.9.0 — visual One UI 8.5 e IA ampliada
+
+Em desenvolvimento numa branch separada. A variante HeliBoard existente
+passa a oferecer um **tema escuro opcional inspirado no teclado do Galaxy S26
+Ultra**, reversível, com prévia de teclas. O painel de IA recebe tradução
+para cinco idiomas, tons do Compositor, respostas sugeridas sob demanda e
+ações explícitas sobre texto da prancheta (sem substituição direta do campo).
+
+São mantidos os dados, os pins, os modelos GGUF, a assinatura do APK e
+o motor HeliBoard. Não são utilizados serviços, fontes ou códigos Samsung,
+e a IA online continua opcional via Groq.
+
+[Detalhes técnicos, limites, testes e capturas planejadas](heliboard/ONEUI85.md).
+**A prévia 0.9.0 não é uma atualização publicada.** A versão 0.8.1
+permanece disponível até a conclusão dos testes e da publicação assinada.
+
 ## Versão 0.8.1 — sugestões no Instagram
 
 Compatibilidade para sugestões nos campos comuns do Instagram e retorno da barra
