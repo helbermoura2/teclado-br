@@ -350,6 +350,17 @@ public final class HybridTrial {
                 "Idle punctuation candidates are incorrectly hiding circular favorites");
             check(((android.view.ViewGroup)pinned).getChildCount()==5,
                 "Idle favorites missing after punctuation suggestions");
+            // Android's layout transition crossfaded the two rows while
+            // typing in the beta 5 device recording. Compact mode must
+            // disable the parent transition completely.
+            android.view.View stripRow=test.findView(root,
+                v->v.getId()==helium314.keyboard.latin.R.id.suggestions_strip_wrapper);
+            check(stripRow instanceof android.view.ViewGroup,
+                "Missing compact suggestion strip wrapper");
+            check(((android.view.ViewGroup)stripRow).getLayoutTransition()==null,
+                "Compact toolbar animates favorites and words over each other");
+            check(pinned.isShown()!=words.isShown(),
+                "Idle favorites and suggestions are simultaneously visible");
         });
         test.shot("24c-favoritos-sem-texto");
         // Favorites must match the requested Samsung-style order, in circles.
@@ -438,6 +449,8 @@ public final class HybridTrial {
             android.view.View predictions=test.findView(root,v->v.getId()==helium314.keyboard.latin.R.id.suggestions_strip);
             check(predictions!=null && predictions.isShown(),"Prediction strip missing during typing");
             check(pinned!=null && !pinned.isShown(),"Pinned favorites are crowding word predictions");
+            check(pinned.isShown()!=predictions.isShown(),
+                "Words and pinned shortcuts overlap while composing");
         });
         test.shot("24c-predicoes-sem-icones");
         // Exercise the REAL editing actions after compacting: overflow is
