@@ -4,7 +4,11 @@ name: Teclado BR One UI preview
 # spend the remaining monthly GitHub-hosted Actions minutes.
 on:
   workflow_dispatch:
-  # Builds stay manual after the single PR #3 diagnostic run.
+  # Scoped one-time validation of the pinned Robolectric runtime fix.
+  # Only a change to THIS YAML on PR #3's own branch can trigger a run.
+  push:
+    branches: [feat/oneui-keycaps-toolbar-refinement-20261108]
+    paths: ['.github/workflows/teclado-oneui-preview.yml']
 permissions:
   contents: read
   actions: read
