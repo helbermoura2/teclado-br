@@ -169,7 +169,7 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
         palette[ColorType.KEY_HINT_TEXT] = Color.rgb(214, 215, 222)
         palette[ColorType.STRIP_BACKGROUND] = Color.rgb(20, 21, 26)
         palette[ColorType.TOOL_BAR_EXPAND_KEY_BACKGROUND] = Color.rgb(43, 44, 49)
-        prefs.edit()
+        return prefs.edit()
             .putString("teclado_br_one_ui_prev_style", prefs.getString(Settings.PREF_THEME_STYLE, "Material"))
             .putString("teclado_br_one_ui_prev_day", prefs.getString(Settings.PREF_THEME_COLORS, "darker"))
             .putString("teclado_br_one_ui_prev_night", prefs.getString(Settings.PREF_THEME_COLORS_NIGHT, "darker"))
@@ -183,7 +183,7 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
             .putBoolean(Settings.PREF_THEME_DAY_NIGHT, false)
             .putBoolean(Settings.PREF_THEME_KEY_BORDERS, true)
             .putBoolean(key, true)
-            .commit().also { return it }
+            .commit()
     } else {
         return prefs.edit()
             .putString(Settings.PREF_THEME_STYLE, prefs.getString("teclado_br_one_ui_prev_style", "Material"))
