@@ -303,6 +303,8 @@ public final class HybridTrial {
         boolean themePreviouslyActive=themes.getBoolean("teclado_br_one_ui_active",false);
         String previousTheme=themes.getString(Settings.PREF_THEME_COLORS,"darker");
         String previousToolbar=themes.getString(Settings.PREF_TOOLBAR_KEYS, "");
+        String previousPinned=themes.getString(Settings.PREF_PINNED_TOOLBAR_KEYS, "");
+        boolean previousAutoShow=themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,false);
         boolean toolbarPreviouslyCompact=themes.getBoolean("teclado_br_compact_toolbar_active",false);
         test.aiEnsureChecked("appearance_oneui_theme",true);
         test.aiEnsureChecked("appearance_compact_toolbar",true);
@@ -317,6 +319,13 @@ public final class HybridTrial {
         check("Teclado BR · Estilo One UI".equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"One UI palette not selected");
         check(themes.getBoolean("teclado_br_compact_toolbar_active",false),"One UI compact toolbar was not saved");
         check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("AI:true"),"AI shortcut hidden in compact toolbar");
+        check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("SELECT_ALL:true"),"Select-all missing from overflow");
+        check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("COPY:true"),"Copy missing from overflow");
+        check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("CUT:true"),"Cut missing from overflow");
+        check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("PASTE:true"),"Paste missing from overflow");
+        check(themes.getString(Settings.PREF_PINNED_TOOLBAR_KEYS,"").contains("CLIPBOARD:true"),"Pinned clipboard missing");
+        check(themes.getString(Settings.PREF_PINNED_TOOLBAR_KEYS,"").contains("AI:true"),"Pinned AI missing");
+        check(!themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,true),"Compact toolbar must not auto-expand");
         test.launch();
         test.shot("24c-teclado-oneui");
         if(!themePreviouslyActive) {
@@ -330,6 +339,8 @@ public final class HybridTrial {
             check(previousTheme.equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"Previous user theme was not restored");
             check(!themes.getBoolean("teclado_br_compact_toolbar_active",false),"Compact toolbar not disabled with theme");
             check(previousToolbar.equals(themes.getString(Settings.PREF_TOOLBAR_KEYS,"")),"Original toolbar shortcuts were not restored");
+            check(previousPinned.equals(themes.getString(Settings.PREF_PINNED_TOOLBAR_KEYS,"")),"Original pinned keys were not restored");
+            check(previousAutoShow==themes.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,!previousAutoShow),"Toolbar auto-show preference changed");
             test.launch();
         }
         test.clear();
