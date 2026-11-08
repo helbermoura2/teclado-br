@@ -1,3 +1,33 @@
+# Teclado BR 0.9.2 beta 7 — ações de edição concentradas na prancheta
+
+**Motivo:** após instalar a beta 6, o usuário observou que Selecionar tudo,
+Copiar, Recortar, Colar, Desfazer, Refazer e setas ainda apareciam no ⋯.
+A configuração v3 tinha incluído explicitamente os comandos de edição
+na lista do overflow, e a migração de usuários já em modo compacto
+não reexecutava ao mudar essa lista.
+
+**Comportamento novo:**
+- Cinco favoritos circulares: IA, Prancheta, Emoji, Tradução, Ajustes.
+- Toque normal na Prancheta: histórico nativo, com fixados.
+- **Toque longo na Prancheta:** faixa de edição com horizontal scroll, botão
+  Voltar, 19 comandos nativos de edição/navegação, Limpar prancheta e o
+  botão + de dicionário, sem duplicar os cinco favoritos.
+- ⋯ contém **somente ferramentas adicionais não relacionadas à edição**,
+  preservadas a partir da lista original do usuário.
+- Flag de migração v4 aplica a nova organização à instalação existente
+  beta 6 automaticamente. Prefs originais e histórico permanecem intactos.
+- Enquanto digita: apenas três sugestões; sem composição: os favoritos.
+  Sem animação que sobreponha sugestões e ícones no modo compacto.
+
+**Validação:** os testes de instrumentação incluem a ausência das ações
+de edição no ⋯, a presença dos comandos no painel da prancheta e o
+botão +. A beta rápida não executa instrumentação Android, somente
+compilação, testes unitários JVM, verificação estática e assinatura.
+É necessário conferir o toque longo e a rolagem horizontal no telefone.
+
+---
+
+
 # Teclado BR 0.9.1 — Refinamento visual opcional
 
 ## Origem

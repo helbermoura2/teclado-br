@@ -20,8 +20,16 @@ import java.util.Objects;
 public final class WritingPanel {
     private static WritingPanel active;
     public static void open(LatinIME ime) {
+        openForTask(ime, false);
+    }
+    /** Open the existing, local translation picker directly from the toolbar. */
+    public static void openTranslation(LatinIME ime) {
+        openForTask(ime, true);
+    }
+    private static void openForTask(LatinIME ime, boolean translate) {
         if(active!=null) {
-            active.close();
+            if(translate) active.translationMenu(false);
+            else active.close();
             return;
         }
         EditorInfo info=ime.getCurrentInputEditorInfo();
@@ -35,7 +43,8 @@ public final class WritingPanel {
         View view=ime.getTecladoInputView();
         if(!(view instanceof FrameLayout))return;
         active=new WritingPanel(ime,(FrameLayout)view);
-        active.home();
+        if(translate) active.translationMenu(false);
+        else active.home();
     }
     public static boolean isActive() {
         return active!=null&&!active.closed;

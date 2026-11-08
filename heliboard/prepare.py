@@ -11,7 +11,7 @@ here = Path(__file__).resolve().parent
 root = Path(sys.argv[1]).resolve()
 lock = json.loads((here / 'upstream.json').read_text())
 from patches import PatchContext
-from patches import suggestions, typing, assistant, visual
+from patches import suggestions, typing, assistant, visual, toolbar, translation
 context = PatchContext(root, here)
 replace = context.replace
 if (root/'.git').exists():
@@ -21,9 +21,9 @@ if (root/'.git').exists():
         raise RuntimeError('Prepare requires the pinned upstream commit from upstream.json')
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9001')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9008')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.1-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.2-beta.7-heli3.6"')
 # Robolectric 4.14.1 uses its own MavenArtifactFetcher at unit-test runtime,
 # independent of Gradle's repositories. repo1.maven.org can intermittently
 # reject Android SDK jars, causing many unrelated JVM tests to fail together.
@@ -51,6 +51,7 @@ assert 'emojiKeyEnabled' in emoji
 rows[1].insert(1, emoji)
 functional.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n')
 # Visual resources only: the input engine and touch dispatch stay upstream.
+shutil.copyfile(here/'overlay/teclado_br_more.xml', root/'app/src/main/res/drawable/teclado_br_more.xml')
 replace('app/src/main/res/values/config.xml', '<fraction name="config_key_vertical_gap_holo">6.127%p</fraction>', '<fraction name="config_key_vertical_gap_holo">4.6%p</fraction>')
 replace('app/src/main/res/values/config.xml', '<fraction name="config_key_horizontal_gap_holo">1.739%p</fraction>', '<fraction name="config_key_horizontal_gap_holo">1.35%p</fraction>')
 replace('app/src/main/res/values/config.xml', '<fraction name="config_key_hint_letter_ratio_lxx">25%</fraction>', '<fraction name="config_key_hint_letter_ratio_lxx">32%</fraction>')
@@ -88,7 +89,7 @@ manifest.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/r
 shutil.copyfile(here/'README.md', root/'TECLADO-BR.md')
 shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
 
-for module in (suggestions, typing, assistant, visual):
+for module in (suggestions, typing, assistant, visual, toolbar, translation):
     module.apply(context)
 # Native/JVM assertions for the new writing actions ship with the prepared source.
 ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'

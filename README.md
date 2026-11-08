@@ -1,35 +1,44 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.1 — teclas arredondadas e barra compacta
+## Em desenvolvimento: 0.9.2 beta 7 — edição dentro da prancheta
 
-Após teste visual no Nothing Phone (1), a versão 0.9.0 ainda ficou muito
-parecida com o HeliBoard tradicional. Esta **versão 0.9.1 é somente código
-em PR, não é um APK publicado**: aplica desenhos de teclas realmente mais
-arredondados, fonte padrão menos estreita, símbolos discretos e oferece
-uma barra superior compacta opcional, com restauração exata dos atalhos.
+A barra principal compacta mostra cinco favoritos circulares, nesta ordem:
+**IA, Prancheta, Emoji, Tradução e Ajustes**. O botão **⋯** à direita
+contém apenas ferramentas extras (não repete os cinco favoritos e **não
+contém edição de texto**). Se não houver ferramentas extras configuradas,
+não adiciona uma segunda cópia das funções.
 
-Os testes Android **não são automáticos**, para poupar os minutos restantes
-do GitHub Actions. Revisão, build e teste no Nothing Phone (1) real ainda
-são necessários antes de atualizar o APK.
+- **Toque na prancheta:** abre o histórico normal e os textos fixados.
+- **Segurar a prancheta:** abre uma faixa de edição com rolagem horizontal,
+  incluindo Selecionar tudo, Selecionar palavra, Copiar, Recortar, Colar,
+  Desfazer, Refazer, setas, movimento por palavra/linha/página, limpar
+  prancheta e **+** para adicionar uma palavra ao dicionário.
+- **Voltar:** retorna aos cinco favoritos. Nenhum favorito é repetido
+  dentro da faixa de edição.
+- **Ao digitar:** a faixa exibe as sugestões completas, sem ícones
+  sobrepostos; ao selecionar texto, aparecem comandos contextuais.
+- **Ao desligar a barra compacta:** os atalhos e a organização anteriores
+  são restaurados a partir das preferências preservadas.
 
-[Detalhes, limites e plano de validação](heliboard/ONEUI-REFINEMENT.md).
+**Correção específica da beta 7:** versões anteriores fixavam os comandos
+de edição no menu ⋯. Agora eles são retirados da configuração do overflow,
+inclusive quando a pessoa atualiza uma instalação compacta já ativada da
+beta 6. O menu ⋯ mantém apenas funções extras não relacionadas à edição.
 
+A 0.9.1 continua sendo a versão oficial; esta beta é separada, sem
+publicação oficial automática. Compilação e testes unitários não substituem
+a verificação visual e das ações de toque no Android real.
 
-## Prévia 0.9.0 — visual One UI 8.5 e IA ampliada
+## Versões já publicadas
 
-Em desenvolvimento numa branch separada. A variante HeliBoard existente
-passa a oferecer um **tema escuro opcional inspirado no teclado do Galaxy S26
-Ultra**, reversível, com prévia de teclas. O painel de IA recebe tradução
-para cinco idiomas, tons do Compositor, respostas sugeridas sob demanda e
-ações explícitas sobre texto da prancheta (sem substituição direta do campo).
+- **0.9.1** — Teclas arredondadas, fontes mais legíveis e tema One UI opcional.
+  Compilação, testes JVM e emulador Android 15 aprovados. A experiência
+  visual real ainda pode ser aperfeiçoada.
+  [Baixar APK 0.9.1](https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.1).
+- **0.9.0** — Tema escuro inspirado na One UI e melhorias no painel de IA.
+  [Baixar APK 0.9.0](https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.0).
 
-São mantidos os dados, os pins, os modelos GGUF, a assinatura do APK e
-o motor HeliBoard. Não são utilizados serviços, fontes ou códigos Samsung,
-e a IA online continua opcional via Groq.
-
-[Detalhes técnicos, limites, testes e capturas planejadas](heliboard/ONEUI85.md).
-**A prévia 0.9.0 não é uma atualização publicada.** A versão 0.8.1
-permanece disponível até a conclusão dos testes e da publicação assinada.
+[Histórico técnico da versão 0.9.1](heliboard/ONEUI-REFINEMENT.md).
 
 ## Versão 0.8.1 — sugestões no Instagram
 

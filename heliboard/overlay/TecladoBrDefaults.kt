@@ -141,6 +141,13 @@ fun configureTecladoBr(context: Context) {
             .commit()
     }
 
+    // One-time lossless migration for users who enabled the compact toolbar
+    // in 0.9.1. They should not need to open Settings just to recover editing.
+    if (prefs.getBoolean("teclado_br_compact_toolbar_active", false)
+            && !prefs.getBoolean("teclado_br_compact_toolbar_v4", false)) {
+        applyTecladoBrCompactToolbar(context, true)
+    }
+
 }
 
 
@@ -203,33 +210,96 @@ fun applyTecladoBrOneUi(context: Context, enabled: Boolean): Boolean {
 
 
 /**
- * A separately opt-in compact row of frequently used shortcuts.
- * The complete previous toolbar preference is kept verbatim and restored
- * when disabled; no pinned clipboard entries or clipboard history are touched.
- * This changes toolbar visibility/order, never key action mappings.
+ * Teclado BR compact: five favorites, plus a separate clipboard editor.
+ * The ⋯ overflow contains miscellaneous non-editing tools ONLY.
+ * All text editing and navigation actions are reached by long-pressing
+ * Clipboard (its regular tap still opens the native clipboard history).
+ * There are no duplicates of the five favorites in the editing panel.
+ *
+ * Snapshots preserve the exact original order, visibility, toolbar mode
+ * and auto-show preferences. Existing compact betas migrate losslessly.
  */
 fun applyTecladoBrCompactToolbar(context: Context, enabled: Boolean): Boolean {
     val prefs = context.prefs()
     val flag = "teclado_br_compact_toolbar_active"
-    if (prefs.getBoolean(flag, false) == enabled) return true
+    val v2 = "teclado_br_compact_toolbar_v2"
+    val v3 = "teclado_br_compact_toolbar_v3"
+    val v4 = "teclado_br_compact_toolbar_v4"
+    val alreadyActive = prefs.getBoolean(flag, false)
+    if (alreadyActive == enabled && (!enabled || prefs.getBoolean(v4, false))) return true
+    val previousKey = "teclado_br_compact_toolbar_previous"
+    val pinnedKey = "teclado_br_compact_toolbar_previous_pinned"
+    val modeKey = "teclado_br_compact_toolbar_previous_mode"
+    val showKey = "teclado_br_compact_toolbar_previous_auto_show"
+    val hideKey = "teclado_br_compact_toolbar_previous_auto_hide"
+
     if (enabled) {
-        val previous = prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS) ?: return false
-        val keys = previous.split("|").filter { it.isNotBlank() }
-        val visible = listOf("AI", "CLIPBOARD", "EMOJI", "SETTINGS", "LANGUAGE")
-        // All entries remain present for a lossless rollback; only 5 become visible.
-        val others = keys.filter { it.substringBefore(":") !in visible }
-            .map { it.substringBefore(":") + ":false" }
-        val compact = (visible.map { it + ":true" } + others).joinToString("|")
-        return prefs.edit()
-            .putString("teclado_br_compact_toolbar_previous", previous)
-            .putString(Settings.PREF_TOOLBAR_KEYS, compact)
+        // If 0.9.1 already enabled compact mode, use its PRE-compact snapshot
+        // rather than treating hidden shortcuts as the user's original set.
+        val original = (if (alreadyActive) prefs.getString(previousKey, null)
+            else prefs.getString(Settings.PREF_TOOLBAR_KEYS, Defaults.PREF_TOOLBAR_KEYS)) ?: return false
+        val originalPinned = prefs.getString(Settings.PREF_PINNED_TOOLBAR_KEYS, Defaults.PREF_PINNED_TOOLBAR_KEYS)
+            ?: return false
+        val originalItems = original.split("|").filter { it.isNotBlank() }
+        val favorites = listOf("AI", "CLIPBOARD", "EMOJI", "TRANSLATE", "SETTINGS")
+        // Every editing/selection/navigation action belongs ONLY to the
+        // clipboard's long-press panel. Neither the ⋯ overflow nor the five
+        // circular favorites repeats those actions.
+        val editActions = listOf("SELECT_ALL", "SELECT_WORD", "COPY", "CUT",
+            "PASTE", "UNDO", "REDO", "LEFT", "RIGHT", "UP", "DOWN",
+            "WORD_LEFT", "WORD_RIGHT", "FULL_LEFT", "FULL_RIGHT",
+            "PAGE_UP", "PAGE_DOWN", "PAGE_START", "PAGE_END",
+            "CLEAR_CLIPBOARD")
+        val hiddenFromOverflow = (favorites + editActions).toSet()
+        // Retain the user's original non-editor tools and their enabled
+        // states/order. Never read from the previous beta's expanded list.
+        val overflow = originalItems
+            .filter { it.substringBefore(":") !in hiddenFromOverflow }
+            .joinToString("|")
+        val pinnedItems = originalPinned.split("|").filter { it.isNotBlank() }
+        val compactPinned = (favorites.map { it + ":true" } +
+            pinnedItems.filter { it.substringBefore(":") !in favorites }
+                .map { it.substringBefore(":") + ":false" }).joinToString("|")
+
+        val editor = prefs.edit()
+        if (!alreadyActive) editor.putString(previousKey, original)
+        // In 0.9.1 pinned shortcuts and auto-mode were never overwritten.
+        if (!prefs.contains(pinnedKey)) editor.putString(pinnedKey, originalPinned)
+        if (!prefs.contains(modeKey)) editor.putString(modeKey,
+            prefs.getString(Settings.PREF_TOOLBAR_MODE, Defaults.PREF_TOOLBAR_MODE))
+        if (!prefs.contains(showKey)) editor.putBoolean(showKey,
+            prefs.getBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR, Defaults.PREF_AUTO_SHOW_TOOLBAR))
+        if (!prefs.contains(hideKey)) editor.putBoolean(hideKey,
+            prefs.getBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR, Defaults.PREF_AUTO_HIDE_TOOLBAR))
+        return editor
+            .putString(Settings.PREF_TOOLBAR_KEYS, overflow)
+            .putString(Settings.PREF_PINNED_TOOLBAR_KEYS, compactPinned)
+            .putString(Settings.PREF_TOOLBAR_MODE, "EXPANDABLE")
+            .putBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR, false)
+            .putBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR, true)
             .putBoolean(flag, true)
+            .putBoolean(v2, true)
+            .putBoolean(v3, true)
+            .putBoolean(v4, true)
             .commit()
     }
-    val previous = prefs.getString("teclado_br_compact_toolbar_previous", null) ?: return false
-    return prefs.edit()
-        .putString(Settings.PREF_TOOLBAR_KEYS, previous)
+
+    val original = prefs.getString(previousKey, null) ?: return false
+    val editor = prefs.edit()
+        .putString(Settings.PREF_TOOLBAR_KEYS, original)
         .putBoolean(flag, false)
-        .remove("teclado_br_compact_toolbar_previous")
-        .commit()
+        .remove(previousKey)
+        .remove(v2)
+        .remove(v3)
+        .remove(v4)
+    // Upgrading straight from v0.9.1 does not have these extra snapshots.
+    if (prefs.contains(pinnedKey)) editor.putString(Settings.PREF_PINNED_TOOLBAR_KEYS,
+        prefs.getString(pinnedKey, Defaults.PREF_PINNED_TOOLBAR_KEYS)).remove(pinnedKey)
+    if (prefs.contains(modeKey)) editor.putString(Settings.PREF_TOOLBAR_MODE,
+        prefs.getString(modeKey, Defaults.PREF_TOOLBAR_MODE)).remove(modeKey)
+    if (prefs.contains(showKey)) editor.putBoolean(Settings.PREF_AUTO_SHOW_TOOLBAR,
+        prefs.getBoolean(showKey, Defaults.PREF_AUTO_SHOW_TOOLBAR)).remove(showKey)
+    if (prefs.contains(hideKey)) editor.putBoolean(Settings.PREF_AUTO_HIDE_TOOLBAR,
+        prefs.getBoolean(hideKey, Defaults.PREF_AUTO_HIDE_TOOLBAR)).remove(hideKey)
+    return editor.commit()
 }

@@ -117,4 +117,21 @@ def apply(context):
         'paint.setTextSize(params.mHintLetterSize);',
         'paint.setTextSize(params.mHintLetterSize * (mTecladoBrOneUi ? 0.83f : 1.0f));'
     )
+    # On One UI keycaps the native HeliBoard lower-corner "..." indicator
+    # gets clipped into white specks (notably comma, space and period).
+    # Do not draw this decorative glyph in the opt-in theme. The key's
+    # popup/long-press action, secondary symbols and touch area are unchanged.
+    once(
+        '''        final float hintY = keyHeight - mKeyPopupHintLetterPadding;
+        canvas.drawText(mKeyPopupHintLetter, hintX, hintY, paint);''',
+        '''        final float hintY = keyHeight - mKeyPopupHintLetterPadding;
+        if (mTecladoBrOneUi && !(this instanceof PopupKeysKeyboardView)
+                && !(this instanceof EmojiPageKeyboardView)) {
+            // Only suppress the tiny decorative bottom-corner ellipsis.
+            // Long-press and popup alternatives are still available.
+            return;
+        }
+        canvas.drawText(mKeyPopupHintLetter, hintX, hintY, paint);'''
+    )
+
     path.write_text(text)

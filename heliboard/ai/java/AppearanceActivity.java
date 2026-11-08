@@ -93,7 +93,7 @@ public final class AppearanceActivity extends Activity {
         root.addView(oneUi);
         label("Opcional e reversível. Não instala Galaxy AI nem usa recursos proprietários; seus modelos, histórico de prancheta, palavras, pins, fontes e tamanhos continuam preservados.",13);
         compactToolbar=new Switch(this);
-        compactToolbar.setText("Barra compacta: IA, prancheta, emoji, ajustes e idioma");
+        compactToolbar.setText("Barra compacta: favoritos + menu ⋯ de edição");
         compactToolbar.setTextColor(Color.WHITE);
         compactToolbar.setTextSize(16);
         compactToolbar.setMinHeight(dp(50));
@@ -101,7 +101,7 @@ public final class AppearanceActivity extends Activity {
         compactToolbar.setChecked(prefs.getBoolean("teclado_br_compact_toolbar_active",false));
         compactToolbar.setEnabled(oneUi.isChecked());
         root.addView(compactToolbar);
-        label("Barra compacta é opcional. Oculta atalhos extras enquanto ativa e restaura exatamente a organização anterior ao desligar. O histórico e os pins da prancheta não são apagados.",13);
+        label("A barra compacta mostra IA, prancheta, emoji, tradução e ajustes. Toque na prancheta para abrir o histórico; segure para abrir TODOS os comandos de edição e movimento do cursor, com rolagem horizontal e botão Voltar. O botão ⋯ fica apenas com ferramentas extras, sem repetir os cinco favoritos ou a edição. Selecionar texto também oferece ações contextuais. Seu histórico e suas preferências são preservados.",13);
         themePreview=new LinearLayout(this);
         themePreview.setOrientation(LinearLayout.HORIZONTAL);
         root.addView(themePreview,new LinearLayout.LayoutParams(-1,dp(64)));
