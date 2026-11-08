@@ -1,6 +1,12 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.2 beta 5 — favoritos visíveis sem texto
+## Em desenvolvimento: 0.9.2 beta 6 — sem sobreposição ao digitar
+
+A gravação da beta 5 confirmou os cinco favoritos circulares, mas revelou
+palavras sobrepostas aos ícones durante alguns instantes da digitação.
+No modo compacto, a beta 6 desativa a animação nativa da faixa superior
+e reforça a exclusividade: ou favoritos, ou sugestões. O modo clássico
+preserva as transições originais.
 
 A beta 4 expôs um defeito real no telefone: sem texto, a faixa exibiu
 `! ? , : ;` em vez dos favoritos. A beta 5 distingue **pontuação e
