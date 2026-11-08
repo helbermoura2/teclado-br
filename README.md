@@ -1,42 +1,33 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.2 beta 6 — sem sobreposição ao digitar
+## Em desenvolvimento: 0.9.2 beta 7 — edição dentro da prancheta
 
-A gravação da beta 5 confirmou os cinco favoritos circulares, mas revelou
-palavras sobrepostas aos ícones durante alguns instantes da digitação.
-No modo compacto, a beta 6 desativa a animação nativa da faixa superior
-e reforça a exclusividade: ou favoritos, ou sugestões. O modo clássico
-preserva as transições originais.
+A barra principal compacta mostra cinco favoritos circulares, nesta ordem:
+**IA, Prancheta, Emoji, Tradução e Ajustes**. O botão **⋯** à direita
+contém apenas ferramentas extras (não repete os cinco favoritos e **não
+contém edição de texto**). Se não houver ferramentas extras configuradas,
+não adiciona uma segunda cópia das funções.
 
-A beta 4 expôs um defeito real no telefone: sem texto, a faixa exibiu
-`! ? , : ;` em vez dos favoritos. A beta 5 distingue **pontuação e
-previsões de próxima palavra** de **sugestões durante a digitação**;
-quando não existe composição ativa, exibe os cinco favoritos circulares.
+- **Toque na prancheta:** abre o histórico normal e os textos fixados.
+- **Segurar a prancheta:** abre uma faixa de edição com rolagem horizontal,
+  incluindo Selecionar tudo, Selecionar palavra, Copiar, Recortar, Colar,
+  Desfazer, Refazer, setas, movimento por palavra/linha/página, limpar
+  prancheta e **+** para adicionar uma palavra ao dicionário.
+- **Voltar:** retorna aos cinco favoritos. Nenhum favorito é repetido
+  dentro da faixa de edição.
+- **Ao digitar:** a faixa exibe as sugestões completas, sem ícones
+  sobrepostos; ao selecionar texto, aparecem comandos contextuais.
+- **Ao desligar a barra compacta:** os atalhos e a organização anteriores
+  são restaurados a partir das preferências preservadas.
 
-A versão 0.9.1 já foi publicada. A proposta **0.9.2**, ainda em teste, mantém
-uma linha compacta de cinco favoritos circulares, nesta ordem:
-**IA, prancheta, emoji, tradução e ajustes**, seguida do botão **⋯**.
-O toque normal na prancheta mantém o histórico; **segurar a prancheta
-abre a faixa de edição** com Selecionar tudo, Copiar, Recortar, Colar,
-Desfazer, Refazer e Voltar. Tradução abre diretamente o seletor de idioma
-da própria IA. O botão **⋯** abre o menu completo. O botão **+** de
-adicionar ao dicionário continua funcionando, agora no menu de ferramentas.
-**Enquanto digita, os favoritos
-são recolhidos e as três sugestões usam toda a faixa**, sem o indicador
-decorativo de três pontos sob a palavra central, como na referência
-do teclado Samsung. Selecionar texto oferece
-Copiar, Recortar, Colar e Selecionar tudo diretamente na linha contextual.
-Desfazer, Refazer e movimentação do cursor continuam no menu expandido.
+**Correção específica da beta 7:** versões anteriores fixavam os comandos
+de edição no menu ⋯. Agora eles são retirados da configuração do overflow,
+inclusive quando a pessoa atualiza uma instalação compacta já ativada da
+beta 6. O menu ⋯ mantém apenas funções extras não relacionadas à edição.
 
-As preferências anteriores, atalhos fixados, pins da prancheta e histórico
-são restaurados ao desligar a barra compacta. A 0.9.2 também reposiciona
-o desenho dos pequenos indicadores: no tema One UI, os pontinhos
-inferiores que pareciam fragmentos brancos não são desenhados, mantendo
-o toque longo funcional.
-Não há alteração no motor de digitação, dados pessoais ou nas opções de IA.
-
-A distribuição desta versão aguarda testes completos no Android 15 e inspeção
-visual no Nothing Phone (1); este PR não publica nem substitui a 0.9.1.
+A 0.9.1 continua sendo a versão oficial; esta beta é separada, sem
+publicação oficial automática. Compilação e testes unitários não substituem
+a verificação visual e das ações de toque no Android real.
 
 ## Versões já publicadas
 
