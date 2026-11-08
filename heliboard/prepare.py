@@ -11,7 +11,7 @@ here = Path(__file__).resolve().parent
 root = Path(sys.argv[1]).resolve()
 lock = json.loads((here / 'upstream.json').read_text())
 from patches import PatchContext
-from patches import suggestions, typing, assistant, visual, toolbar
+from patches import suggestions, typing, assistant, visual, toolbar, translation
 context = PatchContext(root, here)
 replace = context.replace
 if (root/'.git').exists():
@@ -89,7 +89,7 @@ manifest.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/r
 shutil.copyfile(here/'README.md', root/'TECLADO-BR.md')
 shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
 
-for module in (suggestions, typing, assistant, visual, toolbar):
+for module in (suggestions, typing, assistant, visual, toolbar, translation):
     module.apply(context)
 # Native/JVM assertions for the new writing actions ship with the prepared source.
 ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
