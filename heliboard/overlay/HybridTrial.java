@@ -393,14 +393,40 @@ public final class HybridTrial {
             check(strip.onLongClick(row.getChildAt(1)),"Clipboard long press not consumed");
             for(helium314.keyboard.latin.utils.ToolbarKey key:new helium314.keyboard.latin.utils.ToolbarKey[]{
                 helium314.keyboard.latin.utils.ToolbarKey.SELECT_ALL,
+                helium314.keyboard.latin.utils.ToolbarKey.SELECT_WORD,
                 helium314.keyboard.latin.utils.ToolbarKey.COPY,
                 helium314.keyboard.latin.utils.ToolbarKey.CUT,
                 helium314.keyboard.latin.utils.ToolbarKey.PASTE,
                 helium314.keyboard.latin.utils.ToolbarKey.UNDO,
-                helium314.keyboard.latin.utils.ToolbarKey.REDO}) {
+                helium314.keyboard.latin.utils.ToolbarKey.REDO,
+                helium314.keyboard.latin.utils.ToolbarKey.LEFT,
+                helium314.keyboard.latin.utils.ToolbarKey.RIGHT,
+                helium314.keyboard.latin.utils.ToolbarKey.UP,
+                helium314.keyboard.latin.utils.ToolbarKey.DOWN,
+                helium314.keyboard.latin.utils.ToolbarKey.WORD_LEFT,
+                helium314.keyboard.latin.utils.ToolbarKey.WORD_RIGHT,
+                helium314.keyboard.latin.utils.ToolbarKey.FULL_LEFT,
+                helium314.keyboard.latin.utils.ToolbarKey.FULL_RIGHT,
+                helium314.keyboard.latin.utils.ToolbarKey.PAGE_UP,
+                helium314.keyboard.latin.utils.ToolbarKey.PAGE_DOWN,
+                helium314.keyboard.latin.utils.ToolbarKey.PAGE_START,
+                helium314.keyboard.latin.utils.ToolbarKey.PAGE_END}) {
                 android.view.View action=test.findView(row,v->v.getTag()==key && v.isShown());
-                check(action!=null,"Edit action missing on long press: "+key);
+                check(action!=null,"Edit action missing inside Clipboard: "+key);
             }
+            // The clipboard editing panel NEVER repeats the five favorites.
+            for(helium314.keyboard.latin.utils.ToolbarKey key:favorites) {
+                android.view.View duplicate=test.findView(row,v->v.getTag()==key);
+                check(duplicate==null,"Main favorite duplicated in clipboard: "+key);
+            }
+            android.view.View addWord=test.findView(row,
+                v->v.getId()==helium314.keyboard.latin.R.id.teclado_add_word);
+            check(addWord!=null && addWord.isShown() && addWord.hasOnClickListeners(),
+                "Add-word button missing from clipboard editing row");
+            android.view.View horizontal=test.findView(row,
+                v->v instanceof android.widget.HorizontalScrollView);
+            check(horizontal!=null && horizontal.isShown(),
+                "Editing actions are not scrollable horizontally");
             android.view.View back=test.findView(row,
                 v->"Voltar aos atalhos principais".equals(v.getContentDescription()));
             check(back!=null && back.isShown(),"No back control in clipboard editing toolbar");
@@ -429,14 +455,32 @@ public final class HybridTrial {
                 "More button must be at the right edge");
             check(dictionary!=null && dictionary.getParent()==toolbox &&
                 dictionary.hasOnClickListeners(),
-                "Dictionary add-word action missing from overflow");
+                "Dictionary action must remain reusable but hidden outside clipboard editing");
             check(!dictionary.isShown(),"Dictionary button crowds word predictions");
             helium314.keyboard.latin.suggestions.SuggestionStripView strip=
                 (helium314.keyboard.latin.suggestions.SuggestionStripView)
                 test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
             check(strip!=null,"Suggestion strip missing for overflow test");
             strip.setToolbarVisibility(true);
-            check(dictionary.isShown(),"Dictionary add-word action not visible in overflow");
+            check(!dictionary.isShown(),"Dictionary add-word should not appear in ⋯");
+            for(helium314.keyboard.latin.utils.ToolbarKey key:new helium314.keyboard.latin.utils.ToolbarKey[]{
+                helium314.keyboard.latin.utils.ToolbarKey.AI,
+                helium314.keyboard.latin.utils.ToolbarKey.CLIPBOARD,
+                helium314.keyboard.latin.utils.ToolbarKey.EMOJI,
+                helium314.keyboard.latin.utils.ToolbarKey.TRANSLATE,
+                helium314.keyboard.latin.utils.ToolbarKey.SETTINGS,
+                helium314.keyboard.latin.utils.ToolbarKey.SELECT_ALL,
+                helium314.keyboard.latin.utils.ToolbarKey.SELECT_WORD,
+                helium314.keyboard.latin.utils.ToolbarKey.COPY,
+                helium314.keyboard.latin.utils.ToolbarKey.CUT,
+                helium314.keyboard.latin.utils.ToolbarKey.PASTE,
+                helium314.keyboard.latin.utils.ToolbarKey.UNDO,
+                helium314.keyboard.latin.utils.ToolbarKey.REDO,
+                helium314.keyboard.latin.utils.ToolbarKey.LEFT,
+                helium314.keyboard.latin.utils.ToolbarKey.RIGHT}) {
+                check(test.findView(toolbox,v->v.getTag()==key)==null,
+                    "Duplicated main or editing action still in ⋯: "+key);
+            }
             strip.setToolbarVisibility(false);
         });
         // While a Portuguese word is being typed, predictions must have the
@@ -453,11 +497,21 @@ public final class HybridTrial {
                 "Words and pinned shortcuts overlap while composing");
         });
         test.shot("24c-predicoes-sem-icones");
-        // Exercise the REAL editing actions after compacting: overflow is
-        // opened via the native expand control, and selection changes the
-        // pinned row. No hidden shortcuts or fake copy buttons are allowed.
-        test.clear();test.type("teste");
-        test.toolbar(helium314.keyboard.latin.utils.ToolbarKey.SELECT_ALL);
+        // Exercise the REAL text actions through CLIPBOARD long-press,
+        // not ⋯, and verify selection still offers contextual copy/cut.
+        test.clear();
+        test.runOnMainSync(()-> {
+            android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
+            helium314.keyboard.latin.suggestions.SuggestionStripView strip=
+                (helium314.keyboard.latin.suggestions.SuggestionStripView)
+                test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
+            android.view.View clipboard=test.findView(root,
+                v->v.getTag()==helium314.keyboard.latin.utils.ToolbarKey.CLIPBOARD && v.isShown());
+            check(strip!=null && clipboard!=null,"Clipboard favorite missing before edit");
+            strip.onLongClick(clipboard);
+        });
+        test.type("teste");
+        test.tagged(helium314.keyboard.latin.utils.ToolbarKey.SELECT_ALL);
         Thread.sleep(450);
         test.runOnMainSync(()-> {
             android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
