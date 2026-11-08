@@ -1,5 +1,21 @@
 # Teclado BR
 
+## Em desenvolvimento: 0.9.2 — atalhos de edição sempre acessíveis
+
+A versão 0.9.1 já foi publicada. A proposta **0.9.2**, ainda em teste, mantém
+uma linha compacta de favoritos (IA, prancheta, emoji, ajustes, idioma),
+com um botão **⋯** para abrir o menu completo. Selecionar texto oferece
+Copiar, Recortar, Colar e Selecionar tudo diretamente na linha contextual.
+Desfazer, Refazer e movimentação do cursor continuam no menu expandido.
+
+As preferências anteriores, atalhos fixados, pins da prancheta e histórico
+são restaurados ao desligar a barra compacta. A 0.9.2 também reposiciona
+os pequenos indicadores de toque longo dentro das teclas arredondadas.
+Não há alteração no motor de digitação, dados pessoais ou nas opções de IA.
+
+A distribuição desta versão aguarda testes completos no Android 15 e inspeção
+visual no Nothing Phone (1); este PR não publica nem substitui a 0.9.1.
+
 ## Em desenvolvimento: 0.9.1 — teclas arredondadas e barra compacta
 
 Após teste visual no Nothing Phone (1), a versão 0.9.0 ainda ficou muito
