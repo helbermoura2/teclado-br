@@ -141,6 +141,15 @@ fun configureTecladoBr(context: Context) {
             .commit()
     }
 
+    // One-time lossless migration for users who enabled the compact toolbar
+    // in 0.9.1. They should not need to open Settings just to recover editing.
+    if (prefs.getBoolean("teclado_br_compact_toolbar_active", false)
+            && !prefs.getBoolean("teclado_br_compact_toolbar_v2", false)) {
+        check(applyTecladoBrCompactToolbar(context, true)) {
+            "Unable to migrate Teclado BR compact toolbar preferences"
+        }
+    }
+
 }
 
 
