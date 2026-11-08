@@ -1,18 +1,23 @@
 # Teclado BR
 
-## Em desenvolvimento: 0.9.2 beta 2 — sugestões com largura total
+## Em desenvolvimento: 0.9.2 beta 3 — barra organizada como referência Samsung
 
 A versão 0.9.1 já foi publicada. A proposta **0.9.2**, ainda em teste, mantém
 uma linha compacta de favoritos (IA, prancheta, emoji, ajustes, idioma),
-com um botão **⋯** para abrir o menu completo. **Enquanto digita, os favoritos
-são recolhidos e as três sugestões usam toda a faixa**, como na referência
+com o botão **⋯** à direita para abrir o menu completo. O botão **+** de
+adicionar ao dicionário continua funcionando, agora no menu de ferramentas.
+**Enquanto digita, os favoritos
+são recolhidos e as três sugestões usam toda a faixa**, sem o indicador
+decorativo de três pontos sob a palavra central, como na referência
 do teclado Samsung. Selecionar texto oferece
 Copiar, Recortar, Colar e Selecionar tudo diretamente na linha contextual.
 Desfazer, Refazer e movimentação do cursor continuam no menu expandido.
 
 As preferências anteriores, atalhos fixados, pins da prancheta e histórico
 são restaurados ao desligar a barra compacta. A 0.9.2 também reposiciona
-os pequenos indicadores de toque longo dentro das teclas arredondadas.
+o desenho dos pequenos indicadores: no tema One UI, os pontinhos
+inferiores que pareciam fragmentos brancos não são desenhados, mantendo
+o toque longo funcional.
 Não há alteração no motor de digitação, dados pessoais ou nas opções de IA.
 
 A distribuição desta versão aguarda testes completos no Android 15 e inspeção
