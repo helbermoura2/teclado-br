@@ -1,7 +1,17 @@
-# Teclado BR 0.9.2 beta 5 — corrigir favoritos ocultos por pontuação
+# Teclado BR 0.9.2 beta 6 — evitar sobreposição de palavras e ícones
 
 A versão 0.9.1 passou na compilação, Robolectric e emulador Android 15 e foi publicada.
 Esta revisão prepara o próximo APK; o visual na tela real ainda precisa de validação.
+
+**Regressão beta 5:** gravação real de 8,8 segundos confirmou os favoritos
+circulares na ordem combinada, mas revelou letras de sugestões sobrepostas
+aos ícones durante a digitação. A causa provável é a combinação do
+`animateLayoutChanges=true` nativo com as mudanças de visibilidade.
+A beta 6 desliga essa transição SOMENTE no modo compacto, oculta a linha
+inativa antes de exibir a nova e reaplica a regra após `onVisibilityChanged`.
+O teste de instrumentação exige layout transition desativada e exclusividade
+visual em repouso e com palavra composta. Essa instrumentação não roda na
+compilação rápida sem emulador.
 
 **Regressão beta 4:** captura real mostrou a barra de pontuação
 `! ? , : ;` ocupando o lugar dos cinco favoritos com o campo vazio.
