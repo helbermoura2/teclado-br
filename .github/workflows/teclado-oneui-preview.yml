@@ -144,15 +144,24 @@ jobs:
             adb shell wm density 220
             adb install -r $(find heli-package -name '*.apk' -print -quit)
             python3 heliboard/smoke.py
-      - name: Guardar diagnóstico compacto da prévia (1 dia)
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
+      # The account's Actions artifact quota is exhausted. Avoid uploads
+      # that are guaranteed to fail; keep diagnostics in normal Actions logs.
+      - name: Resumo dos diagnósticos sem consumir armazenamento de artefatos
         if: always()
-        with:
-          retention-days: 1
-          compression-level: 9
-          name: teclado-br-oneui-previa-${{ github.run_id }}
-          path: |
-            heli-results/
-            heli-package/unit-tests/
-          if-no-files-found: ignore
+        shell: bash
+        run: |
+          {
+            echo '## Teclado BR One UI — diagnóstico'
+            echo ''
+            echo 'Os testes e suas falhas ficam nos logs da execução.'
+            echo 'Upload de capturas temporariamente desativado pela cota do GitHub Actions.'
+            echo ''
+            echo '### Capturas geradas (nomes e SHA-256, sem upload)'
+            echo '```'
+            if [ -d heli-results ]; then
+              find heli-results -type f -name '*.png' -print0 | sort -z | xargs -0 -r sha256sum
+            else
+              echo 'Diretório de capturas não disponível.'
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
