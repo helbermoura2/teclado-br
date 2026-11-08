@@ -304,11 +304,16 @@ public final class HybridTrial {
         String previousTheme=themes.getString(Settings.PREF_THEME_COLORS,"darker");
         String previousToolbar=themes.getString(Settings.PREF_TOOLBAR_KEYS, "");
         boolean toolbarPreviouslyCompact=themes.getBoolean("teclado_br_compact_toolbar_active",false);
-        if(!themePreviouslyActive)test.aiClick("appearance_oneui_theme");
-        if(!toolbarPreviouslyCompact)test.aiClick("appearance_compact_toolbar");
+        test.aiEnsureChecked("appearance_oneui_theme",true);
+        test.aiEnsureChecked("appearance_compact_toolbar",true);
+        test.aiEnsureChecked("appearance_oneui_theme",true);
         test.shot("24b-preview-visual-oneui");
-        test.aiClick("appearance_save");
-        check(themes.getBoolean("teclado_br_one_ui_active",false),"One UI theme was not saved");
+        test.aiPress("appearance_save");
+        check(themes.getBoolean("teclado_br_one_ui_active",false),
+            "One UI theme was not saved; theme="+themes.getString(Settings.PREF_THEME_COLORS,"")+
+            ", compact="+themes.getBoolean("teclado_br_compact_toolbar_active",false)+
+            ", prevActive="+themePreviouslyActive+
+            ", prevCompact="+toolbarPreviouslyCompact);
         check("Teclado BR · Estilo One UI".equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"One UI palette not selected");
         check(themes.getBoolean("teclado_br_compact_toolbar_active",false),"One UI compact toolbar was not saved");
         check(themes.getString(Settings.PREF_TOOLBAR_KEYS,"").contains("AI:true"),"AI shortcut hidden in compact toolbar");
@@ -319,8 +324,8 @@ public final class HybridTrial {
             test.type("teste");
             test.aiClick("Adicionar palavra ao dicionário");
             test.aiClick("keyboard_appearance");
-            test.aiClick("appearance_oneui_theme");
-            test.aiClick("appearance_save");
+            test.aiEnsureChecked("appearance_oneui_theme",false);
+            test.aiPress("appearance_save");
             check(!themes.getBoolean("teclado_br_one_ui_active",false),"Classic theme was not restored");
             check(previousTheme.equals(themes.getString(Settings.PREF_THEME_COLORS,"")),"Previous user theme was not restored");
             check(!themes.getBoolean("teclado_br_compact_toolbar_active",false),"Compact toolbar not disabled with theme");
