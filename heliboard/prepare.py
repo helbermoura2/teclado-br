@@ -21,9 +21,9 @@ if (root/'.git').exists():
         raise RuntimeError('Prepare requires the pinned upstream commit from upstream.json')
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9008')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9009')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.2-beta.7-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.2-beta.8-heli3.6"')
 # Robolectric 4.14.1 uses its own MavenArtifactFetcher at unit-test runtime,
 # independent of Gradle's repositories. repo1.maven.org can intermittently
 # reject Android SDK jars, causing many unrelated JVM tests to fail together.
@@ -95,6 +95,7 @@ for module in (suggestions, typing, assistant, visual, toolbar, translation):
 ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
 ai_tests.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(here/'tests/PromptBuilderOneUiTest.java', ai_tests/'PromptBuilderOneUiTest.java')
+shutil.copyfile(here/'tests/UpdatePolicyTest.java', ai_tests/'UpdatePolicyTest.java')
 context.report(lock)
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
