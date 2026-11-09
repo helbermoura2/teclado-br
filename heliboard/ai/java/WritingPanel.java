@@ -472,7 +472,7 @@ public final class WritingPanel {
         }
         if(!AiPreferences.canStart(ime)) {
             screen(value,false);
-            notice("Configure a Groq ou importe um modelo offline na engrenagem.");
+            notice("Configure o Gemini, a Groq ou importe um modelo offline na engrenagem.");
             return;
         }
         if(!task.equals("Compositor")&&!fromClipboard)snapshot.highlight(ime);
