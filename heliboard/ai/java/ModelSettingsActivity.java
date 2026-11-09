@@ -149,6 +149,10 @@ public final class ModelSettingsActivity extends Activity {
             ((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Medições de IA",MeasurementHistory.describe(this)));
             Toast.makeText(this,"Medições copiadas.",Toast.LENGTH_SHORT).show();
         });
+        label("Atualizações do Teclado BR",20);
+        label("Verifique uma nova versão e instale por cima da atual, sem perder os modelos, palavras ou configurações. Os APKs são verificados antes da instalação; versões privadas podem precisar de login no GitHub.",14);
+        button("Verificar e instalar atualização","ai_open_updater",()->
+            startActivity(new Intent(this,UpdateActivity.class)));
         button("Aparência do teclado",null,()->startActivity(new Intent(this,AppearanceActivity.class)));
         button("Dicionário pessoal e backup",null,()->startActivity(new Intent(this,DictionaryActivity.class)));
         button("Voltar ao aplicativo",null,this::finish);
