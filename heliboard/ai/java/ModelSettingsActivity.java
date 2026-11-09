@@ -16,7 +16,7 @@ public final class ModelSettingsActivity extends Activity {
     private boolean busy,measuring,bound;
     private LinearLayout root;
     private TextView description,status,keyState,geminiKeyState,geminiTestState,metrics;
-    private Button add,remove,cancel,save,geminiSave,groqSave,geminiTest,geminiModelSave,measure,cancelMeasure;
+    private Button add,remove,cancel,save,geminiSave,groqSave,geminiTest,geminiProbe,geminiModelSave,measure,cancelMeasure;
     private EditText key,geminiKey;
     private Spinner geminiModelSelector;
     private RadioGroup modes;
@@ -106,7 +106,8 @@ public final class ModelSettingsActivity extends Activity {
         root.addView(geminiModelSelector,new LinearLayout.LayoutParams(-1,dp(48)));
         geminiModelSave=button("Lembrar modelo do teste (opcional)","ai_save_gemini_model",this::saveGeminiModel);
         geminiTest=button("Testar conexão Gemini","ai_test_gemini",this::testGemini);
-        geminiTestState=label("Teste com frase fictícia, sem usar suas mensagens. Não troca para Groq.",14);
+        geminiProbe=button("Diagnóstico rápido do Gemini 3.8","ai_probe_gemini_38",this::probeGemini38);
+        geminiTestState=label("Testes independentes e fictícios, sem mensagens pessoais ou Groq. O diagnóstico rápido envia somente 'Responda apenas OK'.",14);
         geminiTestState.setContentDescription("ai_gemini_test_state");
         geminiModelSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent,android.view.View view,
@@ -247,6 +248,7 @@ public final class ModelSettingsActivity extends Activity {
             return;
         }
         geminiTest.setEnabled(false);
+        geminiProbe.setEnabled(false);
         geminiModelSave.setEnabled(false);
         geminiModelSelector.setEnabled(false);
         geminiTestState.setText("Verificando acesso à API do Google para "+model+"…");
@@ -273,7 +275,7 @@ public final class ModelSettingsActivity extends Activity {
                 long elapsed=Math.max(1,(SystemClock.elapsedRealtime()-started)/1000);
                 message="Gemini FUNCIONOU: "+model+" respondeu em "+elapsed+
                     " s. A chave e a geração de texto estão funcionando. "+
-                    "A ordem automática 3.8 → 3.6 → Groq permanece fixa. Nenhuma chamada à Groq neste teste.";
+                    "Tempos: "+client.timing()+". Ordem automática 3.8 → 3.6 → Groq fixa. Sem Groq neste teste.";
             }
             catch(Exception error) {
                 String reason=GeminiClient.diagnostic(error);
@@ -288,11 +290,54 @@ public final class ModelSettingsActivity extends Activity {
                 if(isDestroyed())return;
                 geminiTestState.setText(info);
                 geminiTest.setEnabled(!busy&&!measuring);
+                geminiProbe.setEnabled(!busy&&!measuring);
                 geminiModelSave.setEnabled(!busy&&!measuring);
                 geminiModelSelector.setEnabled(!busy&&!measuring);
             });
         });
     }
+    /** Uses only a fixed synthetic prompt; never reads any user composition. */
+    private void probeGemini38() {
+        if(busy||measuring||!geminiProbe.isEnabled())return;
+        if(!SecretStore.hasGeminiKey(this)) {
+            geminiTestState.setText("Salve sua chave Gemini antes do diagnóstico.");
+            return;
+        }
+        geminiTest.setEnabled(false);
+        geminiProbe.setEnabled(false);
+        geminiModelSave.setEnabled(false);
+        geminiModelSelector.setEnabled(false);
+        geminiTestState.setText("Diagnóstico mínimo: Gemini 3.8, texto fictício curto, sem Groq…");
+        worker.execute(()-> {
+            String message;
+            try {
+                String key=SecretStore.readGemini(this);
+                java.util.function.BooleanSupplier interrupted=
+                    ()->Thread.currentThread().isInterrupted();
+                GeminiClient client=new GeminiClient(GeminiClient.MODEL,key,interrupted);
+                InferenceResult response=client.generateMinimalProbe();
+                if(response.text==null||response.text.trim().isEmpty())
+                    throw new java.io.IOException("Resposta vazia");
+                message="Gemini 3.8 GEROU texto no teste mínimo. "+
+                    client.timing()+". Sem acesso a textos pessoais e sem Groq.";
+            }
+            catch(Exception error) {
+                message="Gemini 3.8 não concluiu o teste mínimo: "+
+                    GeminiClient.diagnostic(error)+
+                    ". Sem Groq e sem conteúdo pessoal. O teste não confirma a causa externa.";
+            }
+            final String result=message;
+            runOnUiThread(()-> {
+                if(isDestroyed())return;
+                geminiTestState.setText(result);
+                geminiTest.setEnabled(!busy&&!measuring);
+                geminiProbe.setEnabled(!busy&&!measuring);
+                geminiModelSave.setEnabled(!busy&&!measuring);
+                geminiModelSelector.setEnabled(!busy&&!measuring);
+            });
+        });
+    }
+
     private void saveGeminiKey() {
         if(busy||measuring)return;
         String secret=geminiKey.getText().toString().trim();
@@ -364,6 +409,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiSave.setEnabled(!busy&&!measuring);
         groqSave.setEnabled(!busy&&!measuring);
         geminiTest.setEnabled(!busy&&!measuring);
+        geminiProbe.setEnabled(!busy&&!measuring);
         geminiModelSave.setEnabled(!busy&&!measuring);
         geminiModelSelector.setEnabled(!busy&&!measuring);
         measure.setEnabled(!busy&&!measuring);

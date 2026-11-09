@@ -49,3 +49,21 @@ solicitações para melhorar produtos conforme seus termos.
 
 Não afirmar que a integração foi testada contra o Google em conta real até
 que o teste no dispositivo seja feito. O APK ainda não foi publicado.
+
+## Diagnóstico e latência (beta 14)
+
+- Em solicitações curtas (até 600 caracteres de prompt total), o Gemini 3.8
+  tem `readTimeout=15000ms` após o envio da solicitação. A conexão possui
+  seu próprio prazo (até 8 segundos), portanto a duração total pode superar
+  15 segundos. Textos maiores preservam o limite anterior de 60 segundos.
+- O 3.6 mantém o próprio prazo e a Groq só recebe o texto se ambos os Gemini
+  falharem. O modo Automático ainda pode usar o GGUF offline.
+- A opção **Diagnóstico rápido do Gemini 3.8** envia só a frase fictícia
+  "Responda apenas OK", sem a instrução longa de revisão. O teste individual
+  normal permanece disponível.
+- O diagnóstico apresenta somente etapa, duração de conexão/TLS, envio,
+  espera pelo código HTTP, leitura e código HTTP numérico (quando conhecido).
+  Nunca grava nem mostra chave, prompt pessoal ou corpo de resposta da API.
+  Esses tempos identificam a fase da falha, não asseguram a causa no Google.
+- A chave já cadastrada permanece no Android Keystore, sem migração.
+
