@@ -12,6 +12,10 @@ public final class GeminiDiagnosticTest {
         assertTrue(GeminiClient.diagnostic(new GeminiClient.Failure(429)).contains("cota"));
         assertTrue(GeminiClient.diagnostic(new GeminiClient.Failure(503)).contains("servidor"));
         assertTrue(GeminiClient.diagnostic(new SocketTimeoutException()).contains("tempo"));
+        assertTrue(GeminiClient.diagnostic(
+            new SocketTimeoutException("Read timed out")).contains("aguardando resposta"));
+        assertTrue(GeminiClient.diagnostic(
+            new SocketTimeoutException("connect timed out")).contains("conectar"));
     }
     @Test public void onlyTransientOrModelSpecificErrorsTrySecondGemini() {
         for(int status:new int[]{404,429,500,502,503,504})
@@ -27,5 +31,11 @@ public final class GeminiDiagnosticTest {
         try {new GeminiClient("https://evil.example/steal","fake-key-not-used",()->false);}
         catch(IllegalArgumentException e){blocked=true;}
         assertTrue("Untrusted endpoint/model accepted",blocked);
+        boolean blockedProbe=false;
+        try {
+            GeminiClient.verifyAccess("https://evil.invalid","fake-key-not-used",()->false);
+        }catch(IllegalArgumentException e){blockedProbe=true;}
+        catch(Exception e){throw new AssertionError("Unauthorized network attempted",e);}
+        assertTrue("Untrusted model access attempted",blockedProbe);
     }
 }
