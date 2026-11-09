@@ -1,28 +1,47 @@
-# IA híbrida e melhorias — 0.8.0
+# Assistente de escrita híbrido — Gemini, Groq e Gemma (em implementação)
 
-## Ativar
+## Modos no teclado
 
-Abra o brilho e a engrenagem. Crie uma chave em https://console.groq.com/keys
-usando uma conta no plano Free. Cadastre a chave apenas no aplicativo; não a envie
-no chat. Salve o modo Automático. Mantenha o GGUF da Gemma já importado para fallback.
-O seletor Offline/Automático/Online também aparece no painel de escrita.
+- **Offline (padrão):** usa o GGUF importado no aparelho (por exemplo Gemma 4);
+  nunca consulta serviços online.
+- **Automático:** tenta Gemini 3.8 Flash se houver chave e internet; diante de
+  falha tenta a chave Groq existente; se ambas indisponíveis, usa o GGUF local.
+- **Online:** Gemini e, se necessário, Groq; não usa o GGUF como reserva.
 
-Offline nunca chama a Groq. Automático usa Groq quando há conexão validada e chave;
-se houver erro, limite ou falta de conexão, usa o GGUF. Online exige conexão e chave
-e apresenta erro sem fallback. Cancelar não inicia uma segunda geração local.
-Nada substitui o campo original até tocar em Substituir; mudança no campo bloqueia
-uma substituição antiga. A comparação destaca remoções no original e inserções na revisão.
+Somente o texto escolhido para a tarefa explicitamente acionada pelo usuário
+é enviado ao provedor. O editor normal, sugestões, dados de senha, aprendizado
+e dicionário permanecem locais. Não há envio em segundo plano.
+O botão **Substituir** continua sendo a única forma de aplicar uma revisão no
+campo original e exige snapshot válido. A comparação de alterações é local.
 
-A digitação normal, correção e aprendizagem do HeliBoard continuam locais. Somente
-a tarefa solicitada envia à Groq seu texto e instruções, conforme a política do
-provedor. Campos de senha são bloqueados. A chave usa AES-GCM/Android Keystore e
-arquivo privado fora do backup, sem registro em logs ou exportação do dicionário.
-O endpoint é HTTPS, sem redirecionamentos; testes usam servidor local e chave fictícia.
+## Configurar chave e privacidade
 
-Modelo online: openai/gpt-oss-20b. O plano Free tem cotas que podem mudar; o app não
-ativa cobrança nem troca para plano pago. Uma chave de conta paga pode gerar cobrança
-no provedor: o app não consegue detectar o plano. Use conta Free para manter grátis.
-O app não usa a assinatura do ChatGPT e não precisa de servidor próprio.
+No teclado, abra **Assistente → engrenagem**. Cadastre sua chave Gemini no
+campo próprio; Groq é opcional. A chave nunca deve ser enviada pelo chat nem
+commitada no repositório. Cada chave é cifrada com AES-GCM e alias distinto no
+Android Keystore, em diretório privado sem backup. Atualizações preservam os
+arquivos e modelos locais. É possível remover uma chave sem apagar a outra.
+O app não embute nenhum segredo, nem habilita faturamento em provedores.
+A gratuidade depende do projeto e das cotas de cada fornecedor; serviços podem
+usar os textos recebidos conforme as condições do plano.
+
+O uso direto da API no dispositivo é reservado ao protótipo pessoal. A Google
+recomenda uma camada de backend para produção, porque chaves em aplicações
+cliente podem ser extraídas de aparelhos comprometidos. Consulte [GEMINI.md](GEMINI.md).
+A conexão exige HTTPS; exceção HTTP só para 127.0.0.1 nos testes sintéticos.
+
+## Qualidade e validação
+
+O prompt de revisão foi reforçado para preservar fatos, negações, nomes,
+valores, links, gírias intencionais e não parafrasear textos corretos.
+Isso não garante correção perfeita: Gemini, Groq e Gemma devem ser comparados
+com frases reais escolhidas pelo usuário, sem enviar essas frases a logs ou CI.
+O modelo online responde em uma única requisição limitada, com cancelamento
+e detecção de falha. A saída fica na prévia até ação explícita.
+
+A suíte existente tem testes sintéticos de erros de rede, chaves, limites e
+edição; a nova implementação adiciona casos Gemini. A compilação e o teste
+no Nothing Phone (1) ainda não foram concluídos nesta branch.
 
 ## Personalização
 

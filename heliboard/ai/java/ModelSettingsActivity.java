@@ -15,9 +15,9 @@ public final class ModelSettingsActivity extends Activity {
     private volatile boolean cancelled;
     private boolean busy,measuring,bound;
     private LinearLayout root;
-    private TextView description,status,keyState,metrics;
+    private TextView description,status,keyState,geminiKeyState,metrics;
     private Button add,remove,cancel,save,measure,cancelMeasure;
-    private EditText key;
+    private EditText key,geminiKey;
     private RadioGroup modes;
     private Messenger engine;
     private int dp(int n) {
@@ -54,10 +54,10 @@ public final class ModelSettingsActivity extends Activity {
         scroll.addView(root);
         setContentView(scroll);
         label("Assistente · configurações",24);
-        label("Somente tarefas solicitadas no botão de brilho podem enviar o texto escolhido e o prompt à Groq. A digitação e o aprendizado ficam no aparelho. Offline não envia solicitações.",14);
+        label("Somente tarefas iniciadas por você no botão de brilho enviam o texto selecionado ao Gemini e, se ele falhar, à Groq. O modo Offline não envia texto. A digitação e o aprendizado continuam no aparelho.",14);
         modes=new RadioGroup(this);
         String[] names= {
-            "Offline · somente no aparelho","Automático · Groq com retorno ao aparelho","Online · somente Groq"
+            "Offline · somente no aparelho","Automático · Gemini → Groq → aparelho","Online · Gemini → Groq (sem offline)"
         };
         String[] values= {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
@@ -74,31 +74,51 @@ public final class ModelSettingsActivity extends Activity {
             if(values[i].equals(AiPreferences.mode(this)))radio.setChecked(true);
         }
         root.addView(modes);
-        label("Groq Free",20);
-        label("Use uma conta no plano Free, sem habilitar faturamento. Há limites de uso; no modo Automático o teclado volta ao GGUF quando a cota acaba. O aplicativo não altera seu plano. Uma chave de conta paga pode gerar cobrança pelo provedor.",14);
-        keyState=label(SecretStore.hasKey(this)?"Chave protegida já cadastrada.":"Nenhuma chave cadastrada.",14);
+        label("Gemini 3.8 Flash · principal online",20);
+        label("Você já pode usar sua própria chave do Google AI Studio. Não cole aqui no GitHub ou no chat. A chave é cifrada no aparelho e não entra no APK. Os textos enviados usam a política da sua conta Google; contas pagas podem ter custos.",14);
+        geminiKeyState=label(SecretStore.hasGeminiKey(this)?"Chave Gemini protegida já cadastrada.":"Nenhuma chave Gemini cadastrada.",14);
+        geminiKeyState.setContentDescription("ai_gemini_key_state");
+        geminiKey=new EditText(this);
+        geminiKey.setSingleLine(true);
+        geminiKey.setTextColor(Color.WHITE);
+        geminiKey.setHintTextColor(Color.LTGRAY);
+        geminiKey.setHint("Cole a chave do Gemini aqui");
+        geminiKey.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        geminiKey.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
+        geminiKey.setContentDescription("ai_gemini_key");
+        root.addView(geminiKey);
+        button("Abrir minhas chaves Gemini",null,()->open("https://aistudio.google.com/api-keys"));
+        button("Remover só a chave Gemini","ai_remove_gemini_key",()-> {
+            stopMeasurement();
+            SecretStore.removeGemini(this);
+            geminiKey.setText("");
+            geminiKeyState.setText("Chave Gemini removida.");
+            ensureUsableMode();
+            status.setText("Chave Gemini removida. A chave Groq e o modelo offline foram mantidos.");
+        });
+
+        label("Groq · reserva online",20);
+        label("Opcional. Se Gemini falhar, o teclado pode tentar sua chave Groq. Se as duas falharem, o modo Automático usa Gemma offline. Os serviços podem ter limites e custos conforme seu plano.",14);
+        keyState=label(SecretStore.hasKey(this)?"Chave Groq protegida já cadastrada.":"Nenhuma chave Groq cadastrada.",14);
         keyState.setContentDescription("ai_key_state");
         key=new EditText(this);
         key.setSingleLine(true);
         key.setTextColor(Color.WHITE);
         key.setHintTextColor(Color.LTGRAY);
-        key.setHint("Cole a chave da Groq aqui");
+        key.setHint("Cole a chave da Groq (opcional)");
         key.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
         key.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         key.setContentDescription("ai_groq_key");
         root.addView(key);
-        save=button("Salvar modo e chave","ai_save_settings",this::saveOptions);
-        button("Criar chave gratuita na Groq",null,()->open("https://console.groq.com/keys"));
-        button("Remover chave online","ai_remove_key",()-> {
+        save=button("Salvar modo e chaves","ai_save_settings",this::saveOptions);
+        button("Abrir minhas chaves Groq",null,()->open("https://console.groq.com/keys"));
+        button("Remover só a chave Groq","ai_remove_key",()-> {
             stopMeasurement();
             SecretStore.remove(this);
-            AiPreferences.mode(this,AiPreferences.OFFLINE);
             key.setText("");
-            keyState.setText("Chave removida. Modo Offline ativado.");
-            for(int i=0;i<modes.getChildCount();i++) {
-                RadioButton r=(RadioButton)modes.getChildAt(i);
-                r.setChecked(AiPreferences.OFFLINE.equals(r.getTag()));
-            }
+            keyState.setText("Chave Groq removida.");
+            ensureUsableMode();
+            status.setText("Chave Groq removida. A chave Gemini e o modelo offline foram mantidos.");
         });
         label("Modelo offline",20);
         description=label(ModelStore.description(this),15);
@@ -129,25 +149,47 @@ public final class ModelSettingsActivity extends Activity {
             ((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Medições de IA",MeasurementHistory.describe(this)));
             Toast.makeText(this,"Medições copiadas.",Toast.LENGTH_SHORT).show();
         });
+        label("Atualizações do Teclado BR",20);
+        label("Verifique uma nova versão e instale por cima da atual, sem perder os modelos, palavras ou configurações. Os APKs são verificados antes da instalação; versões privadas podem precisar de login no GitHub.",14);
+        button("Verificar e instalar atualização","ai_open_updater",()->
+            startActivity(new Intent(this,UpdateActivity.class)));
         button("Aparência do teclado",null,()->startActivity(new Intent(this,AppearanceActivity.class)));
         button("Dicionário pessoal e backup",null,()->startActivity(new Intent(this,DictionaryActivity.class)));
         button("Voltar ao aplicativo",null,this::finish);
         controls(false);
     }
+    private void ensureUsableMode() {
+        if(AiPreferences.ONLINE.equals(AiPreferences.mode(this))&&
+            !SecretStore.hasGeminiKey(this)&&!SecretStore.hasKey(this)) {
+            AiPreferences.mode(this,AiPreferences.OFFLINE);
+            for(int i=0;i<modes.getChildCount();i++) {
+                RadioButton r=(RadioButton)modes.getChildAt(i);
+                if(AiPreferences.OFFLINE.equals(r.getTag()))r.setChecked(true);
+            }
+        }
+    }
     private void saveOptions() {
         if(busy||measuring)return;
-        String mode=(String)modes.findViewById(modes.getCheckedRadioButtonId()).getTag();
-        String secret=key.getText().toString().trim();
+        int checked=modes.getCheckedRadioButtonId();
+        if(checked==-1)return;
+        String mode=(String)modes.findViewById(checked).getTag();
+        String groqSecret=key.getText().toString().trim();
+        String geminiSecret=geminiKey.getText().toString().trim();
         save.setEnabled(false);
         worker.execute(()-> {
             try {
-                if(!secret.isEmpty())SecretStore.save(this,secret);
-                if(AiPreferences.ONLINE.equals(mode)&&!SecretStore.hasKey(this))throw new IllegalStateException("Cadastre uma chave para usar somente online.");
+                if(!geminiSecret.isEmpty())SecretStore.saveGemini(this,geminiSecret);
+                if(!groqSecret.isEmpty())SecretStore.save(this,groqSecret);
+                if(AiPreferences.ONLINE.equals(mode)&&
+                    !SecretStore.hasGeminiKey(this)&&!SecretStore.hasKey(this))
+                    throw new IllegalStateException("Cadastre uma chave Gemini ou Groq.");
                 AiPreferences.mode(this,mode);
                 runOnUiThread(()-> {
                     if(!isDestroyed()) {
+                        geminiKey.setText("");
                         key.setText("");
-                        keyState.setText(SecretStore.hasKey(this)?"Chave protegida cadastrada.":"Sem chave. Automático usará o modelo local.");
+                        geminiKeyState.setText(SecretStore.hasGeminiKey(this)?"Chave Gemini protegida cadastrada.":"Sem chave Gemini.");
+                        keyState.setText(SecretStore.hasKey(this)?"Chave Groq protegida cadastrada.":"Sem chave Groq.");
                         status.setText("Configurações salvas: "+AiPreferences.label(this));
                         save.setEnabled(true);
                     }

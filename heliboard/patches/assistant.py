@@ -27,16 +27,30 @@ def apply(context):
         '            case KeyCode.LANGUAGE_SWITCH:',
         '            case -11050:\n                helium314.keyboard.latin.ai.WritingLauncher.open(mLatinIME);\n                break;\n            case KeyCode.LANGUAGE_SWITCH:')
     manifest = root/'app/src/main/AndroidManifest.xml'
-    manifest.write_text(manifest.read_text().replace('<uses-permission android:name="android.permission.VIBRATE" />', '<uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />').replace('android:supportsRtl="true"', 'android:supportsRtl="true" android:networkSecurityConfig="@xml/teclado_network_security"').replace('        <!-- Services -->', '''        <activity android:name=".ai.ModelSettingsActivity" android:exported="false"
+    manifest.write_text(manifest.read_text().replace('<uses-permission android:name="android.permission.VIBRATE" />', '<uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />').replace('android:supportsRtl="true"', 'android:supportsRtl="true" android:networkSecurityConfig="@xml/teclado_network_security"').replace('        <!-- Services -->', '''        <activity android:name=".ai.ModelSettingsActivity" android:exported="false"
                 android:directBootAware="false" android:excludeFromRecents="true"
                 android:theme="@android:style/Theme.Material.NoActionBar"/>
             <activity android:name=".ai.DictionaryActivity" android:exported="false" android:directBootAware="false" android:theme="@android:style/Theme.Material.NoActionBar"/>
             <activity android:name=".ai.AppearanceActivity" android:exported="false" android:directBootAware="false" android:theme="@android:style/Theme.Material.NoActionBar"/>
+            <activity android:name=".ai.UpdateActivity" android:exported="false"
+                android:directBootAware="false" android:excludeFromRecents="true"
+                android:theme="@android:style/Theme.Material.NoActionBar"/>
+            <provider android:name="androidx.core.content.FileProvider"
+                android:authorities="${applicationId}.teclado_updates"
+                android:exported="false" android:grantUriPermissions="true">
+                <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
+                    android:resource="@xml/teclado_update_paths"/>
+            </provider>
             <service android:name=".ai.WritingEngineService" android:exported="false"
                 android:process=":writing" android:directBootAware="false"/>
             <!-- Services -->'''))
     # Normal transport accepts HTTPS only. The debug harness uses a fake-key loopback server.
     (root/'app/src/main/res/xml/teclado_network_security.xml').write_text('''<network-security-config><base-config cleartextTrafficPermitted="false"/><domain-config cleartextTrafficPermitted="true"><domain>127.0.0.1</domain></domain-config></network-security-config>''')
+    # Only the app-private, verified update APK can be exposed to Android's package installer.
+    (root/'app/src/main/res/xml/teclado_update_paths.xml').write_text(
+        '<paths xmlns:android="http://schemas.android.com/apk/res/android">'
+        '<cache-path name="verified_apk" path="teclado-updates/"/>'
+        '</paths>')
     # Overlay stays inside the existing IME window, preserving the current app/input connection.
     replace('app/src/main/java/helium314/keyboard/latin/LatinIME.java',
         '    public void onEvent(@NonNull final Event event) {',

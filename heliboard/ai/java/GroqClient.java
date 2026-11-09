@@ -56,7 +56,7 @@ public final class GroqClient implements InferenceRouter.Backend {
             http.setDoOutput(true);
             http.setRequestProperty("Content-Type","application/json; charset=utf-8");
             http.setRequestProperty("Authorization","Bearer "+key);
-            JSONArray messages=new JSONArray().put(new JSONObject().put("role","system").put("content","Você é um assistente de escrita em português brasileiro. Siga a tarefa solicitada e devolva somente o texto final, sem raciocínio ou comentários.")).put(new JSONObject().put("role","user").put("content",prompt));
+            JSONArray messages=new JSONArray().put(new JSONObject().put("role","system").put("content","Você é um revisor e assistente de escrita em português brasileiro. Cumpra a tarefa solicitada, preserve fatos, nomes, números, negações e sentido. Devolva somente o texto final, sem raciocínio nem comentários.")).put(new JSONObject().put("role","user").put("content",prompt));
             byte[] request=new JSONObject().put("model",MODEL).put("messages",messages).put("max_completion_tokens",1024).put("reasoning_effort","low").put("include_reasoning",false).put("stream",false).toString().getBytes(StandardCharsets.UTF_8);
             http.setFixedLengthStreamingMode(request.length);
             try(OutputStream out=http.getOutputStream()) {

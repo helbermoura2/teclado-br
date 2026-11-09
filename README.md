@@ -1,5 +1,17 @@
 # Teclado BR
 
+## Integração Gemini + Groq + Gemma — proposta para o beta 0.9.2
+
+A configuração híbrida está em preparação numa branch dependente das melhorias
+visuais 0.9.2: **Gemini 3.8 Flash** será a primeira IA online, **Groq** será
+reserva opcional e o modelo **Gemma GGUF** continuará independente no modo
+Offline. As chaves serão cadastradas no aparelho, separadamente cifradas pelo
+Android Keystore. Nada é enviado enquanto você apenas digita.
+
+**Ainda não há APK com Gemini publicado;** a branch necessita compilar e
+passar pelos testes Android antes da instalação. Veja [integração e segurança](heliboard/GEMINI.md).
+
+
 ## Em desenvolvimento: 0.9.2 beta 7 — edição dentro da prancheta
 
 A barra principal compacta mostra cinco favoritos circulares, nesta ordem:
