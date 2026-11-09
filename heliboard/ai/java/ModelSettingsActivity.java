@@ -16,7 +16,7 @@ public final class ModelSettingsActivity extends Activity {
     private boolean busy,measuring,bound;
     private LinearLayout root;
     private TextView description,status,keyState,geminiKeyState,metrics;
-    private Button add,remove,cancel,save,measure,cancelMeasure;
+    private Button add,remove,cancel,save,geminiSave,groqSave,measure,cancelMeasure;
     private EditText key,geminiKey;
     private RadioGroup modes;
     private Messenger engine;
@@ -74,6 +74,7 @@ public final class ModelSettingsActivity extends Activity {
             if(values[i].equals(AiPreferences.mode(this)))radio.setChecked(true);
         }
         root.addView(modes);
+        save=button("Salvar modo de IA","ai_save_settings",this::saveMode);
         label("Gemini 3.8 Flash · principal online",20);
         label("Você já pode usar sua própria chave do Google AI Studio. Não cole aqui no GitHub ou no chat. A chave é cifrada no aparelho e não entra no APK. Os textos enviados usam a política da sua conta Google; contas pagas podem ter custos.",14);
         geminiKeyState=label(SecretStore.hasGeminiKey(this)?"Chave Gemini protegida já cadastrada.":"Nenhuma chave Gemini cadastrada.",14);
@@ -87,6 +88,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiKey.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         geminiKey.setContentDescription("ai_gemini_key");
         root.addView(geminiKey);
+        geminiSave=button("Salvar chave Gemini","ai_save_gemini_key",this::saveGeminiKey);
         button("Abrir minhas chaves Gemini",null,()->open("https://aistudio.google.com/api-keys"));
         button("Remover só a chave Gemini","ai_remove_gemini_key",()-> {
             stopMeasurement();
@@ -110,7 +112,7 @@ public final class ModelSettingsActivity extends Activity {
         key.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
         key.setContentDescription("ai_groq_key");
         root.addView(key);
-        save=button("Salvar modo e chaves","ai_save_settings",this::saveOptions);
+        groqSave=button("Salvar chave Groq","ai_save_groq_key",this::saveGroqKey);
         button("Abrir minhas chaves Groq",null,()->open("https://console.groq.com/keys"));
         button("Remover só a chave Groq","ai_remove_key",()-> {
             stopMeasurement();
@@ -168,41 +170,82 @@ public final class ModelSettingsActivity extends Activity {
             }
         }
     }
-    private void saveOptions() {
+    private void saveMode() {
         if(busy||measuring)return;
         int checked=modes.getCheckedRadioButtonId();
         if(checked==-1)return;
-        String mode=(String)modes.findViewById(checked).getTag();
-        String groqSecret=key.getText().toString().trim();
-        String geminiSecret=geminiKey.getText().toString().trim();
+        String selected=(String)modes.findViewById(checked).getTag();
+        if(AiPreferences.ONLINE.equals(selected)&&
+            !SecretStore.hasGeminiKey(this)&&!SecretStore.hasKey(this)) {
+            status.setText("Cadastre e salve primeiro sua chave Gemini ou Groq.");
+            return;
+        }
         save.setEnabled(false);
         worker.execute(()-> {
+            boolean saved=false;
+            try {AiPreferences.mode(this,selected);saved=true;}
+            catch(Exception ignored){}
+            final boolean result=saved;
+            runOnUiThread(()-> {
+                if(isDestroyed())return;
+                status.setText(result?"Modo salvo: "+AiPreferences.label(this):
+                    "Não foi possível salvar o modo.");
+                save.setEnabled(true);
+            });
+        });
+    }
+    private void saveGeminiKey() {
+        if(busy||measuring)return;
+        String secret=geminiKey.getText().toString().trim();
+        if(secret.isEmpty()) {
+            geminiKeyState.setText("Cole sua chave Gemini antes de salvar.");
+            return;
+        }
+        geminiSave.setEnabled(false);
+        geminiKeyState.setText("Salvando chave Gemini no aparelho…");
+        worker.execute(()-> {
+            boolean stored=false;
             try {
-                if(!geminiSecret.isEmpty())SecretStore.saveGemini(this,geminiSecret);
-                if(!groqSecret.isEmpty())SecretStore.save(this,groqSecret);
-                if(AiPreferences.ONLINE.equals(mode)&&
-                    !SecretStore.hasGeminiKey(this)&&!SecretStore.hasKey(this))
-                    throw new IllegalStateException("Cadastre uma chave Gemini ou Groq.");
-                AiPreferences.mode(this,mode);
-                runOnUiThread(()-> {
-                    if(!isDestroyed()) {
-                        geminiKey.setText("");
-                        key.setText("");
-                        geminiKeyState.setText(SecretStore.hasGeminiKey(this)?"Chave Gemini protegida cadastrada.":"Sem chave Gemini.");
-                        keyState.setText(SecretStore.hasKey(this)?"Chave Groq protegida cadastrada.":"Sem chave Groq.");
-                        status.setText("Configurações salvas: "+AiPreferences.label(this));
-                        save.setEnabled(true);
-                    }
-                });
-            }
-            catch(Exception e) {
-                runOnUiThread(()-> {
-                    if(!isDestroyed()) {
-                        status.setText("Não foi possível salvar. Confira a chave e o modo escolhido.");
-                        save.setEnabled(true);
-                    }
-                });
-            }
+                SecretStore.saveGemini(this,secret);
+                stored=secret.equals(SecretStore.readGemini(this));
+            } catch(Exception ignored){}
+            final boolean success=stored;
+            runOnUiThread(()-> {
+                if(isDestroyed())return;
+                if(success) {
+                    geminiKey.setText("");
+                    geminiKeyState.setText("Chave Gemini salva e protegida no aparelho.");
+                    status.setText("Gemini configurado. Para usar online, selecione Automático e toque em Salvar modo de IA.");
+                } else geminiKeyState.setText("Não foi possível salvar a chave Gemini. Confira a chave e tente novamente.");
+                geminiSave.setEnabled(true);
+            });
+        });
+    }
+    private void saveGroqKey() {
+        if(busy||measuring)return;
+        String secret=key.getText().toString().trim();
+        if(secret.isEmpty()) {
+            keyState.setText("Cole uma chave Groq para salvar.");
+            return;
+        }
+        groqSave.setEnabled(false);
+        keyState.setText("Salvando chave Groq no aparelho…");
+        worker.execute(()-> {
+            boolean stored=false;
+            try {
+                SecretStore.save(this,secret);
+                stored=secret.equals(SecretStore.read(this));
+            } catch(Exception ignored){}
+            final boolean success=stored;
+            runOnUiThread(()-> {
+                if(isDestroyed())return;
+                if(success) {
+                    key.setText("");
+                    keyState.setText("Chave Groq salva e protegida no aparelho.");
+                    status.setText("Groq configurada como reserva online.");
+                } else keyState.setText("Não foi possível salvar a chave Groq. Confira a chave e tente novamente.");
+                groqSave.setEnabled(true);
+            });
         });
     }
     private void open(String url) {
@@ -219,6 +262,8 @@ public final class ModelSettingsActivity extends Activity {
         remove.setEnabled(!busy&&!measuring&&ModelStore.model(this).isFile());
         cancel.setEnabled(busy);
         save.setEnabled(!busy&&!measuring);
+        geminiSave.setEnabled(!busy&&!measuring);
+        groqSave.setEnabled(!busy&&!measuring);
         measure.setEnabled(!busy&&!measuring);
         cancelMeasure.setEnabled(measuring);
     }
