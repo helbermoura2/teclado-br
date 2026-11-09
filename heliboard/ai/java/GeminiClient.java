@@ -17,6 +17,40 @@ public final class GeminiClient implements InferenceRouter.Backend {
     private final BooleanSupplier cancelled;
     private final int timeout;
     private volatile HttpURLConnection connection;
+    private volatile String lastTiming="Sem solicitação anterior.";
+
+    /** Timings only: never stores prompt, API key, response body or headers. */
+    private static final class TransportTiming {
+        String stage="preparação";
+        long connectMs=-1,sendMs=-1,waitMs=-1,readMs=-1;
+        int httpStatus=-1;
+        String summary() {
+            return "etapa="+stage+"; conexão/TLS="+ms(connectMs)+
+                "; envio="+ms(sendMs)+"; espera HTTP="+ms(waitMs)+
+                "; leitura="+ms(readMs)+
+                (httpStatus<0?"":"; HTTP "+httpStatus);
+        }
+        private String ms(long n) {return n<0?"não iniciada":n+" ms";}
+    }
+    /** Safe, typed failure with transport timings. Does not include raw HTTP response data. */
+    public static final class TracedFailure extends IOException {
+        final Exception original;
+        final String timing;
+        TracedFailure(Exception original,String timing) {
+            super("Falha no transporte Gemini.");
+            this.original=original;
+            this.timing=timing;
+        }
+    }
+    private static long elapsedMs(long started) {
+        return Math.max(0L,(System.nanoTime()-started)/1_000_000L);
+    }
+    public String timing() {return lastTiming;}
+    public static int responseTimeoutMs(String model,int promptLength,int configuredTimeout) {
+        return MODEL.equals(model)&&promptLength<=600?
+            Math.min(15000,configuredTimeout):configuredTimeout;
+    }
+
 
     public static final class Failure extends IOException {
         public final int status;
@@ -38,6 +72,7 @@ public final class GeminiClient implements InferenceRouter.Backend {
             throw new IllegalArgumentException("Modelo Gemini não permitido.");
     }
     public static boolean tryAlternate(Exception error) {
+        if(error instanceof TracedFailure)error=((TracedFailure)error).original;
         if(error instanceof Failure) {
             int status=((Failure)error).status;
             return status==404||status==429||status==500||status==502||status==503||status==504;
@@ -47,6 +82,10 @@ public final class GeminiClient implements InferenceRouter.Backend {
     }
     /** Safe, bounded diagnostic: never includes the key, prompt or API response body. */
     public static String diagnostic(Exception error) {
+        if(error instanceof TracedFailure) {
+            TracedFailure d=(TracedFailure)error;
+            return diagnostic(d.original)+"; "+d.timing;
+        }
         if(error instanceof Failure) {
             int status=((Failure)error).status;
             switch(status) {
@@ -113,15 +152,24 @@ public final class GeminiClient implements InferenceRouter.Backend {
         if(active!=null)active.disconnect();
     }
     @Override public InferenceResult generate(String prompt,int limit,Consumer<String> partial)throws Exception {
+        return generateInternal(prompt,limit,partial,false);
+    }
+    /** Very small synthetic text request: no user content and no system instruction. */
+    public InferenceResult generateMinimalProbe() throws Exception {
+        return generateInternal("Responda apenas OK.",32,s->{},true);
+    }
+    private InferenceResult generateInternal(String prompt,int limit,Consumer<String> partial,
+                                             boolean probe)throws Exception {
         InferenceRouter.check(cancelled);
         if(prompt==null||prompt.length()>12000)throw new IOException("Texto muito longo para a revisão.");
         HttpURLConnection http=(HttpURLConnection)new URL(endpoint).openConnection();
         connection=http;
+        TransportTiming timing=new TransportTiming();
         try {
             http.setInstanceFollowRedirects(false);
             http.setRequestMethod("POST");
             http.setConnectTimeout(Math.min(timeout,8000));
-            http.setReadTimeout(timeout);
+            http.setReadTimeout(responseTimeoutMs(model,prompt.length(),timeout));
             http.setDoOutput(true);
             http.setRequestProperty("Content-Type","application/json; charset=utf-8");
             http.setRequestProperty("Accept","application/json");
@@ -132,23 +180,37 @@ public final class GeminiClient implements InferenceRouter.Backend {
                     +"não altere fatos, nomes, números, negações ou o tom sem solicitação. "
                     +"Retorne somente o texto final, sem comentários, explicações ou raciocínio.")));
             JSONObject body=new JSONObject()
-                .put("systemInstruction",instruction)
                 .put("contents",new JSONArray().put(new JSONObject().put("role","user")
                     .put("parts",new JSONArray().put(new JSONObject().put("text",prompt)))))
                 .put("generationConfig",new JSONObject()
-                    .put("maxOutputTokens",Math.max(512,Math.min(4096,limit*8)))
+                    .put("maxOutputTokens",probe?256:Math.max(512,Math.min(4096,limit*8)))
                     .put("thinkingConfig",new JSONObject().put("thinkingLevel","low")));
+            // Probe isolates basic text generation from the larger revision instruction.
+            if(!probe)body.put("systemInstruction",instruction);
             byte[] request=body.toString().getBytes(StandardCharsets.UTF_8);
             if(request.length>40000)throw new IOException("Pedido online muito grande.");
             http.setFixedLengthStreamingMode(request.length);
-            try(OutputStream out=http.getOutputStream()) {
+            long mark=System.nanoTime();
+            timing.stage="conectando";
+            OutputStream stream=http.getOutputStream();
+            timing.connectMs=elapsedMs(mark);
+            mark=System.nanoTime();
+            timing.stage="enviando";
+            try(OutputStream out=stream) {
                 InferenceRouter.check(cancelled);
                 out.write(request);
             }
+            timing.sendMs=elapsedMs(mark);
             InferenceRouter.check(cancelled);
+            mark=System.nanoTime();
+            timing.stage="aguardando HTTP";
             int status=http.getResponseCode();
+            timing.waitMs=elapsedMs(mark);
+            timing.httpStatus=status;
             if(status!=200)throw new Failure(status);
             ByteArrayOutputStream bytes=new ByteArrayOutputStream();
+            mark=System.nanoTime();
+            timing.stage="lendo resposta";
             try(InputStream in=http.getInputStream()) {
                 byte[] buffer=new byte[4096];int n;
                 while((n=in.read(buffer))!=-1) {
@@ -157,6 +219,8 @@ public final class GeminiClient implements InferenceRouter.Backend {
                     bytes.write(buffer,0,n);
                 }
             }
+            timing.readMs=elapsedMs(mark);
+            timing.stage="validando resposta";
             JSONObject reply=new JSONObject(new String(bytes.toByteArray(),StandardCharsets.UTF_8));
             JSONArray choices=reply.optJSONArray("candidates");
             if(choices==null||choices.length()==0)throw new IOException("Gemini não retornou resposta.");
@@ -181,16 +245,19 @@ public final class GeminiClient implements InferenceRouter.Backend {
             if(result.isEmpty()||result.contains("<think>")||result.contains("<|im_end|>"))
                 throw new IOException("Resposta online inválida.");
             InferenceRouter.check(cancelled);
+            timing.stage="concluído";
             return new InferenceResult(result,"Gemini · "+model,"MAX_TOKENS".equals(finish));
         }
         catch(IOException e) {
             if(cancelled.getAsBoolean())throw new CancellationException("Cancelado.");
-            if(e instanceof Failure || e instanceof java.net.SocketTimeoutException ||
-                e instanceof java.net.UnknownHostException || e instanceof java.net.ConnectException)
-                throw e;
-            throw new IOException("Não foi possível concluir a conexão com o Gemini.");
+            throw new TracedFailure(e,timing.summary());
+        }
+        catch(JSONException e) {
+            if(cancelled.getAsBoolean())throw new CancellationException("Cancelado.");
+            throw new TracedFailure(e,timing.summary());
         }
         finally {
+            lastTiming=timing.summary();
             connection=null;
             http.disconnect();
         }
