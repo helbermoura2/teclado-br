@@ -9,8 +9,7 @@ Prévia editável; copiar ou substituir explicitamente. A substituição exige q
 o campo original e seu texto ainda coincidam com o snapshot capturado.
 Campos de senha não são enviados ao assistente.
 
-O modo Offline é o padrão. A integração opcional Groq usa INTERNET somente para
-tarefas solicitadas no assistente; veja [HIBRIDO.md](../HIBRIDO.md).
+O modo Offline é o padrão. A integração opcional online usa Gemini primeiro e Groq como reserva, somente para tarefas solicitadas no assistente; veja [HIBRIDO.md](../HIBRIDO.md).
 O usuário baixa um GGUF pelo navegador e o importa pelo seletor de arquivos.
 Importação faz cópia privada com verificação de formato e tamanho, registrando SHA-256;
 substituição atômica do modelo anterior. Modelos ficam fora dos backups.

@@ -15,8 +15,8 @@ public final class AiPreferences {
     }
     public static String label(Context c) {
         switch(mode(c)) {
-            case AUTO:return "Automático";
-            case ONLINE:return "Online · Groq";
+            case AUTO:return "Automático · Gemini → Groq → aparelho";
+            case ONLINE:return "Online · Gemini / Groq";
             default:return "Offline · aparelho";
         }
     }
@@ -29,7 +29,8 @@ public final class AiPreferences {
     }
     public static boolean canStart(Context c) {
         String mode=mode(c);
-        if(ONLINE.equals(mode))return SecretStore.hasKey(c);
-        return AUTO.equals(mode)&&SecretStore.hasKey(c)||ModelStore.model(c).isFile();
+        boolean onlineKey=SecretStore.hasGeminiKey(c)||SecretStore.hasKey(c);
+        if(ONLINE.equals(mode))return onlineKey;
+        return AUTO.equals(mode)&&onlineKey||ModelStore.model(c).isFile();
     }
 }

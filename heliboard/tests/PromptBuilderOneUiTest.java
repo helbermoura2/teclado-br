@@ -40,5 +40,7 @@ public final class PromptBuilderOneUiTest {
         String p=PromptBuilder.build("Ortografia e gramática","","","nós vai");
         assertTrue(p.contains("Corrija somente ortografia, pontuação e gramática"));
         assertTrue(p.contains("nós vai"));
+        assertTrue(p.contains("Preserve rigorosamente o sentido, nomes próprios, números, datas"));
+        assertTrue(p.contains("Se não houver erro, devolva exatamente o texto original."));
     }
 }
