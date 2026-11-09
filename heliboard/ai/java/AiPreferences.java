@@ -26,8 +26,8 @@ public final class AiPreferences {
     }
     public static String label(Context c) {
         switch(mode(c)) {
-            case AUTO:return "Automático · Gemini → Groq → aparelho";
-            case ONLINE:return "Online · Gemini / Groq";
+            case AUTO:return "Automático · 3.8 → 3.6 → Groq → Gemma";
+            case ONLINE:return "Online · 3.8 → 3.6 → Groq";
             default:return "Offline · aparelho";
         }
     }
