@@ -1,0 +1,274 @@
+name: Teclado BR Gemini beta 10 - APK sem emulador
+# Explicitly scoped to the Gemini beta branch. No scheduling or artifacts uploads.
+# The official 0.9.1 release and beta7 remain untouched.
+on:
+  push:
+    branches:
+      - fix/gemini-save-button-beta10-20261109
+    paths:
+      - .github/workflows/teclado-gemini-beta10.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: teclado-br-beta-092-gemini10
+  cancel-in-progress: false
+
+jobs:
+  beta:
+    if: github.repository == 'helbermoura2/teclado-br' && github.ref == 'refs/heads/fix/gemini-save-button-beta10-20261109'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout da proposta 0.9.2
+        uses: actions/checkout@v4
+
+      - name: Confirmar versão beta e base fixada
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          lock = json.loads(pathlib.Path("heliboard/upstream.json").read_text())
+          assert lock["trial_version"] == "0.9.2-beta.10-heli3.6", lock["trial_version"]
+          assert lock["commit"] == "f8ec91a982835911cc224fa99434c3396d4cd562"
+          print("Build beta aprovado para a versão 0.9.2, sem merge na main.")
+          PY
+          python3 -m compileall -q heliboard
+          bash -n heliboard/ci/preload-robolectric.sh
+          bash -n heliboard/ai/build-native.sh
+
+      - uses: actions/checkout@v4
+        with:
+          repository: HeliBorg/HeliBoard
+          ref: f8ec91a982835911cc224fa99434c3396d4cd562
+          path: heli-source
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ggml-org/llama.cpp
+          ref: 0ec4027a2a0183de87c007069adddc06e665f7de
+          path: heli-source/ai-native/llama.cpp
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0 ndk;28.0.13004108'
+          log-accepted-android-sdk-licenses: false
+
+      - name: Reusar identidade de assinatura anterior
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: teclado-br-heli-test-signing-v2
+
+      - name: Restaurar assinatura sem gerar certificado diferente
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 heliboard/signing.py
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Preparar o teclado 0.9.2
+        run: |
+          python3 heliboard/prepare.py heli-source
+          mkdir -p beta-package
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.10-fontes.tar.gz -C heli-source .
+
+      - name: Reutilizar motor de IA offline compilado
+        id: native-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: heli-source/app/src/main/jniLibs/
+          key: tecladoai-ndk28-b12020-${{ hashFiles('heliboard/ai/native/**', 'heliboard/ai/build-native.sh') }}
+
+      - name: Preparar compilação nativa apenas sem cache
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache-ai
+        run: |
+          if ! command -v ccache >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y ccache
+          fi
+          ccache --max-size=2G
+          ccache --set-config=compiler_check=content
+
+      - name: Restaurar objetos nativos se necessário
+        id: native-objects
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ccache-ai/
+          key: tecladoai-objects-ndk28-b12020-v1
+
+      - name: Compilar IA offline apenas sem cache
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/.ccache-ai
+        run: bash heliboard/ai/build-native.sh heli-source
+
+      - name: Guardar motor IA reutilizável
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: heli-source/app/src/main/jniLibs/
+          key: tecladoai-ndk28-b12020-${{ hashFiles('heliboard/ai/native/**', 'heliboard/ai/build-native.sh') }}
+
+      - name: Cache Robolectric Android 15 (testes JVM, sem emulador)
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric/android-all-instrumented/15-robolectric-12650502-i7
+          key: teclado-br-robolectric-4.14.1-android35-i7-v1
+
+      - name: Verificar runtime Robolectric e SHA-512
+        run: bash heliboard/ci/preload-robolectric.sh
+
+      - name: Verificar regra de pontuação da barra compacta (sem emulador)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          patch = Path("heliboard/patches/toolbar.py").read_text()
+          trial = Path("heliboard/overlay/HybridTrial.java").read_text()
+          assert "!suggestions.isPunctuationSuggestions()" in patch
+          assert "SuggestedWords.INPUT_STYLE_TYPING" in patch
+          assert "SuggestedWords.INPUT_STYLE_PREDICTION" not in patch
+          assert "PunctuationSuggestions.newPunctuationSuggestions" in trial
+          assert "Idle punctuation candidates are incorrectly hiding circular favorites" in trial
+          # Verifies integration points only. UI animation behavior still
+          # needs a real device or instrumented Android run.
+          assert "stripRow.layoutTransition = null" in patch
+          assert "suggestionsStrip.visibility = View.GONE" in patch
+          assert "pinnedKeys.visibility = View.GONE" in patch
+          assert "Compact toolbar animates favorites and words over each other" in trial
+          preferences = Path("heliboard/overlay/TecladoBrDefaults.kt").read_text()
+          assert 'teclado_br_compact_toolbar_v4' in preferences
+          assert '&& !prefs.getBoolean("teclado_br_compact_toolbar_v4", false))' in preferences
+          assert 'val hiddenFromOverflow = (favorites + editActions).toSet()' in preferences
+          assert '.filter { it.substringBefore(":") !in hiddenFromOverflow }' in preferences
+          assert 'listOf("AI", "CLIPBOARD", "EMOJI", "TRANSLATE", "SETTINGS")' in preferences
+          assert 'val scroller = HorizontalScrollView(context)' in patch
+          assert 'ToolbarKey.PAGE_START, ToolbarKey.PAGE_END' in patch
+          assert 'ToolbarKey.CLEAR_CLIPBOARD' in patch
+          assert 'dictionary.isVisible = false' in patch
+          assert 'Clipboard long press not consumed' in trial
+          assert 'Main favorite duplicated in clipboard' in trial
+          assert 'Dictionary add-word should not appear in ⋯' in trial
+          print("Prioridade, migração v4 e separação das ferramentas verificadas estaticamente.")
+          print("Este check estático NÃO substitui o teste visual da instrumentação.")
+          PY
+
+      - name: Conferir integração Gemini e atualizador
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('heliboard/patches/assistant.py').read_text()
+          s=Path('heliboard/ai/java/GeminiClient.java').read_text()
+          u=Path('heliboard/ai/java/UpdateActivity.java').read_text()
+          assert 'android.permission.REQUEST_INSTALL_PACKAGES' in p
+          assert r'\${applicationId}' not in p, 'Manifest provider authority escaped'
+          assert '${applicationId}.teclado_updates' in p, 'Manifest provider authority missing'
+          assert 'teclado_update_paths.xml' in p
+          assert 'generativelanguage.googleapis.com' in s
+          assert 'Gemma' in Path('heliboard/GEMINI.md').read_text()
+          assert 'verifyPackage(part,m)' in u
+          assert 'sha256(part)' in u
+          assert 'getPackageArchiveInfo' in u
+          settings=Path('heliboard/ai/java/ModelSettingsActivity.java').read_text()
+          assert 'geminiSave=button("Salvar chave Gemini","ai_save_gemini_key",this::saveGeminiKey);' in settings
+          assert settings.index('root.addView(geminiKey);') < settings.index('geminiSave=button(') < settings.index('label("Groq · reserva online",20)')
+          assert 'groqSave=button("Salvar chave Groq","ai_save_groq_key",this::saveGroqKey);' in settings
+          assert 'save=button("Salvar modo de IA","ai_save_settings",this::saveMode);' in settings
+          assert 'SecretStore.readGemini(this)' in settings
+          print('Botão Gemini imediatamente abaixo da chave e confirmação de gravação validados.')
+          print('Segredos fora do APK; código de Gemini, atualização e manifesto presente.')
+          PY
+      - name: Compilar APK e executar testes unitários
+        working-directory: heli-source
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon testRunTestsUnitTest assembleDebugNoMinify
+
+      - name: Verificar certificado igual ao da 0.9.1
+        run: python3 heliboard/verify_signing.py
+
+      - name: Preparar APK de teste e hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=(heli-source/app/build/outputs/apk/debugNoMinify/*.apk)
+          test -f "${apk[0]}"
+          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.10.apk
+          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.10.apk teclado-br-heli-0.9.2-beta.10-fontes.tar.gz > sha256-0.9.2-beta.10.txt)
+          echo "## Teclado BR 0.9.2 beta" >> "$GITHUB_STEP_SUMMARY"
+          echo "APK compilado, testes JVM passaram e certificado verificado." >> "$GITHUB_STEP_SUMMARY"
+          echo "Gemini, atualizador e fallback foram compilados; teste de API real depende da chave do usuário." >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          package=pathlib.Path('beta-package/teclado-br-heli-0.9.2-beta.10.apk')
+          data={
+            "schema":"teclado-br-updates-v1","enabled":True,
+            "packageName":"br.com.tecladobr.heli.debug",
+            "versionCode":9011,"versionName":"0.9.2-beta.10-heli3.6",
+            "apkUrl":"https://github.com/helbermoura2/teclado-br/releases/download/heli-0.9.2-beta.10/teclado-br-heli-0.9.2-beta.10.apk",
+            "releaseUrl":"https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.2-beta.10",
+            "sha256":hashlib.sha256(package.read_bytes()).hexdigest(),
+            "signerSha256":pathlib.Path('heliboard/signing-cert.sha256').read_text().strip(),
+            "sizeBytes":package.stat().st_size,
+          }
+          pathlib.Path('beta-package/teclado-br-update.json').write_text(json.dumps(data,indent=2)+'\n')
+          print('TECLADO_UPDATE_MANIFEST='+json.dumps(data,sort_keys=True))
+          PY
+          echo "**O emulador não foi executado.** Ações de edição exigem teste real no Nothing Phone (1)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publicar somente pre-release beta (nunca atualiza main)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="heli-0.9.2-beta.10"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::A beta já existe. Não sobrescrever APK publicado; usar uma nova versão beta."
+            exit 1
+          fi
+          cat > beta-package/NOTAS.txt <<'NOTAS'
+          Teclado BR 0.9.2 beta 10 — GEMINI + GROQ + GEMMA + ATUALIZADOR.
+          Versão de testes instalável por cima da versão anterior.
+          Mantém o visual One UI e os comandos de edição da beta 7.
+          IA: Gemini 3.8 Flash online; Groq como reserva se cadastrada;
+          Gemma 4 GGUF offline mantida, sem reimportação dos pesos.
+          Revisão em português preserva sentido, nomes, números, negações e gírias.
+          Chaves Gemini e Groq distintas e cifradas no Android Keystore.
+          CORREÇÃO: botão Salvar chave Gemini imediatamente abaixo do campo.
+          Chave Groq tem botão próprio. Modo de IA tem botão de salvar separado.
+          Feedback confirma que a chave foi gravada no Keystore.
+          Para configurar: teclado > estrela IA > engrenagem > Gemini.
+          Cole sua chave > Salvar chave Gemini > escolha Automático > Salvar modo de IA.
+          Atualizador: mesma tela > Verificar e instalar atualização.
+          A atualização consulta um manifesto público e verifica SHA-256,
+          identidade do pacote e assinatura antes de instalar.
+          O repositório é privado; se o download direto exigir login,
+          o botão Abrir versão no GitHub usa o navegador autenticado.
+          Nenhum texto é enviado à IA enquanto apenas digita.
+          O APK foi compilado, testes unitários executados e assinatura conferida.
+          TESTE EM APARELHO REAL PENDENTE: Gemini com sua chave e atualização
+          direta, sem desinstalar e sem apagar Gemma ou dicionário.
+          NOTAS
+          gh release create "$tag" --target "$GITHUB_SHA" \
+            --prerelease --title 'Teclado BR 0.9.2 beta 10 — teste sem emulador' \
+            --notes-file beta-package/NOTAS.txt \
+            beta-package/teclado-br-heli-0.9.2-beta.10.apk \
+            beta-package/teclado-br-heli-0.9.2-beta.10-fontes.tar.gz \
+            beta-package/sha256-0.9.2-beta.10.txt \
+            beta-package/teclado-br-update.json
+          echo "### Prévia publicada" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
