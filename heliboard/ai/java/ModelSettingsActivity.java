@@ -16,7 +16,7 @@ public final class ModelSettingsActivity extends Activity {
     private boolean busy,measuring,bound;
     private LinearLayout root;
     private TextView description,status,keyState,geminiKeyState,geminiTestState,metrics;
-    private Button add,remove,cancel,save,geminiSave,groqSave,geminiTest,geminiModelSave,measure,cancelMeasure;
+    private Button add,remove,cancel,save,geminiSave,groqSave,geminiTest,measure,cancelMeasure;
     private EditText key,geminiKey;
     private Spinner geminiModelSelector;
     private RadioGroup modes;
@@ -58,7 +58,7 @@ public final class ModelSettingsActivity extends Activity {
         label("Somente tarefas iniciadas por você no botão de brilho enviam o texto selecionado ao Gemini e, se ele falhar, à Groq. O modo Offline não envia texto. A digitação e o aprendizado continuam no aparelho.",14);
         modes=new RadioGroup(this);
         String[] names= {
-            "Offline · somente no aparelho","Automático · Gemini → Groq → aparelho","Online · Gemini → Groq (sem offline)"
+            "Offline · somente no aparelho","Automático · 3.8 → 3.6 → Groq → Gemma","Online · 3.8 → 3.6 → Groq"
         };
         String[] values= {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
@@ -90,7 +90,8 @@ public final class ModelSettingsActivity extends Activity {
         geminiKey.setContentDescription("ai_gemini_key");
         root.addView(geminiKey);
         geminiSave=button("Salvar chave Gemini","ai_save_gemini_key",this::saveGeminiKey);
-        label("Escolher modelo do Gemini",16);
+        label("Testar um modelo Gemini individualmente",16);
+        label("A revisão Automática ignora esta seleção: tenta Gemini 3.8, depois Gemini 3.6, depois Groq e, se necessário, Gemma offline. Não é preciso salvar ou alternar modelos.",14);
         geminiModelSelector=new Spinner(this);
         geminiModelSelector.setContentDescription("ai_gemini_model");
         String[] geminiChoices={
@@ -104,7 +105,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiModelSelector.setSelection(GeminiClient.BACKUP_MODEL.equals(
             AiPreferences.geminiModel(this))?1:0);
         root.addView(geminiModelSelector,new LinearLayout.LayoutParams(-1,dp(48)));
-        geminiModelSave=button("Salvar modelo Gemini","ai_save_gemini_model",this::saveGeminiModel);
+        // A seleção aqui é somente para o diagnóstico; a ordem Automática é fixa.
         geminiTest=button("Testar conexão Gemini","ai_test_gemini",this::testGemini);
         geminiTestState=label("Teste com frase fictícia, sem usar suas mensagens. Não troca para Groq.",14);
         geminiTestState.setContentDescription("ai_gemini_test_state");
@@ -224,15 +225,6 @@ public final class ModelSettingsActivity extends Activity {
             });
         });
     }
-    private void saveGeminiModel() {
-        if(busy||measuring)return;
-        String model=geminiModelSelector.getSelectedItemPosition()==1?
-            GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
-        if(AiPreferences.geminiModel(this,model))
-            geminiTestState.setText("Modelo selecionado: "+model+
-                ". Use Testar conexão Gemini para confirmar o funcionamento.");
-        else geminiTestState.setText("Não foi possível salvar o modelo Gemini.");
-    }
     private void testGemini() {
         if(busy||measuring||!geminiTest.isEnabled())return;
         if(!SecretStore.hasGeminiKey(this)) {
@@ -242,12 +234,7 @@ public final class ModelSettingsActivity extends Activity {
         // Test exactly what is currently selected. Do not silently reuse the prior model.
         final String model=geminiModelSelector.getSelectedItemPosition()==1?
             GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
-        if(!AiPreferences.geminiModel(this,model)) {
-            geminiTestState.setText("Não foi possível salvar o modelo selecionado.");
-            return;
-        }
         geminiTest.setEnabled(false);
-        geminiModelSave.setEnabled(false);
         geminiModelSelector.setEnabled(false);
         geminiTestState.setText("Verificando acesso à API do Google para "+model+"…");
         worker.execute(()-> {
@@ -273,7 +260,7 @@ public final class ModelSettingsActivity extends Activity {
                 long elapsed=Math.max(1,(SystemClock.elapsedRealtime()-started)/1000);
                 message="Gemini FUNCIONOU: "+model+" respondeu em "+elapsed+
                     " s. A chave e a geração de texto estão funcionando. "+
-                    "O modelo escolhido já foi salvo. Nenhuma chamada à Groq.";
+                    "Este teste não altera a ordem Automática. Nenhuma chamada à Groq.";
             }
             catch(Exception error) {
                 String reason=GeminiClient.diagnostic(error);
@@ -288,8 +275,7 @@ public final class ModelSettingsActivity extends Activity {
                 if(isDestroyed())return;
                 geminiTestState.setText(info);
                 geminiTest.setEnabled(!busy&&!measuring);
-                geminiModelSave.setEnabled(!busy&&!measuring);
-                geminiModelSelector.setEnabled(!busy&&!measuring);
+                        geminiModelSelector.setEnabled(!busy&&!measuring);
             });
         });
     }
