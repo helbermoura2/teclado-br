@@ -1,4 +1,4 @@
-name: Teclado BR Gemini beta 8 - APK sem emulador
+name: Teclado BR Gemini beta 9 - APK sem emulador
 # Explicitly scoped to the Gemini beta branch. No scheduling or artifacts uploads.
 # The official 0.9.1 release and beta7 remain untouched.
 on:
@@ -32,7 +32,7 @@ jobs:
           python3 - <<'PY'
           import json, pathlib
           lock = json.loads(pathlib.Path("heliboard/upstream.json").read_text())
-          assert lock["trial_version"] == "0.9.2-beta.8-heli3.6", lock["trial_version"]
+          assert lock["trial_version"] == "0.9.2-beta.9-heli3.6", lock["trial_version"]
           assert lock["commit"] == "f8ec91a982835911cc224fa99434c3396d4cd562"
           print("Build beta aprovado para a versão 0.9.2, sem merge na main.")
           PY
@@ -79,7 +79,7 @@ jobs:
         run: |
           python3 heliboard/prepare.py heli-source
           mkdir -p beta-package
-          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.8-fontes.tar.gz -C heli-source .
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.9-fontes.tar.gz -C heli-source .
 
       - name: Reutilizar motor de IA offline compilado
         id: native-cache
@@ -173,6 +173,8 @@ jobs:
           s=Path('heliboard/ai/java/GeminiClient.java').read_text()
           u=Path('heliboard/ai/java/UpdateActivity.java').read_text()
           assert 'android.permission.REQUEST_INSTALL_PACKAGES' in p
+          assert r'\${applicationId}' not in p, 'Manifest provider authority escaped'
+          assert '${applicationId}.teclado_updates' in p, 'Manifest provider authority missing'
           assert 'teclado_update_paths.xml' in p
           assert 'generativelanguage.googleapis.com' in s
           assert 'Gemma' in Path('heliboard/GEMINI.md').read_text()
@@ -196,20 +198,20 @@ jobs:
           set -euo pipefail
           apk=(heli-source/app/build/outputs/apk/debugNoMinify/*.apk)
           test -f "${apk[0]}"
-          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.8.apk
-          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.8.apk teclado-br-heli-0.9.2-beta.8-fontes.tar.gz > sha256-0.9.2-beta.8.txt)
+          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.9.apk
+          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.9.apk teclado-br-heli-0.9.2-beta.9-fontes.tar.gz > sha256-0.9.2-beta.9.txt)
           echo "## Teclado BR 0.9.2 beta" >> "$GITHUB_STEP_SUMMARY"
           echo "APK compilado, testes JVM passaram e certificado verificado." >> "$GITHUB_STEP_SUMMARY"
           echo "Gemini, atualizador e fallback foram compilados; teste de API real depende da chave do usuário." >> "$GITHUB_STEP_SUMMARY"
           python3 - <<'PY'
           import hashlib, json, pathlib
-          package=pathlib.Path('beta-package/teclado-br-heli-0.9.2-beta.8.apk')
+          package=pathlib.Path('beta-package/teclado-br-heli-0.9.2-beta.9.apk')
           data={
             "schema":"teclado-br-updates-v1","enabled":True,
             "packageName":"br.com.tecladobr.heli.debug",
-            "versionCode":9009,"versionName":"0.9.2-beta.8-heli3.6",
-            "apkUrl":"https://github.com/helbermoura2/teclado-br/releases/download/heli-0.9.2-beta.8/teclado-br-heli-0.9.2-beta.8.apk",
-            "releaseUrl":"https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.2-beta.8",
+            "versionCode":9010,"versionName":"0.9.2-beta.9-heli3.6",
+            "apkUrl":"https://github.com/helbermoura2/teclado-br/releases/download/heli-0.9.2-beta.9/teclado-br-heli-0.9.2-beta.9.apk",
+            "releaseUrl":"https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.2-beta.9",
             "sha256":hashlib.sha256(package.read_bytes()).hexdigest(),
             "signerSha256":pathlib.Path('heliboard/signing-cert.sha256').read_text().strip(),
             "sizeBytes":package.stat().st_size,
@@ -226,13 +228,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="heli-0.9.2-beta.8"
+          tag="heli-0.9.2-beta.9"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::error::A beta já existe. Não sobrescrever APK publicado; usar uma nova versão beta."
             exit 1
           fi
           cat > beta-package/NOTAS.txt <<'NOTAS'
-          Teclado BR 0.9.2 beta 8 — GEMINI + GROQ + GEMMA + ATUALIZADOR.
+          Teclado BR 0.9.2 beta 9 — GEMINI + GROQ + GEMMA + ATUALIZADOR.
           Versão de testes instalável por cima da versão anterior.
           Mantém o visual One UI e os comandos de edição da beta 7.
           IA: Gemini 3.8 Flash online; Groq como reserva se cadastrada;
@@ -251,11 +253,11 @@ jobs:
           direta, sem desinstalar e sem apagar Gemma ou dicionário.
           NOTAS
           gh release create "$tag" --target "$GITHUB_SHA" \
-            --prerelease --title 'Teclado BR 0.9.2 beta 8 — teste sem emulador' \
+            --prerelease --title 'Teclado BR 0.9.2 beta 9 — teste sem emulador' \
             --notes-file beta-package/NOTAS.txt \
-            beta-package/teclado-br-heli-0.9.2-beta.8.apk \
-            beta-package/teclado-br-heli-0.9.2-beta.8-fontes.tar.gz \
-            beta-package/sha256-0.9.2-beta.8.txt \
+            beta-package/teclado-br-heli-0.9.2-beta.9.apk \
+            beta-package/teclado-br-heli-0.9.2-beta.9-fontes.tar.gz \
+            beta-package/sha256-0.9.2-beta.9.txt \
             beta-package/teclado-br-update.json
           echo "### Prévia publicada" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
