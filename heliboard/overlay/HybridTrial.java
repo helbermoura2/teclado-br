@@ -28,6 +28,7 @@ public final class HybridTrial {
         final CountDownLatch received=new CountDownLatch(1);
         final AtomicReference<JSONObject> request=new AtomicReference<>();
         final AtomicReference<String> authorization=new AtomicReference<>("");
+        final AtomicReference<String> geminiAuthorization=new AtomicReference<>("");
         final AtomicInteger count=new AtomicInteger();
         Server(int status,String body,int delay)throws Exception {
             listener=new ServerSocket(0,1,InetAddress.getByName("127.0.0.1"));
@@ -48,6 +49,7 @@ public final class HybridTrial {
                     for(String line:head.split("\r\n")) {
                         if(line.toLowerCase(Locale.ROOT).startsWith("content-length:"))length=Integer.parseInt(line.substring(15).trim());
                         if(line.toLowerCase(Locale.ROOT).startsWith("authorization:"))authorization.set(line.substring(14).trim());
+                        if(line.toLowerCase(Locale.ROOT).startsWith("x-goog-api-key:"))geminiAuthorization.set(line.substring(15).trim());
                     }
                     check(length<32768,"Unexpected request size");
                     byte[] payload=new byte[length];
@@ -68,6 +70,9 @@ public final class HybridTrial {
         }
         String endpoint() {
             return "http://127.0.0.1:"+listener.getLocalPort()+"/openai/v1/chat/completions";
+        }
+        String geminiEndpoint() {
+            return "http://127.0.0.1:"+listener.getLocalPort()+"/v1beta/models/gemini-3.8-flash:generateContent";
         }
         public void close()throws Exception {
             listener.close();
@@ -191,6 +196,51 @@ public final class HybridTrial {
             check(!request.getBoolean("include_reasoning")&&!request.getBoolean("stream"),"Reasoning/streaming contract mismatch");
             check(request.getJSONArray("messages").getJSONObject(1).getString("content").equals("Revise apenas: Ola tudo bem?"),"Task text changed in transit");
         }
+        String geminiSuccess="{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Olá, tudo bem?\"}]},\"finishReason\":\"STOP\"}]}";
+        try(Server server=new Server(200,geminiSuccess,0)) {
+            GeminiClient client=new GeminiClient(server.geminiEndpoint(),FAKE_KEY,cancelled::get,2000);
+            InferenceResult answer=route(AiPreferences.AUTO,true,true,client,fallbacks,cancelled);
+            check(answer.text.equals("Olá, tudo bem?")&&answer.backend.contains("Gemini"),"Gemini parsed response incorrectly");
+            check(server.count.get()==1,"Gemini unexpected extra requests");
+            check(server.geminiAuthorization.get().equals(FAKE_KEY),"Gemini API key header not sent");
+            JSONObject request=server.request.get();
+            check(request.getJSONArray("contents").getJSONObject(0).getJSONArray("parts")
+                .getJSONObject(0).getString("text").equals("Revise apenas: Ola tudo bem?"),
+                "Gemini request changed the selected task");
+            check("low".equals(request.getJSONObject("generationConfig")
+                .getJSONObject("thinkingConfig").getString("thinkingLevel")),"Gemini thinking effort differs");
+        }
+        for(int code:new int[]{429,401,403,500,302}) {
+            int previous=fallbacks.get();
+            try(Server server=new Server(code,"{}",0)) {
+                InferenceResult answer=route(AiPreferences.AUTO,true,true,
+                    new GeminiClient(server.geminiEndpoint(),FAKE_KEY,cancelled::get,2000),
+                    fallbacks,cancelled);
+                check(answer.backend.startsWith("Offline")&&fallbacks.get()==previous+1,
+                    "Gemini AUTO fallback failed for HTTP "+code);
+            }
+        }
+        try(Server server=new Server(200,"not-json",0)) {
+            int previous=fallbacks.get();
+            route(AiPreferences.AUTO,true,true,new GeminiClient(server.geminiEndpoint(),FAKE_KEY,cancelled::get,2000),fallbacks,cancelled);
+            check(fallbacks.get()==previous+1,"Malformed Gemini response did not use offline fallback");
+        }
+        boolean geminiEndpointRejected=false;
+        try{new GeminiClient("http://127.0.0.1:80@not-gemini.invalid/",FAKE_KEY,cancelled::get,100);}
+        catch(IllegalArgumentException e){geminiEndpointRejected=true;}
+        check(geminiEndpointRejected,"Gemini credential redirect endpoint allowed");
+        check(!android.security.NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted("generativelanguage.googleapis.com"),
+            "Gemini production transport allows cleartext");
+        check(!SecretStore.hasGeminiKey(c),"This test requires no installed Gemini API key");
+        try {
+            SecretStore.saveGemini(c,FAKE_KEY);
+            check(SecretStore.hasGeminiKey(c),"Gemini key not saved");
+            byte[] encrypted=java.nio.file.Files.readAllBytes(new File(c.getNoBackupFilesDir(),"gemini-key.enc").toPath());
+            check(!new String(encrypted,StandardCharsets.ISO_8859_1).contains(FAKE_KEY),"Gemini key stored in plaintext");
+            java.lang.reflect.Method method=SecretStore.class.getDeclaredMethod("readGemini",Context.class);
+            method.setAccessible(true);
+            check(FAKE_KEY.equals(method.invoke(null,c)),"Gemini Keystore round trip failed");
+        }finally{SecretStore.removeGemini(c);}
         for(int code:new int[] {
             429,401,403,500,302
         }) {
