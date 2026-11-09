@@ -18,9 +18,9 @@ Os arquivos são independentes; remover Gemini não apaga Groq, o modelo GGUF,
 o histórico de medidas nem o dicionário.
 
 Modo Offline: somente GGUF local (Gemma).
-Modo Automático: Gemini → Groq (se configurada) → GGUF local.
-Modo Online: Gemini → Groq (se configurada); se ambos falharem, mostrar erro.
-Sem internet ou sem chave, o modo Offline continua independente.
+Modo Automático: Gemini 3.8 → Gemini 3.6 → Groq (se configurada) → GGUF local.
+Modo Online: Gemini 3.8 → Gemini 3.6 → Groq (se configurada); sem offline.
+A ordem de revisão é fixa independentemente do seletor, que serve apenas para o teste manual de conexão. Toda falha não cancelada do Gemini 3.8 tenta o 3.6, inclusive HTTP 400/403 e resposta vazia; o Groq só é consultado depois de ambos falharem. Sem internet ou sem chave, o modo Offline continua independente.
 Campos de senha são bloqueados; não existe processamento automático ao digitar.
 Resultados são prévias, nunca substituições silenciosas.
 
