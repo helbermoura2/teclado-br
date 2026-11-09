@@ -34,9 +34,11 @@ public final class SecretStore {
     public static boolean hasKey(Context c) {
         return file(c,GROQ).getBaseFile().isFile();
     }
-    public static synchronized void save(Context c,String value)throws Exception {
+    public static synchronized void save(Context c,String value)throws Exception {saveFor(c,GROQ,value);}
+    private static void saveFor(Context c,String provider,String value)throws Exception {
         value=value.trim();
-        if(value.length()<16||value.length()>512||value.contains("\n")||value.contains("\r"))throw new IllegalArgumentException("Confira a chave da Groq.");
+        if(value.length()<16||value.length()>512||value.contains("\n")||value.contains("\r"))
+            throw new IllegalArgumentException("Confira a chave do provedor.");
         Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
         cipher.init(Cipher.ENCRYPT_MODE,key(provider));
         byte[] encrypted=cipher.doFinal(value.getBytes(StandardCharsets.UTF_8));
