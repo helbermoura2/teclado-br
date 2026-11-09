@@ -55,10 +55,10 @@ public final class ModelSettingsActivity extends Activity {
         scroll.addView(root);
         setContentView(scroll);
         label("Assistente · configurações",24);
-        label("Somente tarefas iniciadas por você no botão de brilho enviam o texto selecionado ao Gemini e, se ele falhar, à Groq. O modo Offline não envia texto. A digitação e o aprendizado continuam no aparelho.",14);
+        label("Somente tarefas iniciadas por você enviam texto à IA. Ordem online fixa: Gemini 3.8 → Gemini 3.6 → Groq. No modo Automático, o Gemma local é o último recurso. Digitação comum nunca envia texto.",14);
         modes=new RadioGroup(this);
         String[] names= {
-            "Offline · somente no aparelho","Automático · Gemini → Groq → aparelho","Online · Gemini → Groq (sem offline)"
+            "Offline · somente no aparelho","Automático · 3.8 → 3.6 → Groq → aparelho","Online · 3.8 → 3.6 → Groq"
         };
         String[] values= {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
@@ -76,7 +76,7 @@ public final class ModelSettingsActivity extends Activity {
         }
         root.addView(modes);
         save=button("Salvar modo de IA","ai_save_settings",this::saveMode);
-        label("Gemini 3.8 Flash · principal online",20);
+        label("Gemini 3.8 → 3.6 · ordem automática",20);
         label("Você já pode usar sua própria chave do Google AI Studio. Não cole aqui no GitHub ou no chat. A chave é cifrada no aparelho e não entra no APK. Os textos enviados usam a política da sua conta Google; contas pagas podem ter custos.",14);
         geminiKeyState=label(SecretStore.hasGeminiKey(this)?"Chave Gemini protegida já cadastrada.":"Nenhuma chave Gemini cadastrada.",14);
         geminiKeyState.setContentDescription("ai_gemini_key_state");
@@ -90,7 +90,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiKey.setContentDescription("ai_gemini_key");
         root.addView(geminiKey);
         geminiSave=button("Salvar chave Gemini","ai_save_gemini_key",this::saveGeminiKey);
-        label("Escolher modelo do Gemini",16);
+        label("Modelo para teste individual (não altera a ordem automática)",16);
         geminiModelSelector=new Spinner(this);
         geminiModelSelector.setContentDescription("ai_gemini_model");
         String[] geminiChoices={
@@ -104,7 +104,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiModelSelector.setSelection(GeminiClient.BACKUP_MODEL.equals(
             AiPreferences.geminiModel(this))?1:0);
         root.addView(geminiModelSelector,new LinearLayout.LayoutParams(-1,dp(48)));
-        geminiModelSave=button("Salvar modelo Gemini","ai_save_gemini_model",this::saveGeminiModel);
+        geminiModelSave=button("Lembrar modelo do teste (opcional)","ai_save_gemini_model",this::saveGeminiModel);
         geminiTest=button("Testar conexão Gemini","ai_test_gemini",this::testGemini);
         geminiTestState=label("Teste com frase fictícia, sem usar suas mensagens. Não troca para Groq.",14);
         geminiTestState.setContentDescription("ai_gemini_test_state");
@@ -130,7 +130,7 @@ public final class ModelSettingsActivity extends Activity {
         });
 
         label("Groq · reserva online",20);
-        label("Opcional. Se Gemini falhar, o teclado pode tentar sua chave Groq. Se as duas falharem, o modo Automático usa Gemma offline. Os serviços podem ter limites e custos conforme seu plano.",14);
+        label("Opcional. Groq só é tentada quando Gemini 3.8 e 3.6 não concluem. Se Groq também falhar, o modo Automático usa o Gemma offline. Serviços online podem ter cotas e custos.",14);
         keyState=label(SecretStore.hasKey(this)?"Chave Groq protegida já cadastrada.":"Nenhuma chave Groq cadastrada.",14);
         keyState.setContentDescription("ai_key_state");
         key=new EditText(this);
@@ -230,7 +230,7 @@ public final class ModelSettingsActivity extends Activity {
             GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
         if(AiPreferences.geminiModel(this,model))
             geminiTestState.setText("Modelo selecionado: "+model+
-                ". Use Testar conexão Gemini para confirmar o funcionamento.");
+                ". Esse ajuste vale apenas para testes. A revisão sempre tenta 3.8, depois 3.6 e Groq.");
         else geminiTestState.setText("Não foi possível salvar o modelo Gemini.");
     }
     private void testGemini() {
@@ -273,7 +273,7 @@ public final class ModelSettingsActivity extends Activity {
                 long elapsed=Math.max(1,(SystemClock.elapsedRealtime()-started)/1000);
                 message="Gemini FUNCIONOU: "+model+" respondeu em "+elapsed+
                     " s. A chave e a geração de texto estão funcionando. "+
-                    "O modelo escolhido já foi salvo. Nenhuma chamada à Groq.";
+                    "A ordem automática 3.8 → 3.6 → Groq permanece fixa. Nenhuma chamada à Groq neste teste.";
             }
             catch(Exception error) {
                 String reason=GeminiClient.diagnostic(error);
