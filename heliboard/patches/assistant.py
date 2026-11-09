@@ -36,7 +36,7 @@ def apply(context):
                 android:directBootAware="false" android:excludeFromRecents="true"
                 android:theme="@android:style/Theme.Material.NoActionBar"/>
             <provider android:name="androidx.core.content.FileProvider"
-                android:authorities="\${applicationId}.teclado_updates"
+                android:authorities="${applicationId}.teclado_updates"
                 android:exported="false" android:grantUriPermissions="true">
                 <meta-data android:name="android.support.FILE_PROVIDER_PATHS"
                     android:resource="@xml/teclado_update_paths"/>
