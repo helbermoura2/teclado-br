@@ -386,7 +386,7 @@ public final class WritingPanel {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
         };
         String[] names= {
-            "Offline · só no aparelho","Automático · Gemini → Groq → Gemma","Online · Gemini → Groq"
+            "Offline · só no aparelho","Automático · 3.8 → 3.6 → Groq → Gemma","Online · 3.8 → 3.6 → Groq"
         };
         for(int i=0;i<modes.length;i++) {
             final String mode=modes[i];
