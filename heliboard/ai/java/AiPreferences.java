@@ -13,6 +13,17 @@ public final class AiPreferences {
         if(!OFFLINE.equals(mode)&&!AUTO.equals(mode)&&!ONLINE.equals(mode))throw new IllegalArgumentException();
         c.getSharedPreferences("writing-options",0).edit().putString("mode",mode).commit();
     }
+    public static String geminiModel(Context c) {
+        String model=c.getSharedPreferences("writing-options",0)
+            .getString("gemini-model",GeminiClient.MODEL);
+        return GeminiClient.BACKUP_MODEL.equals(model)?GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
+    }
+    public static boolean geminiModel(Context c,String model) {
+        if(!GeminiClient.MODEL.equals(model)&&!GeminiClient.BACKUP_MODEL.equals(model))
+            throw new IllegalArgumentException("Modelo Gemini inválido.");
+        return c.getSharedPreferences("writing-options",0).edit()
+            .putString("gemini-model",model).commit();
+    }
     public static String label(Context c) {
         switch(mode(c)) {
             case AUTO:return "Automático · Gemini → Groq → aparelho";

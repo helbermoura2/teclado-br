@@ -46,19 +46,46 @@ public final class WritingEngineService extends Service {
                 try {
                     boolean key=SecretStore.hasGeminiKey(WritingEngineService.this)||
                         SecretStore.hasKey(WritingEngineService.this);
+                    final java.util.concurrent.atomic.AtomicReference<String> geminiIssue=
+                        new java.util.concurrent.atomic.AtomicReference<>("");
                     offline=new OfflineEngine(WritingEngineService.this,()->cancelled);
                     InferenceRouter.Backend remote=(p,n,partial)-> {
                         if(SecretStore.hasGeminiKey(WritingEngineService.this)) {
+                            String selected=AiPreferences.geminiModel(WritingEngineService.this);
+                            Exception failure=null;
                             try {
-                                send(receiver,4,"Processando com Gemini…",null);
+                                send(receiver,4,"Processando com "+selected+"…",null);
                                 String secret=SecretStore.readGemini(WritingEngineService.this);
-                                gemini=new GeminiClient(secret,()->cancelled);
+                                gemini=new GeminiClient(selected,secret,()->cancelled);
                                 return gemini.generate(p,n,partial);
                             }
                             catch(Exception error) {
                                 InferenceRouter.check(()->cancelled);
-                                if(!SecretStore.hasKey(WritingEngineService.this))throw error;
-                                send(receiver,4,"Gemini indisponível. Tentando Groq…",null);
+                                failure=error;
+                                String reason=GeminiClient.diagnostic(error);
+                                geminiIssue.set(selected+": "+reason);
+                                if(GeminiClient.MODEL.equals(selected)&&
+                                    GeminiClient.tryAlternate(error)) {
+                                    try {
+                                        send(receiver,4,
+                                            "Gemini 3.8 falhou ("+reason+"). Tentando Gemini 3.6…",null);
+                                        String secret=SecretStore.readGemini(WritingEngineService.this);
+                                        gemini=new GeminiClient(GeminiClient.BACKUP_MODEL,secret,()->cancelled);
+                                        InferenceResult alt=gemini.generate(p,n,partial);
+                                        return new InferenceResult(alt.text,alt.backend+
+                                            "\nGemini 3.8: "+reason,alt.truncated);
+                                    }
+                                    catch(Exception another) {
+                                        InferenceRouter.check(()->cancelled);
+                                        failure=another;
+                                        geminiIssue.set(selected+": "+reason+
+                                            "; 3.6: "+GeminiClient.diagnostic(another));
+                                    }
+                                }
+                                if(!SecretStore.hasKey(WritingEngineService.this))throw failure;
+                                send(receiver,4,
+                                    "Gemini não respondeu ("+geminiIssue.get()+
+                                    "). Tentando Groq…",null);
                             }
                             finally {gemini=null;}
                         }
@@ -72,6 +99,10 @@ public final class WritingEngineService extends Service {
                         return online.generate(p,n,partial);
                     };
                     InferenceResult result=InferenceRouter.run(mode,AiPreferences.connected(WritingEngineService.this),key,ModelStore.model(WritingEngineService.this).isFile(),prompt,limit,remote,offline,()->cancelled,s->send(receiver,4,s,null),s->send(receiver,1,s,null));
+                    if(!geminiIssue.get().isEmpty()&&!result.backend.startsWith("Gemini")) {
+                        result=new InferenceResult(result.text,
+                            result.backend+"\nGemini: "+geminiIssue.get(),result.truncated);
+                    }
                     Bundle extra=new Bundle();
                     extra.putBoolean("truncated",result.truncated);
                     extra.putString("backend",result.backend);
