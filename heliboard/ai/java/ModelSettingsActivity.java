@@ -350,7 +350,6 @@ public final class ModelSettingsActivity extends Activity {
         geminiSave.setEnabled(!busy&&!measuring);
         groqSave.setEnabled(!busy&&!measuring);
         geminiTest.setEnabled(!busy&&!measuring);
-        geminiModelSave.setEnabled(!busy&&!measuring);
         geminiModelSelector.setEnabled(!busy&&!measuring);
         measure.setEnabled(!busy&&!measuring);
         cancelMeasure.setEnabled(measuring);
