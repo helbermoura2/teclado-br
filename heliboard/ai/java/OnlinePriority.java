@@ -44,7 +44,7 @@ public final class OnlinePriority {
                 InferenceRouter.check(cancelled);
                 if(failures.length()>0)
                     return new InferenceResult(result.text,result.backend+
-                        "\nGemini 3.8: "+failures.toString(),result.truncated);
+                        "\nTentativa anterior: "+failures.toString(),result.truncated);
                 return result;
             }catch(Exception error) {
                 InferenceRouter.check(cancelled);
