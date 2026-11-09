@@ -178,7 +178,7 @@ public final class UpdateActivity extends Activity {
     }
     private File fetchApk(JSONObject m)throws Exception{
         File target=new File(directory(),"teclado-br-update.apk");
-        File part=new File(directory(),"download.tmp");
+        File part=new File(directory(),"download.pending.apk");
         if(part.exists())part.delete();
         if(target.isFile()&&sha256(target).equalsIgnoreCase(m.getString("sha256"))){
             verifyPackage(target,m);return target;
