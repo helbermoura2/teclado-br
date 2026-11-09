@@ -377,14 +377,15 @@ public final class WritingPanel {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
         };
         String[] names= {
-            "Offline · só no aparelho","Automático · Groq com retorno ao aparelho","Online · só Groq"
+            "Offline · só no aparelho","Automático · Gemini → Groq → Gemma","Online · Gemini → Groq"
         };
         for(int i=0;i<modes.length;i++) {
             final String mode=modes[i];
             menu.getMenu().add(names[i]).setOnMenuItemClickListener(item-> {
                 AiPreferences.mode(ime,mode);
                 modeButton.setText(modeLabel());
-                if(!AiPreferences.OFFLINE.equals(mode)&&!SecretStore.hasKey(ime))toast("Cadastre a chave da Groq na engrenagem. Sem chave, Automático usa o aparelho.");
+                if(!AiPreferences.OFFLINE.equals(mode)&&!SecretStore.hasGeminiKey(ime)&&!SecretStore.hasKey(ime))
+                    toast("Cadastre uma chave Gemini ou Groq na engrenagem. Sem chave, Automático usa o aparelho.");
                 return true;
             });
         }
