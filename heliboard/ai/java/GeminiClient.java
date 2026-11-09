@@ -37,6 +37,13 @@ public final class GeminiClient implements InferenceRouter.Backend {
         if(!MODEL.equals(model)&&!BACKUP_MODEL.equals(model))
             throw new IllegalArgumentException("Modelo Gemini não permitido.");
     }
+    /** Faster attempts in Automatic mode so backup Gemini is not trapped behind the slow primary. */
+    public static GeminiClient forAutomatic(String model,String key,BooleanSupplier cancelled) {
+        if(!MODEL.equals(model)&&!BACKUP_MODEL.equals(model))
+            throw new IllegalArgumentException("Modelo Gemini não permitido.");
+        return new GeminiClient(BACKUP_MODEL.equals(model)?BACKUP_ENDPOINT:ENDPOINT,
+            key,cancelled,BACKUP_MODEL.equals(model)?35000:15000);
+    }
     public static boolean tryAlternate(Exception error) {
         if(error instanceof Failure) {
             int status=((Failure)error).status;
