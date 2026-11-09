@@ -10,6 +10,7 @@ import android.os.*;
 import android.provider.Settings;
 import android.widget.*;
 import androidx.core.content.FileProvider;
+import helium314.keyboard.latin.BuildConfig;
 import org.json.JSONObject;
 import java.io.*;
 import java.net.*;
