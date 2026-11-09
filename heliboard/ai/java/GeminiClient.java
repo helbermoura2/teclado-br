@@ -66,7 +66,7 @@ public final class GeminiClient implements InferenceRouter.Backend {
     }
     /** Controlled loopback is reserved for synthetic transport tests with a fake key. */
     public GeminiClient(String endpoint,String key,BooleanSupplier cancelled,int timeout) {
-        if(!ENDPOINT.equals(endpoint)) {
+        if(!ENDPOINT.equals(endpoint)&&!BACKUP_ENDPOINT.equals(endpoint)) {
             try {
                 URL uri=new URL(endpoint);
                 if(!"http".equals(uri.getProtocol())||!"127.0.0.1".equals(uri.getHost())||
