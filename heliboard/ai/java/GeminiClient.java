@@ -10,8 +10,10 @@ import org.json.*;
 /** Single explicit, bounded Gemini request; no streaming, redirects, telemetry or hidden retries. */
 public final class GeminiClient implements InferenceRouter.Backend {
     public static final String MODEL="gemini-3.8-flash";
+    public static final String BACKUP_MODEL="gemini-3.6-flash";
     private static final String ENDPOINT="https://generativelanguage.googleapis.com/v1beta/models/"+MODEL+":generateContent";
-    private final String endpoint,key;
+    private static final String BACKUP_ENDPOINT="https://generativelanguage.googleapis.com/v1beta/models/"+BACKUP_MODEL+":generateContent";
+    private final String endpoint,key,model;
     private final BooleanSupplier cancelled;
     private final int timeout;
     private volatile HttpURLConnection connection;
@@ -26,7 +28,41 @@ public final class GeminiClient implements InferenceRouter.Backend {
         }
     }
     public GeminiClient(String key,BooleanSupplier cancelled) {
-        this(ENDPOINT,key,cancelled,20000);
+        this(MODEL,key,cancelled);
+    }
+    /** Only fixed and officially documented model IDs may be requested. */
+    public GeminiClient(String model,String key,BooleanSupplier cancelled) {
+        this(BACKUP_MODEL.equals(model)?BACKUP_ENDPOINT:ENDPOINT,key,cancelled,23000);
+        if(!MODEL.equals(model)&&!BACKUP_MODEL.equals(model))
+            throw new IllegalArgumentException("Modelo Gemini não permitido.");
+    }
+    public static boolean tryAlternate(Exception error) {
+        if(error instanceof Failure) {
+            int status=((Failure)error).status;
+            return status==404||status==429||status==500||status==502||status==503||status==504;
+        }
+        return error instanceof java.net.SocketTimeoutException ||
+            error instanceof java.net.ConnectException;
+    }
+    /** Safe, bounded diagnostic: never includes the key, prompt or API response body. */
+    public static String diagnostic(Exception error) {
+        if(error instanceof Failure) {
+            int status=((Failure)error).status;
+            switch(status) {
+                case 400:return "HTTP 400 (requisição rejeitada)";
+                case 401:case 403:return "HTTP "+status+" (chave ou permissão)";
+                case 404:return "HTTP 404 (modelo não disponível para a chave)";
+                case 429:return "HTTP 429 (cota ou limite de requisições)";
+                case 500:case 502:case 503:case 504:return "HTTP "+status+" (servidor sobrecarregado)";
+                default:return "HTTP "+status+" (erro do serviço)";
+            }
+        }
+        if(error instanceof java.net.SocketTimeoutException) return "tempo limite da conexão";
+        if(error instanceof java.net.UnknownHostException) return "DNS indisponível";
+        if(error instanceof java.net.ConnectException) return "conexão indisponível";
+        if(error instanceof org.json.JSONException) return "resposta JSON inesperada";
+        if(error instanceof java.io.IOException) return "conexão ou resposta inválida";
+        return "falha de processamento";
     }
     /** Controlled loopback is reserved for synthetic transport tests with a fake key. */
     public GeminiClient(String endpoint,String key,BooleanSupplier cancelled,int timeout) {
@@ -40,6 +76,7 @@ public final class GeminiClient implements InferenceRouter.Backend {
             catch(MalformedURLException e){throw new IllegalArgumentException("Endpoint inválido.");}
         }
         this.endpoint=endpoint;
+        this.model=BACKUP_ENDPOINT.equals(endpoint)?BACKUP_MODEL:MODEL;
         this.key=key;
         this.cancelled=cancelled;
         this.timeout=timeout;
@@ -117,11 +154,13 @@ public final class GeminiClient implements InferenceRouter.Backend {
             if(result.isEmpty()||result.contains("<think>")||result.contains("<|im_end|>"))
                 throw new IOException("Resposta online inválida.");
             InferenceRouter.check(cancelled);
-            return new InferenceResult(result,"Gemini · "+MODEL,"MAX_TOKENS".equals(finish));
+            return new InferenceResult(result,"Gemini · "+model,"MAX_TOKENS".equals(finish));
         }
         catch(IOException e) {
             if(cancelled.getAsBoolean())throw new CancellationException("Cancelado.");
-            if(e instanceof Failure)throw e;
+            if(e instanceof Failure || e instanceof java.net.SocketTimeoutException ||
+                e instanceof java.net.UnknownHostException || e instanceof java.net.ConnectException)
+                throw e;
             throw new IOException("Não foi possível concluir a conexão com o Gemini.");
         }
         finally {
