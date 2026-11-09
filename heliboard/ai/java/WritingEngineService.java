@@ -51,41 +51,25 @@ public final class WritingEngineService extends Service {
                     offline=new OfflineEngine(WritingEngineService.this,()->cancelled);
                     InferenceRouter.Backend remote=(p,n,partial)-> {
                         if(SecretStore.hasGeminiKey(WritingEngineService.this)) {
-                            String selected=AiPreferences.geminiModel(WritingEngineService.this);
-                            Exception failure=null;
                             try {
-                                send(receiver,4,"Processando com "+selected+"…",null);
-                                String secret=SecretStore.readGemini(WritingEngineService.this);
-                                gemini=new GeminiClient(selected,secret,()->cancelled);
-                                return gemini.generate(p,n,partial);
+                                final String secret=SecretStore.readGemini(WritingEngineService.this);
+                                return GeminiCascade.run(
+                                    model -> {
+                                        gemini=new GeminiClient(model,secret,()->cancelled);
+                                        return gemini.generate(p,n,partial);
+                                    },
+                                    ()->cancelled,
+                                    progress->send(receiver,4,progress,null),
+                                    geminiIssue::set);
                             }
                             catch(Exception error) {
                                 InferenceRouter.check(()->cancelled);
-                                failure=error;
-                                String reason=GeminiClient.diagnostic(error);
-                                geminiIssue.set(selected+": "+reason);
-                                if(GeminiClient.MODEL.equals(selected)&&
-                                    GeminiClient.tryAlternate(error)) {
-                                    try {
-                                        send(receiver,4,
-                                            "Gemini 3.8 falhou ("+reason+"). Tentando Gemini 3.6…",null);
-                                        String secret=SecretStore.readGemini(WritingEngineService.this);
-                                        gemini=new GeminiClient(GeminiClient.BACKUP_MODEL,secret,()->cancelled);
-                                        InferenceResult alt=gemini.generate(p,n,partial);
-                                        return new InferenceResult(alt.text,alt.backend+
-                                            "\nGemini 3.8: "+reason,alt.truncated);
-                                    }
-                                    catch(Exception another) {
-                                        InferenceRouter.check(()->cancelled);
-                                        failure=another;
-                                        geminiIssue.set(selected+": "+reason+
-                                            "; 3.6: "+GeminiClient.diagnostic(another));
-                                    }
-                                }
-                                if(!SecretStore.hasKey(WritingEngineService.this))throw failure;
+                                if(!SecretStore.hasKey(WritingEngineService.this))throw error;
+                                String details=geminiIssue.get();
                                 send(receiver,4,
-                                    "Gemini não respondeu ("+geminiIssue.get()+
-                                    "). Tentando Groq…",null);
+                                    "Gemini 3.8 e 3.6 não concluíram"+
+                                    (details.isEmpty()?"":": "+details)+
+                                    ". Tentando Groq…",null);
                             }
                             finally {gemini=null;}
                         }
