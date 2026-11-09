@@ -73,7 +73,7 @@ public final class WritingEngineService extends Service {
                                         gemini=new GeminiClient(GeminiClient.BACKUP_MODEL,secret,()->cancelled);
                                         InferenceResult alt=gemini.generate(p,n,partial);
                                         return new InferenceResult(alt.text,alt.backend+
-                                            "\\nGemini 3.8: "+reason,alt.truncated);
+                                            "\nGemini 3.8: "+reason,alt.truncated);
                                     }
                                     catch(Exception another) {
                                         InferenceRouter.check(()->cancelled);
