@@ -32,7 +32,8 @@ public final class GeminiClient implements InferenceRouter.Backend {
     }
     /** Only fixed and officially documented model IDs may be requested. */
     public GeminiClient(String model,String key,BooleanSupplier cancelled) {
-        this(BACKUP_MODEL.equals(model)?BACKUP_ENDPOINT:ENDPOINT,key,cancelled,23000);
+        this(BACKUP_MODEL.equals(model)?BACKUP_ENDPOINT:ENDPOINT,key,cancelled,
+            BACKUP_MODEL.equals(model)?45000:60000);
         if(!MODEL.equals(model)&&!BACKUP_MODEL.equals(model))
             throw new IllegalArgumentException("Modelo Gemini não permitido.");
     }
@@ -57,12 +58,38 @@ public final class GeminiClient implements InferenceRouter.Backend {
                 default:return "HTTP "+status+" (erro do serviço)";
             }
         }
-        if(error instanceof java.net.SocketTimeoutException) return "tempo limite da conexão";
+        if(error instanceof java.net.SocketTimeoutException) {
+            String detail=error.getMessage();
+            return detail!=null&&detail.toLowerCase(java.util.Locale.ROOT).contains("connect")?
+                "tempo limite ao conectar":"tempo limite aguardando resposta";
+        }
         if(error instanceof java.net.UnknownHostException) return "DNS indisponível";
         if(error instanceof java.net.ConnectException) return "conexão indisponível";
         if(error instanceof org.json.JSONException) return "resposta JSON inesperada";
         if(error instanceof java.io.IOException) return "conexão ou resposta inválida";
         return "falha de processamento";
+    }
+    /** Checks the Google models.get endpoint, not text generation. No prompt is transmitted. */
+    public static void verifyAccess(String selected,String credential,
+                                    BooleanSupplier cancelled)throws Exception {
+        InferenceRouter.check(cancelled);
+        if(!MODEL.equals(selected)&&!BACKUP_MODEL.equals(selected))
+            throw new IllegalArgumentException("Modelo Gemini não permitido.");
+        HttpURLConnection http=(HttpURLConnection)new URL(
+            "https://generativelanguage.googleapis.com/v1beta/models/"+selected)
+            .openConnection();
+        try {
+            http.setRequestMethod("GET");
+            http.setInstanceFollowRedirects(false);
+            http.setConnectTimeout(8000);
+            http.setReadTimeout(12000);
+            http.setRequestProperty("Accept","application/json");
+            http.setRequestProperty("x-goog-api-key",credential);
+            int status=http.getResponseCode();
+            InferenceRouter.check(cancelled);
+            if(status!=200)throw new Failure(status);
+        }
+        finally {http.disconnect();}
     }
     /** Controlled loopback is reserved for synthetic transport tests with a fake key. */
     public GeminiClient(String endpoint,String key,BooleanSupplier cancelled,int timeout) {
@@ -109,7 +136,7 @@ public final class GeminiClient implements InferenceRouter.Backend {
                 .put("contents",new JSONArray().put(new JSONObject().put("role","user")
                     .put("parts",new JSONArray().put(new JSONObject().put("text",prompt)))))
                 .put("generationConfig",new JSONObject()
-                    .put("maxOutputTokens",4096)
+                    .put("maxOutputTokens",Math.max(512,Math.min(4096,limit*8)))
                     .put("thinkingConfig",new JSONObject().put("thinkingLevel","low")));
             byte[] request=body.toString().getBytes(StandardCharsets.UTF_8);
             if(request.length>40000)throw new IOException("Pedido online muito grande.");
