@@ -15,9 +15,10 @@ public final class ModelSettingsActivity extends Activity {
     private volatile boolean cancelled;
     private boolean busy,measuring,bound;
     private LinearLayout root;
-    private TextView description,status,keyState,geminiKeyState,metrics;
-    private Button add,remove,cancel,save,geminiSave,groqSave,measure,cancelMeasure;
+    private TextView description,status,keyState,geminiKeyState,geminiTestState,metrics;
+    private Button add,remove,cancel,save,geminiSave,groqSave,geminiTest,measure,cancelMeasure;
     private EditText key,geminiKey;
+    private Spinner geminiModelSelector;
     private RadioGroup modes;
     private Messenger engine;
     private int dp(int n) {
@@ -89,6 +90,24 @@ public final class ModelSettingsActivity extends Activity {
         geminiKey.setContentDescription("ai_gemini_key");
         root.addView(geminiKey);
         geminiSave=button("Salvar chave Gemini","ai_save_gemini_key",this::saveGeminiKey);
+        label("Escolher modelo do Gemini",16);
+        geminiModelSelector=new Spinner(this);
+        geminiModelSelector.setContentDescription("ai_gemini_model");
+        String[] geminiChoices={
+            "Gemini 3.8 Flash · mais avançado",
+            "Gemini 3.6 Flash · alternativa"
+        };
+        ArrayAdapter<String> geminiAdapter=new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item,geminiChoices);
+        geminiAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        geminiModelSelector.setAdapter(geminiAdapter);
+        geminiModelSelector.setSelection(GeminiClient.BACKUP_MODEL.equals(
+            AiPreferences.geminiModel(this))?1:0);
+        root.addView(geminiModelSelector,new LinearLayout.LayoutParams(-1,dp(48)));
+        button("Salvar modelo Gemini","ai_save_gemini_model",this::saveGeminiModel);
+        geminiTest=button("Testar conexão Gemini","ai_test_gemini",this::testGemini);
+        geminiTestState=label("Teste com frase fictícia, sem usar suas mensagens. Não troca para Groq.",14);
+        geminiTestState.setContentDescription("ai_gemini_test_state");
         button("Abrir minhas chaves Gemini",null,()->open("https://aistudio.google.com/api-keys"));
         button("Remover só a chave Gemini","ai_remove_gemini_key",()-> {
             stopMeasurement();
@@ -194,6 +213,46 @@ public final class ModelSettingsActivity extends Activity {
             });
         });
     }
+    private void saveGeminiModel() {
+        if(busy||measuring)return;
+        String model=geminiModelSelector.getSelectedItemPosition()==1?
+            GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
+        if(AiPreferences.geminiModel(this,model))
+            geminiTestState.setText("Modelo selecionado: "+model+
+                ". Use Testar conexão Gemini para confirmar o funcionamento.");
+        else geminiTestState.setText("Não foi possível salvar o modelo Gemini.");
+    }
+    private void testGemini() {
+        if(busy||measuring)return;
+        if(!SecretStore.hasGeminiKey(this)) {
+            geminiTestState.setText("Salve sua chave Gemini antes de testar.");
+            return;
+        }
+        final String model=AiPreferences.geminiModel(this);
+        geminiTest.setEnabled(false);
+        geminiTestState.setText("Testando "+model+" com uma frase fictícia…");
+        worker.execute(()-> {
+            String message;
+            try {
+                String key=SecretStore.readGemini(this);
+                GeminiClient client=new GeminiClient(model,key,()->Thread.currentThread().isInterrupted());
+                InferenceResult result=client.generate(
+                    "Corrija apenas ortografia e pontuação: Eu nao sei.",128,s->{});
+                message="Gemini respondeu com sucesso! Modelo: "+model+
+                    ". Agora você pode usar Automático no teclado.";
+            }
+            catch(Exception error) {
+                message="Gemini "+model+" falhou: "+GeminiClient.diagnostic(error)+
+                    ". O teste não chamou a Groq. Se falhar no 3.8, experimente o 3.6.";
+            }
+            final String info=message;
+            runOnUiThread(()-> {
+                if(isDestroyed())return;
+                geminiTestState.setText(info);
+                geminiTest.setEnabled(!busy&&!measuring);
+            });
+        });
+    }
     private void saveGeminiKey() {
         if(busy||measuring)return;
         String secret=geminiKey.getText().toString().trim();
@@ -264,6 +323,7 @@ public final class ModelSettingsActivity extends Activity {
         save.setEnabled(!busy&&!measuring);
         geminiSave.setEnabled(!busy&&!measuring);
         groqSave.setEnabled(!busy&&!measuring);
+        geminiTest.setEnabled(!busy&&!measuring);
         measure.setEnabled(!busy&&!measuring);
         cancelMeasure.setEnabled(measuring);
     }
