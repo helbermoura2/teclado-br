@@ -47,3 +47,5 @@ nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}nav button{
 .poster-art .badge{top:auto;bottom:7px;right:7px}
 
 .series-grid-card .series-status,.series-grid-card small{display:block;white-space:normal;line-height:1.35;margin-top:5px}.series-grid-card .series-status{font-size:11px;color:#d4bcff;font-weight:650}.series-grid-card small{color:#aaa7b4;font-size:10px}
+
+.highlights-section{margin:28px 0 12px}.highlights-section .section-heading{margin-bottom:14px}.highlights-section .section-heading h2{font-size:20px}.highlights-section .section-heading button,.highlight-retry{border:0;background:none;color:#ccb7f0;padding:8px}.highlight-source{color:#96909f;font-size:10px}.discovery-list-heading{display:flex;align-items:center;gap:15px;margin:12px 0 25px}.discovery-list-heading h1{font-size:25px;margin:0}.discovery-list-heading p{font-size:11px;margin:4px 0 0}.discovery-list-heading button{padding:10px 14px;font-size:20px}
