@@ -45,3 +45,5 @@ nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}nav button{
 .history-grid .history-row{display:flex;flex-direction:column;align-items:stretch;gap:0;border:0;padding:0;background:none}.history-grid .history-row small{display:block;margin-top:4px;font-size:11px;line-height:1.3}.history-grid .history-row strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}.collection-header h1{margin:0}
 
 .poster-art .badge{top:auto;bottom:7px;right:7px}
+
+.series-grid-card .series-status,.series-grid-card small{display:block;white-space:normal;line-height:1.35;margin-top:5px}.series-grid-card .series-status{font-size:11px;color:#d4bcff;font-weight:650}.series-grid-card small{color:#aaa7b4;font-size:10px}
