@@ -126,24 +126,6 @@ jobs:
           cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-0.16.0.apk
           cd entrega
           sha256sum CENA-0.16.0.apk > CENA-0.16.0.apk.sha256
-      - uses: actions/upload-artifact@v4
-        with:
-          name: CENA-Android-0.16.0
-          path: entrega/*
-          retention-days: 30
-          if-no-files-found: error
-      - name: Download instructions
-        run: |
-          echo '### CENA Android' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Baixe o artefato CENA-Android-0.16.0 ao final desta página, extraia o ZIP no celular e abra CENA-0.16.0.apk.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Versão 0.16.0: últimos vistos, visual escuro e botão para consultar atualizações.' >> "$GITHUB_STEP_SUMMARY"
-
-  publish-private-preview:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
       - name: Require Android integration and browser validation before publishing
         env:
           GH_TOKEN: ${{ github.token }}
@@ -156,10 +138,6 @@ jobs:
           done
           echo 'Android validation did not finish in time.'
           exit 1
-      - uses: actions/download-artifact@v4
-        with:
-          name: CENA-Android-0.16.0
-          path: entrega
       - name: Publish direct APK download in the private repository
         env:
           GH_TOKEN: ${{ github.token }}
