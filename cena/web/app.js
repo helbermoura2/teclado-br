@@ -130,6 +130,13 @@ function renderTitleHistory(item){
 
 const artworkResolver = new ArtworkResolver({storage:storage});
 const ratingsResolver=new RatingsResolver({storage:storage});
+let streamingConfigured=false,streamingMessage='Configure sua chave gratuita do TMDB para exibir os serviços no Brasil.';
+const streamingData=new Map(),streamingPending=new Set(),streamingObserved=new WeakSet();
+function requestStreaming(node){if(!streamingConfigured||!node.isConnected)return;const key=node.dataset.streamKey;if(!/^(movie|series):tt\d{5,12}$/.test(key||'')||streamingData.has(key)||streamingPending.has(key))return;const [type,id]=key.split(':');streamingPending.add(key);window.CenaAndroid?.findStreaming?.(id,type);}
+function paintStreaming(node,value){node.replaceChildren();if(!value?.logo||!/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value.logo))return;const img=document.createElement('img');img.src='https://image.tmdb.org/t/p/w92'+value.logo;img.alt='Disponível em '+String(value.name||'streaming');img.loading='lazy';node.append(img);node.title=img.alt;node.classList.add('has-stream');}
+const streamingObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting)requestStreaming(entry.target);},{rootMargin:'150px'}):null;
+function wireStreaming(){for(const node of document.querySelectorAll('[data-stream-key]')){const cached=streamingData.get(node.dataset.streamKey);if(cached)paintStreaming(node,cached);if(streamingObserved.has(node))continue;streamingObserved.add(node);if(streamingObserver)streamingObserver.observe(node);else requestStreaming(node);}}
+window.CenaStreamingResult=value=>{if(value.kind==='status'){streamingConfigured=Boolean(value.configured);streamingMessage=value.message||(streamingConfigured?'TMDB conectado. Disponibilidade do Brasil.':'Configure sua chave gratuita do TMDB para exibir os serviços no Brasil.');const label=$('#streaming-status');if(label)label.textContent=streamingMessage;if(streamingConfigured){streamingData.clear();streamingPending.clear();for(const node of document.querySelectorAll('[data-stream-key]')){const rect=node.getBoundingClientRect();if(rect.bottom>=-150&&rect.top<=innerHeight+150)requestStreaming(node);}}return;}if(value.kind==='provider'){const key=`${value.type}:${value.id}`;streamingPending.delete(key);if(!value.error)streamingData.set(key,value);for(const node of document.querySelectorAll('[data-stream-key]'))if(node.dataset.streamKey===key)paintStreaming(node,value);}};
 const ratingModels=new Map(),ratingObserved=new WeakSet(),ratingLoading=new WeakSet();
 function scoreMarkup(item){const id=`${item.type}:${item.id}`;ratingModels.set(id,item);const value=ratingsResolver.peek(item);return `<span class="imdb-score ${value!=null?'rated':'unrated'}" data-rating-key="${escape(id)}" data-rating-state="${value===undefined?'pending':value===null?'missing':'ready'}" title="Nota dos usuários do IMDb, de 1 a 10">${imdbLabel(value)}</span>`;}
 async function hydrateScore(element){
@@ -252,7 +259,7 @@ async function hydrateArtwork(element) {
     persistArtwork(item,url);item.poster=url;
     artworkObserver?.unobserve(element);
     for(const poster of document.querySelectorAll('.poster-art[data-artwork-key]')) {
-      if(poster.dataset.artworkKey!==element.dataset.artworkKey || poster.querySelector('img'))continue;
+      if(poster.dataset.artworkKey!==element.dataset.artworkKey || poster.querySelector(':scope > img'))continue;
       const image=new Image();image.alt='';image.loading='lazy';image.decoding='async';image.referrerPolicy='no-referrer';image.src=url;
       image.onerror=()=>{image.remove();poster.dataset.artworkState='missing';delete artworkResolver.cache[artworkResolver.key(item)];persistArtwork(item,'');artworkResolver.failures.set(artworkResolver.key(item),Date.now());};
       poster.dataset.artworkState='ready';poster.insertBefore(image,poster.querySelector('.badge'));
@@ -324,11 +331,11 @@ function notice() {
 }
 function poster(item, badge = '', showRating = false) {
   const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
-  return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}</div>`;
+  return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}<span class="stream-badge" data-stream-key="${escape(key)}"></span></div>`;
 }
 function grid(rows,recommendation=false) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? '✓ Assistido' : item.watchedEpisodes ? `${item.watchedEpisodes} episódios vistos` : '',true)}<strong>${escape(item.name)}</strong>${historyBadge(item)}<small>${escape(item.year)} · ${titleType(item)}</small>${recommendation?`<p class="recommendation-reason">${escape(item.recommendationReason)}</p>`:''}</button>`).join('')}</div>`; }
 function wireImages() {
-  wireRatings();
+  wireRatings();wireStreaming();
   for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
     if(artworkObserved.has(element))continue;artworkObserved.add(element);
     if(artworkObserver)artworkObserver.observe(element);else hydrateArtwork(element);
@@ -394,7 +401,7 @@ function library() {
   if($('#refresh-artwork')) $('#refresh-artwork').onclick=()=>{
     artworkResolver.retry();
     for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
-      if(element.querySelector('img'))continue;
+      if(element.querySelector(':scope > img'))continue;
       const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);
     }
     toast('Buscando capas. As demais carregam ao rolar a lista.');
@@ -685,7 +692,7 @@ async function refresh() {
 function localConnection() {
   const supported = native && typeof window.CenaAndroid.connectTrakt === 'function';
   const pending = traktState.pending?.length || 0;
-  main.innerHTML = `<div class="eyebrow">SUA LISTA, EM MAIS TELAS</div><h1>Conectar ao Nuvio</h1><div class="panel" id="update-panel"><h2>Atualizações do CENA</h2><p id="update-status">Confira novas versões do aplicativo.</p><div class="actions"><button class="secondary" id="update-check">Verificar atualização</button><button class="primary" id="update-install" hidden>Atualizar</button></div></div>
+  main.innerHTML = `<div class="eyebrow">SUA LISTA, EM MAIS TELAS</div><h1>Conectar ao Nuvio</h1><div class="panel" id="update-panel"><h2>Atualizações do CENA</h2><p id="update-status">Confira novas versões do aplicativo.</p><div class="actions"><button class="secondary" id="update-check">Verificar atualização</button><button class="primary" id="update-install" hidden>Atualizar</button></div></div><div class="panel" id="streaming-panel"><h2>Onde assistir</h2><p id="streaming-status"></p><p>Para mostrar os serviços no Brasil, use uma chave de API v3 gratuita da sua conta TMDB. <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">Criar ou consultar chave no TMDB</a>. Dados de disponibilidade: JustWatch via TMDB.</p><form id="streaming-form"><label for="streaming-key">Chave de API v3 do TMDB</label><input id="streaming-key" type="password" autocomplete="off" minlength="32" maxlength="32" required><button class="secondary" type="submit">Conectar TMDB</button></form></div>
     <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
     <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
     <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
@@ -697,6 +704,7 @@ function localConnection() {
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
   window.CenaAndroid?.visionModelState?.();stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderSync();renderVisionModel();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
   renderUpdatePanel();$('#update-check').onclick=()=>window.CenaAndroid?.checkUpdates?.();$('#update-install').onclick=()=>window.CenaAndroid?.installUpdate?.();
+  $('#streaming-status').textContent=streamingMessage;$('#streaming-form').onsubmit=event=>{event.preventDefault();const field=$('#streaming-key');window.CenaAndroid?.configureStreaming?.(field.value);field.value='';$('#streaming-status').textContent='Conectando ao TMDB…';};window.CenaAndroid?.streamingStatus?.();
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
   if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
   if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
@@ -725,8 +733,8 @@ home();
 if (apiBase) refresh().then(() => { libraryReady=true; setTab(tab); sendTraktInventory(); if(deferredHistoryState){const state=deferredHistoryState;deferredHistoryState=null;window.CenaHistoryResult(state);} if(deferredNuvioState){const state=deferredNuvioState;deferredNuvioState=null;window.CenaNuvioResult(state);} if(deferredTraktState) { const state=deferredTraktState; deferredTraktState=null; window.CenaTraktResult(state); } }).catch(error => toast(error.message));
 else setTab('connect');
 
-if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready(); }
+if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-version').textContent = 'v' + window.CenaAndroid.appVersion(); window.CenaAndroid.ready();window.CenaAndroid.streamingStatus?.(); }
 
-window.addEventListener('online',()=>{artworkResolver.retry();for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')){if(!element.querySelector('img')){const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);}}});
+window.addEventListener('online',()=>{artworkResolver.retry();for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')){if(!element.querySelector(':scope > img')){const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);}}});
 
 window.addEventListener('online',()=>{ratingsResolver.retry();for(const node of document.querySelectorAll('[data-rating-state=error]'))hydrateScore(node);});
