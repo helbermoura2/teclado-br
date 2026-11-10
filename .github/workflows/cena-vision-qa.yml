@@ -93,10 +93,10 @@ jobs:
             adb shell run-as app.cena.mobile.test chmod 600 files/smoke.gguf
             adb shell content call --uri content://app.cena.mobile.test.model/model --method grant
             adb shell content query --uri content://app.cena.mobile.test.model/model
-            timeout 420s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest,app.cena.LocalAiTest,app.cena.NuvioRepositoryTest,app.cena.WatchHistoryTest,app.cena.AppDataStoreTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
+            timeout 420s adb shell am instrument -w -r -e class app.cena.AssetsUpgradeTest,app.cena.StoryExportTest,app.cena.StoryArtworkTest,app.cena.TraktRepositoryTest,app.cena.StremioRepositoryTest,app.cena.SeriesRepositoryTest,app.cena.CoverRecognitionTest,app.cena.VisualModelTest,app.cena.LocalAiTest,app.cena.NuvioRepositoryTest,app.cena.WatchHistoryTest,app.cena.AppDataStoreTest,app.cena.UpdatePolicyTest,app.cena.StreamingPolicyTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/cena-instrumentation.txt
             adb shell dumpsys activity lastanr > ../qa/native-last-anr.txt
-            if ! grep -F 'OK (34 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb logcat -d -s AndroidRuntime:E; adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
-            grep -F 'OK (34 tests)' /tmp/cena-instrumentation.txt
+            if ! grep -F 'OK (39 tests)' /tmp/cena-instrumentation.txt > /dev/null; then adb logcat -d -s AndroidRuntime:E; adb root; adb wait-for-device; adb shell 'cat /data/anr/*' > ../qa/native-anr-traces.txt; fi
+            grep -F 'OK (39 tests)' /tmp/cena-instrumentation.txt
             adb shell run-as app.cena.mobile cat files/legacy-update-marker.txt | grep -x update
             mkdir -p ../qa
             adb exec-out run-as app.cena.mobile cat files/native-ocr.json > ../qa/native-ocr.json
@@ -108,6 +108,7 @@ jobs:
         working-directory: cena
         run: node scripts/check-native-cover-identification.mjs
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         if: always()
         with:
           name: CENA-local-visual-model-report
