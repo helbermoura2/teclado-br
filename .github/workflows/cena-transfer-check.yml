@@ -21,4 +21,4 @@ jobs:
           done
           test -n "$ASSET_ID"
           curl --fail --silent --show-error --dump-header /tmp/cena-headers --output /dev/null -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID"
-          python3 -c 'from pathlib import Path; h=Path("/tmp/cena-headers").read_text(); v=[x.split(":",1)[1].strip() for x in h.splitlines() if x.lower().startswith("location: https://")]; assert len(v)==1; print("CENA_TRANSFER_URL "+v[0])'
+          python3 -c 'import base64; from pathlib import Path; h=Path("/tmp/cena-headers").read_text(); v=[x.split(":",1)[1].strip() for x in h.splitlines() if x.lower().startswith("location: https://")]; assert len(v)==1; print("CENA_TRANSFER_BASE64 "+base64.b64encode(v[0].encode()).decode())'
