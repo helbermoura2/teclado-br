@@ -33,6 +33,7 @@ import java.util.concurrent.Executors
 class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
     private val updater by lazy { UpdateManager(this) { value -> if(pageReady)web.evaluateJavascript("window.CenaUpdateResult && window.CenaUpdateResult($value)",null) } }
+    private val streaming by lazy { StreamingProviders(this) { value -> if(pageReady)web.evaluateJavascript("window.CenaStreamingResult && window.CenaStreamingResult($value)",null) } }
     private val installedVersion by lazy { packageManager.getPackageInfo(packageName, 0).versionName ?: "dev" }
     private val assetPrefix get() = "/cena-${installedVersion}/"
     private var photoUri: Uri? = null
@@ -287,6 +288,9 @@ class MainActivity : ComponentActivity() {
     inner class Bridge {
         @JavascriptInterface fun checkUpdates(){updater.check()}
         @JavascriptInterface fun installUpdate(){updater.install()}
+        @JavascriptInterface fun streamingStatus(){streaming.status()}
+        @JavascriptInterface fun configureStreaming(key:String){streaming.configure(key)}
+        @JavascriptInterface fun findStreaming(id:String,type:String){streaming.find(id,type)}
         @JavascriptInterface fun visionModelState(){emitVisualModel()}
         @JavascriptInterface fun downloadVisualModel(){if(!visualDownloadQueued.compareAndSet(false,true))return;emitVisualModel();try{visionExecutor.execute{try{if(!isDestroyed)VisualModelStore.download(applicationContext){emitVisualModel()}}finally{visualDownloadQueued.set(false);emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){visualDownloadQueued.set(false)}}
         @JavascriptInterface fun cancelVisualModel(){VisualModelStore.cancel()}
@@ -454,6 +458,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         pageReady=false
         updater.close()
+        streaming.close()
         VisualModelStore.cancel()
         super.onDestroy()
         cleanPhoto()
