@@ -14,6 +14,21 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.Executors
 
+internal object UpdatePolicy {
+    private fun version(value:String):List<Int>{require(Regex("[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}").matches(value));return value.split('.').map{it.toInt()}}
+    fun newer(a:String,b:String):Boolean{val first=version(a);val second=version(b);for(i in 0..2)if(first[i]!=second[i])return first[i]>second[i];return false}
+    fun parse(release:JSONObject):JSONObject{
+        val tag=release.getString("tag_name");require(tag.startsWith("v"));val v=tag.substring(1);version(v)
+        val assets=release.getJSONArray("assets");var selected:JSONObject?=null
+        for(i in 0 until assets.length()){val a=assets.getJSONObject(i);if(a.optString("name")=="CENA-$v.apk")selected=a}
+        val asset=selected?:error("APK da versão não encontrado.")
+        val hash=asset.getString("digest");require(Regex("sha256:[a-f0-9]{64}").matches(hash))
+        val size=asset.getLong("size");require(size in 1L..100_000_000L)
+        val url=asset.getString("browser_download_url");require(url=="https://github.com/helbermoura2/cena-downloads/releases/download/$tag/CENA-$v.apk")
+        return JSONObject().put("version",v).put("url",url).put("hash",hash.substring(7)).put("size",size)
+    }
+}
+
 /** Updates are obtained exclusively from the public CENA release repository. */
 class UpdateManager(private val activity: Activity, private val notify: (JSONObject) -> Unit) {
     private val executor = Executors.newSingleThreadExecutor()
@@ -21,15 +36,6 @@ class UpdateManager(private val activity: Activity, private val notify: (JSONObj
     private val packageName = activity.packageName
     private fun emit(status: String, message: String, version: String = "") =
         activity.runOnUiThread { if (!activity.isFinishing && !activity.isDestroyed) notify(JSONObject().put("status",status).put("message",message).put("version",version)) }
-    private fun version(value: String): List<Int> {
-        require(Regex("[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,4}").matches(value))
-        return value.split('.').map { it.toInt() }
-    }
-    private fun newer(a: String, b: String): Boolean {
-        val first=version(a);val second=version(b)
-        for(i in 0..2) if(first[i]!=second[i]) return first[i]>second[i]
-        return false
-    }
     private fun connection(url: String): HttpURLConnection {
         val parsed=URL(url)
         require(parsed.protocol=="https" && parsed.host in setOf("api.github.com","github.com","release-assets.githubusercontent.com","objects.githubusercontent.com"))
@@ -48,18 +54,9 @@ class UpdateManager(private val activity: Activity, private val notify: (JSONObj
         val conn=request("https://api.github.com/repos/helbermoura2/cena-downloads/releases/latest")
         val body=try{conn.inputStream.bufferedReader().use{it.readText()}}finally{conn.disconnect()}
         require(body.length<200000)
-        val release=JSONObject(body);val tag=release.getString("tag_name");require(tag.startsWith("v"))
-        val v=tag.substring(1);version(v)
-        val assets=release.getJSONArray("assets");var selected:JSONObject?=null
-        for(i in 0 until assets.length()){val a=assets.getJSONObject(i);if(a.optString("name")=="CENA-$v.apk")selected=a}
-        val asset=selected?:error("APK da versão não encontrado.")
-        val hash=asset.getString("digest");require(Regex("sha256:[a-f0-9]{64}").matches(hash))
-        val size=asset.getLong("size");require(size in 1..100_000_000)
-        val url=asset.getString("browser_download_url")
-        require(url=="https://github.com/helbermoura2/cena-downloads/releases/download/$tag/CENA-$v.apk")
-        return JSONObject().put("version",v).put("url",url).put("hash",hash.substring(7)).put("size",size)
+        return UpdatePolicy.parse(JSONObject(body))
     }
-    fun check() { executor.execute { try {emit("checking","Consultando atualizações…");val info=checkRelease();val current=activity.packageManager.getPackageInfo(packageName,0).versionName?:"0.0.0";if(newer(info.getString("version"),current)){candidate=info;emit("available","Nova versão disponível.",info.getString("version"))}else{candidate=null;emit("current","O CENA está atualizado.",current)}}catch(_:Exception){emit("error","Não consegui verificar atualizações. Confira a internet.")} } }
+    fun check() { executor.execute { try {emit("checking","Consultando atualizações…");val info=checkRelease();val current=activity.packageManager.getPackageInfo(packageName,0).versionName?:"0.0.0";if(UpdatePolicy.newer(info.getString("version"),current)){candidate=info;emit("available","Nova versão disponível.",info.getString("version"))}else{candidate=null;emit("current","O CENA está atualizado.",current)}}catch(_:Exception){emit("error","Não consegui verificar atualizações. Confira a internet.")} } }
     @Suppress("DEPRECATION")
     private fun verify(file: File) {
         val pm=activity.packageManager;val archive=pm.getPackageArchiveInfo(file.absolutePath,PackageManager.GET_SIGNATURES)?:error("APK inválido")
@@ -70,7 +67,7 @@ class UpdateManager(private val activity: Activity, private val notify: (JSONObj
         require(old.isNotEmpty() && old==fresh)
     }
     fun install() { executor.execute { try {
-        val info=candidate?:checkRelease();val v=info.getString("version");val current=activity.packageManager.getPackageInfo(packageName,0).versionName?:"0.0.0";require(newer(v,current))
+        val info=candidate?:checkRelease();val v=info.getString("version");val current=activity.packageManager.getPackageInfo(packageName,0).versionName?:"0.0.0";require(UpdatePolicy.newer(v,current))
         if(Build.VERSION.SDK_INT>=26 && !activity.packageManager.canRequestPackageInstalls()){
             emit("permission","Autorize instalações pelo CENA e volte para tocar em Atualizar novamente.",v)
             activity.runOnUiThread{if(!activity.isFinishing)activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:$packageName")))};return@execute
