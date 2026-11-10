@@ -1,4 +1,5 @@
 name: CENA Android APK
+# Validar o histórico recente e a atualização da versão 0.16.0.
 # Local similarity prompts use at most eight candidates and avoid duplicated plot/evidence text.
 # SQLite regression checks pin the write connection when counting changed rows.
 # Catalog updates write only changed SQLite rows; unchanged artwork keeps its saved records.
