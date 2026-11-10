@@ -253,9 +253,8 @@ class MainActivity : ComponentActivity() {
         }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                web.evaluateJavascript("document.querySelector('dialog[open]') !== null") { open ->
-                    if (open == "true") web.evaluateJavascript("document.querySelector('dialog[open]').close()", null)
-                    else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
+                web.evaluateJavascript("window.CenaBack ? window.CenaBack() : false") { handled ->
+                    if (handled != "true") { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
                 }
             }
         })
