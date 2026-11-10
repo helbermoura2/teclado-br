@@ -32,6 +32,7 @@ import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
     private lateinit var web: WebView
+    private val updater by lazy { UpdateManager(this) { value -> if(pageReady)web.evaluateJavascript("window.CenaUpdateResult && window.CenaUpdateResult($value)",null) } }
     private val installedVersion by lazy { packageManager.getPackageInfo(packageName, 0).versionName ?: "dev" }
     private val assetPrefix get() = "/cena-${installedVersion}/"
     private var photoUri: Uri? = null
@@ -284,6 +285,8 @@ class MainActivity : ComponentActivity() {
     override fun onPause() { nuvioVisible=false;traktVisible=false;localAiClient.cancel();super.onPause() }
 
     inner class Bridge {
+        @JavascriptInterface fun checkUpdates(){updater.check()}
+        @JavascriptInterface fun installUpdate(){updater.install()}
         @JavascriptInterface fun visionModelState(){emitVisualModel()}
         @JavascriptInterface fun downloadVisualModel(){if(!visualDownloadQueued.compareAndSet(false,true))return;emitVisualModel();try{visionExecutor.execute{try{if(!isDestroyed)VisualModelStore.download(applicationContext){emitVisualModel()}}finally{visualDownloadQueued.set(false);emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){visualDownloadQueued.set(false)}}
         @JavascriptInterface fun cancelVisualModel(){VisualModelStore.cancel()}
@@ -450,6 +453,7 @@ class MainActivity : ComponentActivity() {
     private fun cleanPhoto() { photoFile?.delete(); croppedFile?.delete(); photoFile = null; croppedFile = null; photoUri = null }
     override fun onDestroy() {
         pageReady=false
+        updater.close()
         VisualModelStore.cancel()
         super.onDestroy()
         cleanPhoto()
