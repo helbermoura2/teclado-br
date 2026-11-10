@@ -709,6 +709,7 @@ jobs:
               server.wait(timeout=10)
           PY
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: CENA-SISU-browser-QA
           path: cena/qa/*
