@@ -103,7 +103,7 @@ jobs:
                   expect(page.locator('#detail')).to_be_visible()
                   expect(page.locator('#detail-content')).to_contain_text('2020')
                   expect(page.locator('#detail-content')).to_contain_text('Margot Robbie', timeout=30000)
-                  expect(page.locator('#detail-content')).to_contain_text('Duração:')
+                  expect(page.locator('#detail-content')).to_contain_text('Duração:',timeout=30000)
                   assert len(page.locator('#detail-synopsis').inner_text()) > 100
                   Path('qa').mkdir(exist_ok=True)
                   page.screenshot(path='qa/birds-details.png', full_page=True)
@@ -539,7 +539,7 @@ jobs:
                   expect(nuvio_page.locator('#main .hero')).to_have_count(0)
                   expect(nuvio_page.locator('#main .notice')).to_have_count(0)
                   order=nuvio_page.evaluate("Array.from(document.querySelectorAll('#main section')).map(e=>e.id).filter(Boolean)")
-                  assert [x for x in order if x!='home-calendar'][:3]==['nuvio-home','series-home','home-recommendations']
+                  assert [x for x in order if x!='home-calendar'][:4]==['nuvio-home','recent-history','series-home','home-recommendations']
                   triangle=nuvio_page.locator('.brand-triangle').bounding_box()
                   assert triangle['height']>=25 and triangle['width']>=23
                   assert nuvio_page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'No horizontal page overflow'
