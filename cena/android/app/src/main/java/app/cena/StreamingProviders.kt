@@ -7,6 +7,7 @@ import java.net.URL
 import java.util.concurrent.Executors
 
 internal object StreamingPolicy {
+    fun posterPath(value:String)=value.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.(jpg|png)"))}.orEmpty()
     fun select(data:JSONObject?):JSONObject {
         val platforms=listOf("flatrate","free","ads").mapNotNull{data?.optJSONArray(it)}.firstOrNull{it.length()>0}
         val first=platforms?.optJSONObject(0);val logo=first?.optString("logo_path").orEmpty()
@@ -36,10 +37,10 @@ class StreamingProviders(private val activity:Activity,private val notify:(JSONO
             try{
                 val result=get("find/$id?external_source=imdb_id",apiKey)
                 val values=result.optJSONArray(if(type=="movie")"movie_results" else "tv_results")
-                val tmdb=values?.optJSONObject(0)?.optLong("id")?:0L;require(tmdb>0)
+                val match=values?.optJSONObject(0);val tmdb=match?.optLong("id")?:0L;require(tmdb>0)
                 val kind=if(type=="movie")"movie" else "tv"
                 val data=get("$kind/$tmdb/watch/providers",apiKey).optJSONObject("results")?.optJSONObject("BR")
-                val response=StreamingPolicy.select(data).put("kind","provider").put("id",id).put("type",type)
+                val response=StreamingPolicy.select(data).put("kind","provider").put("id",id).put("type",type).put("poster",StreamingPolicy.posterPath(match?.optString("poster_path").orEmpty()))
                 cache[cacheKey]=System.currentTimeMillis() to response;emit(response)
             }catch(_:Exception){emit(JSONObject().put("kind","provider").put("id",id).put("type",type).put("error",true))}
         }
