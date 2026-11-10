@@ -1,4 +1,4 @@
-name: Verificar transferência de APK público
+name: Preparar publicação pública do CENA
 on:
   push:
     branches: ['cena/android-preview']
@@ -6,12 +6,19 @@ on:
 permissions:
   contents: read
 jobs:
-  check:
+  transfer:
     runs-on: ubuntu-latest
+    timeout-minutes: 7
     steps:
-      - name: Verificar acesso temporário ao APK
+      - name: Obter endereço temporário do APK validado
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          curl --silent --show-error --dump-header /tmp/cena-headers --output /dev/null -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/709493714"
-          python3 -c 'from pathlib import Path; h=Path("/tmp/cena-headers").read_text(); print("CENA_TRANSFER_AVAILABLE", any(x.lower().startswith("location: https://") for x in h.splitlines()))'
+          for attempt in $(seq 1 40); do
+            ASSET_ID=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/cena-v0.16.0" --jq '.assets[] | select(.name=="CENA-0.16.0.apk") | .id' 2>/dev/null || true)
+            if [ -n "$ASSET_ID" ]; then break; fi
+            sleep 5
+          done
+          test -n "$ASSET_ID"
+          curl --fail --silent --show-error --dump-header /tmp/cena-headers --output /dev/null -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID"
+          python3 -c 'from pathlib import Path; h=Path("/tmp/cena-headers").read_text(); v=[x.split(":",1)[1].strip() for x in h.splitlines() if x.lower().startswith("location: https://")]; assert len(v)==1; print("CENA_TRANSFER_URL "+v[0])'
