@@ -346,7 +346,9 @@ function wireCards(rows) {
   wireImages();
 }
 function empty(text = 'Sua próxima sessão começa aqui', sub = 'Busque um título ou fotografe uma capa para começar sua lista.') { return `<div class="empty"><div class="empty-icon">✧</div><h3>${text}</h3><p>${sub}</p><button class="secondary" id="empty-search">Buscar um título</button></div>`; }
-function setTab(next) {
+const tabHistory=[];
+function setTab(next, fromBack=false) {
+  if(!fromBack && next!==tab) tabHistory.push(tab);
   tab = next;
   searchGeneration++;
   document.querySelectorAll('nav [data-tab]').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
@@ -359,6 +361,7 @@ function setTab(next) {
   if(tab==='collections')collections();
   window.scrollTo(0, 0);
 }
+window.CenaBack=()=>{const dialog=document.querySelector('dialog[open]');if(dialog){dialog.close();return true;}if(tab==='collections'&&activeCollection){activeCollection='';collections();return true;}if(tabHistory.length){setTab(tabHistory.pop(),true);return true;}if(tab!=='home'){setTab('home',true);return true;}return false;};
 function horizontalGrid(rows,recommendation=false){return grid(rows,recommendation).replace('class="grid"','class="poster-rail"');}
 function loadRecentHistory(){if(tab!=='home')return;if(!historyState.scope||typeof window.CenaAndroid?.historyRows!=='function'){recentHistoryRows=[];renderRecentHistory();return;}recentHistoryRequest=String(++historyRequest);window.CenaAndroid.historyRows(recentHistoryRequest,'all','all',1,'');}
 function renderRecentHistory(){const target=$('#recent-history');if(!target)return;const rows=recentHistoryRows.slice(0,10);recentHistoryResults=rows.map(row=>historyItem(row,items));target.innerHTML=`<div class="section-heading"><h2>Últimos vistos</h2><button id="recent-see-all">Ver histórico</button></div>${rows.length?`<div class="poster-rail">${rows.map((row,index)=>{const item=recentHistoryResults[index];return `<button class="poster-card" data-id="${escape(item.id)}">${poster(item)}<strong>${escape(item.name)}</strong><small>${row.kind==='episode'?`T${Number(row.season)} · E${Number(row.episode)} · `:''}${escape(historyDate(row))}</small></button>`;}).join('')}</div>`:'<p class="muted">Os filmes e episódios do seu histórico Trakt aparecerão aqui.</p>'}`;$('#recent-see-all').onclick=()=>{historyYear='all';historyKind='all';historyMedia='';historyMode='history';setTab('profile');};wireImages();}
@@ -387,10 +390,12 @@ async function loadHomeRecommendations(force=false){
 }
 function collections(){
  const lists=readCollections(storage);if(activeCollection&&!lists[activeCollection])activeCollection='';
- main.innerHTML='<div class="eyebrow">CADA LISTA, UMA VONTADE</div><h1>Minhas listas</h1><form id="new-collection" class="search-row"><input id="collection-name" placeholder="Nome da nova lista" aria-label="Nome da nova lista" maxlength="60" required><button class="primary">Criar</button></form><div class="chips" id="collection-choices"></div><section id="collection-titles"></section>';
- const choices=$('#collection-choices');for(const [id,list]of Object.entries(lists)){const button=document.createElement('button');button.className='chip '+(id===activeCollection?'selected':'');button.textContent=list.name;button.onclick=()=>{activeCollection=id;collections();};choices.append(button);}
- $('#new-collection').onsubmit=event=>{event.preventDefault();try{activeCollection=createCollection(storage,$('#collection-name').value);collections();}catch(error){toast(error.message);}};
- if(!activeCollection){$('#collection-titles').innerHTML='<p class="muted">Crie ou escolha uma lista. Abra um título para adicioná-lo às suas listas pessoais.</p>';return;}
+ const title=activeCollection?lists[activeCollection].name:'Minhas listas';
+ main.innerHTML=`<div class="collection-header"><button class="collection-back" id="collections-back" aria-label="Voltar">←</button><div><span class="eyebrow">SEU CINEMA</span><h1>${escape(title)}</h1></div></div><div id="collection-choices" class="collection-list"></div><section id="collection-titles"></section>${activeCollection?'':'<form id="new-collection" class="search-row"><input id="collection-name" placeholder="Nome da nova lista" aria-label="Nome da nova lista" maxlength="60" required><button class="primary">Criar</button></form>'}`;
+ $('#collections-back').onclick=()=>window.CenaBack();
+ const choices=$('#collection-choices');if(!activeCollection)for(const [id,list]of Object.entries(lists)){const button=document.createElement('button');button.className='collection-tile';const saved=collectionItems(storage,id,items);button.innerHTML=`<span class="collection-tile-art">${saved[0]?poster(saved[0]):'<span aria-hidden="true">▤</span>'}</span><span class="collection-tile-copy"><strong>${escape(list.name)}</strong><small>${saved.length} ${saved.length===1?'título':'títulos'}</small></span><span aria-hidden="true">›</span>`;button.onclick=()=>{activeCollection=id;collections();};choices.append(button);}
+ if($('#new-collection'))$('#new-collection').onsubmit=event=>{event.preventDefault();try{activeCollection=createCollection(storage,$('#collection-name').value);collections();}catch(error){toast(error.message);}};
+ if(!activeCollection){$('#collection-titles').innerHTML=Object.keys(lists).length?'':'<p class="muted">Crie sua primeira lista para organizar seus filmes e séries.</p>';wireImages();return;}
  collectionResults=collectionItems(storage,activeCollection,items);$('#collection-titles').innerHTML=collectionResults.length?grid(collectionResults):'<p class="muted">Esta lista ainda não tem títulos. Adicione pelo detalhe de um filme ou série.</p>';wireImages();
 }
 function renderSync(){const target=$('#sync-summary');if(target)renderSyncSummary(target,{trakt:traktState,nuvio:nuvioState,history:historyState,series:seriesState});}
