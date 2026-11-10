@@ -1,0 +1,17 @@
+name: Verificar transferência de APK público
+on:
+  push:
+    branches: ['cena/android-preview']
+    paths: ['.github/workflows/cena-transfer-check.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar acesso temporário ao APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --silent --show-error --dump-header /tmp/cena-headers --output /dev/null -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/octet-stream" -H "X-GitHub-Api-Version: 2022-11-28" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/709493714"
+          python3 -c 'from pathlib import Path; h=Path("/tmp/cena-headers").read_text(); print("CENA_TRANSFER_AVAILABLE", any(x.lower().startswith("location: https://") for x in h.splitlines()))'
