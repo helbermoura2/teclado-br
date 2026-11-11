@@ -64,3 +64,5 @@ nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}nav button{
 
 .brand .brand-triangle img{display:block;width:100%;height:100%;object-fit:contain}
 .brand .brand-triangle{width:46px;height:46px}@media(max-width:360px){.brand .brand-triangle{width:42px;height:42px}}
+
+.brand .brand-wordmark{display:block;width:119px;height:31px;object-fit:contain}.brand{gap:0}.brand-group{gap:5px}@media(max-width:360px){.brand .brand-wordmark{width:102px;height:27px}}
