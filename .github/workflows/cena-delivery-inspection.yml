@@ -1,0 +1,60 @@
+name: Inspect delivered CENA APK
+on:
+  push:
+    branches: ['cena/**']
+    paths: ['.github/workflows/cena-delivery-inspection.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the exact delivered artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 41269362087 --repo helbermoura2/teclado-br --name CENA-Android-0.4.0 --dir /tmp/delivered-cena
+      - name: Inspect packaged interface and installed version
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import json, re, subprocess, os
+          apk = next(Path('/tmp/delivered-cena').glob('*.apk'))
+          with ZipFile(apk) as archive:
+              index = archive.read('assets/index.html').decode()
+              js = archive.read('assets/app.js').decode()
+              print(json.dumps({'version_in_html': re.findall(r'v0[.]\\d+[.]\\d+', index), 'has_new_capture_screen': '<h1>Capturar título</h1>' in js, 'has_gallery_button': 'id="pick-image"' in js, 'has_visual_bridge_call': 'compareCovers' in js, 'model_size': archive.getinfo('assets/models/clip-vision.onnx').file_size}, ensure_ascii=False))
+              print('Packaged index header:', index[index.index('<header>'):index.index('</header>')+9])
+          tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
+          if tools:
+              output = subprocess.check_output([str(tools[-1]),'dump','badging',str(apk)], text=True)
+              print(output.splitlines()[0])
+          PY
+      - name: Compare the exact old and new APK signing certificates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41274230017 --repo "$GITHUB_REPOSITORY" --name CENA-Android-0.4.1 --dir /tmp/new-cena
+          python3 - <<'PY'
+          import os, subprocess, json
+          from pathlib import Path
+          signer = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/apksigner'))[-1]
+          for directory in ['/tmp/delivered-cena','/tmp/new-cena']:
+              apk = next(Path(directory).glob('*.apk'))
+              text = subprocess.check_output([str(signer),'verify','--print-certs',str(apk)],text=True)
+              print(directory, '\\n'.join(line for line in text.splitlines() if 'SHA-256' in line))
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Identify the actual debug signing location
+        working-directory: cena/android
+        run: gradle --no-daemon signingReport

@@ -1,0 +1,721 @@
+name: CENA live mobile browser QA
+# Includes title-specific similarity and optional local-model UI validation.
+on:
+  push:
+    branches: ['cena/**']
+    paths: ['.github/workflows/cena-browser-qa.yml', '.github/workflows/cena-android.yml', 'cena/web/app.js']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mobile-search:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare browser driver
+        run: |
+          python3 -m venv /tmp/cena-browser
+          /tmp/cena-browser/bin/pip install playwright
+      - name: Search SISU online and save to the local watchlist
+        working-directory: cena
+        run: |
+          /tmp/cena-browser/bin/python - <<'PY'
+          import os, re, shutil, subprocess, tempfile, time, urllib.request
+          from pathlib import Path
+          from playwright.sync_api import sync_playwright, expect
+          env = dict(os.environ, DATA_DIR=tempfile.mkdtemp(prefix='cena-browser-'))
+          server = subprocess.Popen(['node', 'server/index.mjs'], env=env)
+          try:
+              for attempt in range(50):
+                  try:
+                      urllib.request.urlopen('http://127.0.0.1:3000/api/config', timeout=1)
+                      break
+                  except Exception:
+                      time.sleep(.2)
+              with sync_playwright() as p:
+                  executable = shutil.which('google-chrome') or shutil.which('chromium')
+                  assert executable, 'A preinstalled Chrome browser is required.'
+                  browser = p.chromium.launch(executable_path=executable, args=['--no-sandbox'])
+                  page = browser.new_page(viewport={'width': 412, 'height': 915}, device_scale_factor=1)
+                  errors = []
+                  page.on('pageerror', lambda error: errors.append(str(error)))
+                  page.add_init_script("localStorage.setItem('cena.connection.v1', JSON.stringify({apiBase:'local'}))")
+                  page.goto('http://127.0.0.1:3000', wait_until='networkidle')
+                  page.locator('nav [data-tab="library"]').click()
+                  page.locator('#query').fill('SISU')
+                  page.locator('#search-form button').click()
+                  card = page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first
+                  expect(card).to_be_visible(timeout=60000)
+                  card.click()
+                  page.locator('#add-title').click()
+                  expect(page.locator('.status-label')).to_contain_text('Quero assistir', timeout=10000)
+                  page.locator('#detail .close').click()
+                  page.locator('nav [data-tab="library"]').click()
+                  expect(page.locator('#library-grid')).to_contain_text(re.compile('sisu', re.I))
+                  page.locator('nav [data-tab="scan"]').click()
+                  expect(page.locator('#pick-image')).to_be_visible()
+                  with page.expect_file_chooser() as chosen:
+                      page.locator('#pick-image').click()
+                  import base64
+                  chosen.value.set_files({'name': 'print.png', 'mimeType': 'image/png', 'buffer': base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWp8AAAAASUVORK5CYII=')})
+                  expect(page.locator('.scan-frame img')).to_be_visible()
+                  page.evaluate("window.CenaNativeResult({lines:['TEXTO DA LEGENDA','SISU']})")
+                  page.locator('[data-line="1"]').click()
+                  expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
+                  page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first.click()
+                  expect(page.locator('#detail')).to_be_visible()
+                  page.evaluate("window.CenaNativeResult({lines:['SISU']})")
+                  expect(page.locator('#detail')).not_to_be_visible()
+                  expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
+                  expect(page.locator('#app-version')).to_contain_text('0.23.0')
+                  page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
+                  recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
+                  expect(recovered).to_be_visible(timeout=60000)
+                  recovered.click()
+                  expect(page.locator('#detail-content')).to_contain_text('1998')
+                  page.locator('#add-title').click()
+                  expect(page.locator('.status-label')).to_contain_text('Quero assistir', timeout=10000)
+                  page.locator('#detail .close').click()
+                  page.evaluate("window.CenaNativeResult({lines:['Margahet.','Are You','There God?', \"It's Me,\"],phrases:[\"Are You There God? It's Me, Margahet.\"]})")
+                  margaret = page.locator('#search-results .poster-card[data-id="tt9185206"]')
+                  expect(margaret).to_be_visible(timeout=60000)
+                  margaret.click()
+                  expect(page.locator('#detail-content')).to_contain_text('2023')
+                  page.locator('#detail .close').click()
+                  page.evaluate("window.CenaNativeResult({title:'Jheye God9 ItsMe, Margatet.',lines:['Margatet.','Jheye God9','ItsMe,'],phrases:['Jheye God9 ItsMe, Margatet.']})")
+                  expect(page.locator('#scan-query')).to_have_value('Jheye God9 ItsMe, Margatet.')
+                  expect(page.locator('#detected-lines [data-line]')).to_have_count(0)
+                  expect(page.locator('#search-results .poster-card').first).to_have_attribute('data-id', 'tt9185206', timeout=60000)
+                  expect(page.locator('#scan-query')).to_have_value(re.compile(r"^Are You There God\? It's Me, Margaret\.?\s*$"))
+                  page.locator('#search-results .poster-card[data-id="tt9185206"]').click()
+                  expect(page.locator('#detail-content')).to_contain_text('2023')
+                  page.locator('#detail .close').click()
+                  page.locator('nav [data-tab="library"]').click()
+                  page.locator('#query').fill('AVES DE RAPINA')
+                  page.locator('#search-form button').click()
+                  birds = page.locator('#search-results .poster-card[data-id="tt7713068"]')
+                  expect(birds).to_be_visible(timeout=60000)
+                  birds.locator('.poster-art').click()
+                  expect(page.locator('#detail')).to_be_visible()
+                  expect(page.locator('#detail-content')).to_contain_text('2020')
+                  expect(page.locator('#detail-content')).to_contain_text('Margot Robbie', timeout=30000)
+                  expect(page.locator('#detail-content')).to_contain_text('Duração:',timeout=30000)
+                  assert len(page.locator('#detail-synopsis').inner_text()) > 100
+                  Path('qa').mkdir(exist_ok=True)
+                  page.screenshot(path='qa/birds-details.png', full_page=True)
+                  page.locator('#detail .close').click()
+                  page.locator('#detail').evaluate('(dialog) => dialog.open && dialog.close()')
+                  native_page = browser.new_page(viewport={'width':412,'height':915})
+                  native_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt14846026',type:'movie',name:'Sisu',year:'2022',status:'watchlist'}]));
+                    window.traktBatches=[];window.stremioAuthorized=false;
+                    window.stremioRows=[
+                      {id:'tt14846026',type:'movie',name:'Sisu',removed:false,temp:false},
+                      {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
+                      {id:'tt0903747',type:'series',name:'Breaking Bad',removed:false,temp:false},
+                      {id:'kitsu:123',type:'series',name:'Anime custom ID',removed:false,temp:false}];
+                    window.CenaAndroid={appVersion:()=> '0.23.0',ready:()=>{},traktInventory:()=>{},queueTraktBatch:raw=>window.traktBatches.push(JSON.parse(raw)),queueTrakt:()=>{},
+                      connectStremio:()=>window.CenaStremioResult({connected:false,pairing:true,library:[]}),
+                      openStremioAuthorization:()=>window.stremioAuthorized=true,
+                      readStremioLibrary:()=>window.CenaStremioResult({connected:true,pairing:false,account:'t***@example.org',lastRead:Date.now(),library:window.stremioRows}),
+                      disconnectStremio:()=>window.CenaStremioResult({connected:false,pairing:false,library:[]}),cancelStremioReading:()=>{},
+                      configureTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[]}),
+                      connectTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[],userCode:'CENA-CODE',verificationUrl:'https://trakt.tv/activate'}),
+                      loadStoryArtwork:(requestId)=>setTimeout(()=>{
+                        if(window.failStoryArtwork){window.CenaStoryArtworkResult({requestId,status:'unavailable'});return;}
+                        const canvas=document.createElement('canvas');canvas.width=300;canvas.height=450;const ctx=canvas.getContext('2d');ctx.fillStyle='#1b6587';ctx.fillRect(0,0,300,450);ctx.fillStyle='#e7b878';ctx.fillRect(40,70,180,250);
+                        window.CenaStoryArtworkResult({requestId,status:'ok',image:canvas.toDataURL('image/jpeg'),sourceUrl:'https://images.metahub.space/poster/medium/tt14846026/img'});
+                      },200),
+                      saveStory:value=>window.savedStory=value,shareStory:value=>window.sharedStory=value};
+                  """)
+                  native_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  native_page.locator('nav [data-tab="connect"]').click()
+                  native_page.locator('summary').filter(has_text='Configurar integração').click()
+                  native_page.locator('#trakt-client-id').fill('cena-public-test-client-0000000000')
+                  native_page.locator('#trakt-config-form button').click()
+                  native_page.locator('#trakt-connect').click()
+                  expect(native_page.locator('#trakt-user-code')).to_have_text('CENA-CODE')
+                  native_page.evaluate("window.CenaTraktResult({configured:true,connected:true,username:'test-owner',lastSync:1700000000000,pending:[],watchlist:[],watched:[{id:'tt14846026',type:'movie',watchedAt:'2026-11-01T12:00:00Z'}]})")
+                  native_page.locator('nav [data-tab="library"]').click()
+                  native_page.locator('[data-filter="watched"]').click()
+                  expect(native_page.locator('#library-grid')).to_contain_text('✓ Assistido')
+                  native_page.locator('#library-grid .poster-card').first.click()
+                  native_page.locator('#share-title').click()
+                  expect(native_page.locator('#story-caption')).to_have_value('Já assisti ✓')
+                  native_page.locator('#story-rating').fill('11')
+                  expect(native_page.locator('#share-story')).to_be_disabled()
+                  native_page.locator('#story-rating').fill('8.53')
+                  expect(native_page.locator('#story-rating-error')).not_to_be_visible()
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-story-rating','8.53')
+                  native_page.locator('#story-rating').fill('8,53')
+                  native_page.locator('#story-caption').fill('Uma história excelente, com atuações marcantes.')
+                  native_page.locator('#story-title').fill('Sisu')
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-story-rating','8.53')
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-layout-version','2')
+                  assert native_page.locator('#story-canvas').get_attribute('width')=='1080'
+                  assert native_page.locator('#story-canvas').get_attribute('height')=='1920'
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','ready')
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-poster-loaded','true')
+                  native_page.locator('#save-story').click()
+                  native_page.wait_for_function('window.savedStory && window.savedStory.length > 100')
+                  import struct
+                  png=base64.b64decode(native_page.evaluate('window.savedStory'))
+                  assert png[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',png[16:24])==(1080,1920)
+                  Path('qa/CENA-Story.png').write_bytes(png)
+                  native_page.locator('#share-story').click()
+                  native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
+                  native_page.evaluate('window.failStoryArtwork=true')
+                  native_page.locator('#share-title').click()
+                  expect(native_page.locator('#share-story')).to_be_disabled()
+                  expect(native_page.locator('#story-rating')).to_have_value('8,53')
+                  expect(native_page.locator('#story-caption')).to_have_value('Uma história excelente, com atuações marcantes.')
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','error')
+                  expect(native_page.locator('#save-story')).to_be_disabled()
+                  expect(native_page.locator('#story-without-poster')).to_be_visible()
+                  native_page.locator('#story-without-poster').click()
+                  expect(native_page.locator('#share-story')).to_be_enabled()
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','title-only')
+                  native_page.evaluate('window.failStoryArtwork=false')
+                  native_page.locator('#retry-story').click()
+                  expect(native_page.locator('#story-status')).to_have_attribute('data-state','ready')
+                  native_page.locator('#detail .close').click()
+                  native_page.locator('nav [data-tab="connect"]').click()
+                  native_page.locator('#stremio-connect').click()
+                  expect(native_page.locator('#stremio-authorize')).to_be_visible()
+                  native_page.locator('#stremio-authorize').click()
+                  assert native_page.evaluate('window.stremioAuthorized') is True
+                  native_page.evaluate("window.CenaStremioResult({connected:true,account:'t***@example.org',library:[]})")
+                  native_page.locator('#stremio-read').click()
+                  expect(native_page.locator('#stremio-summary')).to_have_text('2 novos · 1 já no CENA · 1 sem identificador compatível.')
+                  expect(native_page.locator('#stremio-trakt')).not_to_be_checked()
+                  native_page.locator('#stremio-filter').fill('breaking')
+                  expect(native_page.locator('#stremio-rows .stremio-row')).to_have_count(1)
+                  native_page.locator('#stremio-filter').fill('')
+                  native_page.locator('#stremio-import').click()
+                  expect(native_page.locator('#stremio-summary')).to_have_text('0 novos · 3 já no CENA · 1 sem identificador compatível.')
+                  imported=native_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert len(imported)==3
+                  assert next(item for item in imported if item['id']=='tt14846026')['status']=='watched'
+                  assert next(item for item in imported if item['id']=='tt0903747')['status']=='watchlist'
+                  assert native_page.evaluate('window.traktBatches.length')==0, 'Import must not silently send the whole library to Trakt'
+                  expect(native_page.locator('#stremio-import')).to_be_disabled()
+                  native_page.locator('#stremio-read').click()
+                  expect(native_page.locator('#stremio-import')).to_be_disabled()
+                  native_page.evaluate("window.stremioRows.push({id:'tt0120873',type:'movie',name:'U.S. Marshals',removed:false,temp:false})")
+                  native_page.locator('#stremio-read').click()
+                  expect(native_page.locator('#stremio-summary')).to_contain_text('1 novos')
+                  native_page.locator('#stremio-trakt').check()
+                  native_page.locator('#stremio-import').click()
+                  native_page.wait_for_function('window.traktBatches.length===1')
+                  assert native_page.evaluate('window.traktBatches[0]')==[{'id':'tt0120873','type':'movie','action':'add'}]
+                  native_page.screenshot(path='qa/stremio-import.png',full_page=True)
+                  native_page.locator('#stremio-disconnect').click()
+                  expect(native_page.locator('#stremio-connect')).to_be_visible()
+                  assert len(native_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))"))==4
+                  print('Stremio preview and selected import preserve watched records, deduplicate, keep custom IDs visible, and only send new titles to Trakt when explicitly checked. Provider authorization is mocked in this browser test.')
+                  native_page.close()
+                  scroll_page=browser.new_page(viewport={'width':412,'height':915})
+                  scroll_page.on('pageerror',lambda error:errors.append(str(error)))
+                  scroll_page.route('https://**/*',lambda route:route.fulfill(status=200,content_type='image/png',body=png) if route.request.resource_type=='image' else route.fulfill(status=200,content_type='application/json',body='{}'))
+                  scroll_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify(Array.from({length:110},(_,i)=>({id:'tt'+(9000000+i),type:'movie',name:'Saved film '+i,status:'watchlist',poster:'https://image.tmdb.org/fixture.jpg'}))));
+                    window.CenaAndroid={appVersion:()=> '0.23.0',ready:()=>{},traktInventory:()=>{}};
+                  """)
+                  scroll_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  scroll_page.locator('nav [data-tab="library"]').click()
+                  scroll_page.locator('[data-filter="all"]').click()
+                  scroll_page.locator('#query').fill('rascunho preservado')
+                  scroll_page.evaluate("document.querySelector('#search-results').innerHTML='<p id=search-sentinel>Resultados preservados</p>'")
+                  scroll_page.locator('#library-grid .poster-card').nth(40).scroll_into_view_if_needed()
+                  scroll_page.wait_for_timeout(1000)
+                  before=scroll_page.evaluate("window.savedCard=document.querySelector('#library-grid .poster-card[data-id=tt9000040]');window.savedImage=savedCard.querySelector('img');window.scrollY")
+                  assert before>1000
+                  scroll_page.evaluate("window.CenaTraktResult({configured:true,connected:true,lastSync:1700000000000,pending:[],watchlist:[],watched:[]})")
+                  assert abs(scroll_page.evaluate('window.scrollY')-before)<3, 'Timestamp-only sync must not jump to the top'
+                  expect(scroll_page.locator('#query')).to_have_value('rascunho preservado')
+                  scroll_page.evaluate("window.CenaTraktResult({configured:true,connected:true,lastSync:1700000001000,pending:[],watchlist:[{id:'tt9991234',type:'movie',name:'Remote new film'}],watched:[{id:'tt9000040',type:'movie',watchedAt:'2026-11-02T00:00:00Z'}]})")
+                  assert abs(scroll_page.evaluate('window.scrollY')-before)<3, 'Actual library changes must preserve the visible card position'
+                  assert scroll_page.evaluate("window.savedCard===document.querySelector('#library-grid .poster-card[data-id=tt9000040]') && window.savedImage===savedCard.querySelector('img')"), 'Existing cards and loaded images must be reused'
+                  expect(scroll_page.locator('#library-grid .poster-card')).to_have_count(111)
+                  expect(scroll_page.locator('#query')).to_have_value('rascunho preservado')
+                  expect(scroll_page.locator('#search-sentinel')).to_have_text('Resultados preservados')
+                  expect(scroll_page.locator('#library-grid .poster-card[data-id="tt9000040"] .badge')).to_have_text('✓ Assistido')
+                  scroll_page.screenshot(path='qa/catalog-scroll-preserved.png',full_page=False)
+                  scroll_page.close()
+                  print('Scroll, search draft/results, and existing image nodes preserved across timestamp-only and actual Trakt updates.')
+                  discovery_page=browser.new_page(viewport={'width':412,'height':915})
+                  discovery_page.on('pageerror',lambda error:errors.append(str(error)))
+                  pending_refresh=[]
+                  refresh_mode={'value':'normal'}
+                  def discovery_route(route):
+                      if '/catalog/' in route.request.url and refresh_mode['value']!='normal':
+                          if refresh_mode['value']=='offline':route.abort()
+                          else:pending_refresh.append(route)
+                          return
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:
+                          match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
+                          route.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'meta':{'id':match.group(2),'type':match.group(1),'name':'Public metadata','genres':['Crime','Drama'],'description':'Ficha técnica de teste','poster':'https://image.tmdb.org/fixture.jpg'}}) if match else '{}')
+                  discovery_page.route('https://**/*',discovery_route)
+                  discovery_page.add_init_script("""
+                    const at=Date.now();
+                    const saved=[{id:'tt0000001',type:'movie',name:'Favorito policial',genres:['Crime','Drama'],status:'watched'},{id:'tt0903747',type:'series',name:'Breaking Bad',genres:['Crime','Drama'],status:'watchlist',watchedEpisodes:2}];
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify(saved));
+                    localStorage.setItem('cena.story.notes.v1',JSON.stringify({'movie:tt0000001':{rating:'9'}}));
+                    localStorage.setItem('cena.discovery.profiles.v1',JSON.stringify(Object.fromEntries(saved.map(item=>[item.type+':'+item.id,{at,item}]))));
+                    localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at,genreKey:'Crime|Drama',source:'Test catalog',items:[...saved,{id:'tt0000002',type:'movie',name:'Nova indicação policial',genres:['Crime','Drama'],year:'2020',poster:'https://image.tmdb.org/fixture.jpg'},{id:'tt0000003',type:'series',name:'Nova série policial',genres:['Crime','Drama'],year:'2020',poster:'https://image.tmdb.org/fixture.jpg'}]}));
+                    window.discoveryActions=[];
+                    window.demoSeries={items:[{id:'tt0903747',aired:3,completed:2,available:1,newEpisodes:1,checkedAt:at,next:{season:1,number:3,title:'Episódio disponível',firstAired:'2008-02-10T00:00:00Z'}}],lastCheck:at,pending:0};
+                    window.CenaAndroid={appVersion:()=> '0.23.0',traktInventory:()=>{},queueTrakt:raw=>window.discoveryActions.push(JSON.parse(raw)),
+                      ready:()=>queueMicrotask(()=>{window.CenaTraktResult({connected:true,configured:true,username:'test',lastSync:at,pending:[],watchlist:[],watched:[],progress:[{id:'tt0903747',type:'series',episodes:2}]});window.CenaSeriesResult(window.demoSeries);}),
+                      refreshSeries:()=>{window.CenaTraktResult({connected:true,configured:true,username:'test',lastSync:Date.now(),pending:[],watchlist:[],watched:[],progress:[{id:'tt0903747',type:'series',episodes:3}]});window.CenaSeriesResult({items:[{id:'tt0903747',aired:3,completed:3,available:0,newEpisodes:0,checkedAt:Date.now(),next:{season:2,number:1,firstAired:new Date(Date.now()+30*86400000).toISOString()}}],lastCheck:Date.now(),pending:0});}};
+                  """)
+                  discovery_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(discovery_page.locator('nav button')).to_have_count(5)
+                  camera=discovery_page.locator('nav .camera-nav').bounding_box()
+                  assert abs(camera['x']+camera['width']/2-206)<2, 'Camera must occupy the exact center of the five tabs'
+                  expect(discovery_page.locator('#series-home')).to_contain_text('T1 · E3')
+                  expect(discovery_page.locator('#series-home')).to_contain_text('1 novo episódio')
+                  discovery_page.locator('nav [data-tab="discover"]').click()
+                  expect(discovery_page.locator('#recommendation-grid .poster-card')).to_have_count(2,timeout=30000)
+                  expect(discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000001"]')).to_have_count(0)
+                  expect(discovery_page.locator('#recommendation-grid')).to_contain_text('em comum')
+                  discovery_page.locator('[data-discovery-filter="series"]').click()
+                  expect(discovery_page.locator('#recommendation-grid .poster-card')).to_have_count(1)
+                  discovery_page.locator('[data-discovery-filter="all"]').click()
+                  discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000002"]').click()
+                  discovery_page.locator('#add-title').click()
+                  expect(discovery_page.locator('.status-label')).to_contain_text('Quero assistir')
+                  discovery_page.locator('#detail .close').click()
+                  expect(discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000002"]')).to_have_count(0)
+                  assert discovery_page.evaluate('window.discoveryActions')==[{'id':'tt0000002','type':'movie','action':'add'}]
+                  discovery_page.locator('[data-discovery-mode="series"]').click()
+                  expect(discovery_page.locator('#series-discovery')).to_contain_text('T1 · E3')
+                  discovery_page.locator('#series-discovery [data-series-refresh]').click()
+                  expect(discovery_page.locator('#series-discovery')).to_contain_text('Em dia')
+                  expect(discovery_page.locator('#series-discovery')).to_contain_text('T2 · E1')
+                  assert discovery_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1')).find(item=>item.id==='tt0903747').status")=='watchlist', 'Caught up must never mark a whole series watched'
+                  discovery_page.screenshot(path='qa/series-and-next-episode.png',full_page=True)
+                  discovery_page.locator('[data-discovery-mode="recommend"]').click()
+                  expect(discovery_page.locator('#recommendation-grid .poster-card')).to_have_count(1)
+                  discovery_page.locator('.poster-card .poster-art img').first.scroll_into_view_if_needed()
+                  expect(discovery_page.locator('.poster-card .poster-art img').first).to_be_visible()
+                  discovery_page.evaluate("window.savedRecommendationImage=document.querySelector('#recommendation-grid .poster-art img');window.savedRecommendationCard=document.querySelector('#recommendation-grid .poster-card')")
+                  refresh_mode['value']='offline'
+                  discovery_page.locator('#refresh-recommendations').click()
+                  expect(discovery_page.locator('#recommendation-status')).to_contain_text('sugestões anteriores foram mantidas')
+                  assert discovery_page.evaluate("window.savedRecommendationImage===document.querySelector('#recommendation-grid .poster-art img') && window.savedRecommendationCard===document.querySelector('#recommendation-grid .poster-card')"), 'Offline refresh must retain the actual card and loaded image nodes'
+                  refresh_mode['value']='hold'
+                  discovery_page.locator('#refresh-recommendations').click()
+                  expect(discovery_page.locator('#refresh-recommendations')).to_be_disabled()
+                  assert discovery_page.evaluate("window.savedRecommendationImage.isConnected && window.savedRecommendationCard.isConnected"), 'Cards must stay visible while refreshing'
+                  discovery_page.wait_for_timeout(300)
+                  assert pending_refresh, 'Manual refresh must query another catalog page'
+                  for held in pending_refresh:
+                      kind='series' if '/series/' in held.request.url else 'movie'
+                      metas=[{'id':'tt70000'+str(i),'type':kind,'name':'Nova opção '+kind+' '+str(i),'genres':['Crime','Drama'],'poster':'https://image.tmdb.org/new-fixture.jpg','releaseInfo':'2020'} for i in range(10,13)]
+                      held.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'metas':metas}))
+                  pending_refresh.clear()
+                  expect(discovery_page.locator('#refresh-recommendations')).to_be_enabled()
+                  expect(discovery_page.locator('#recommendation-grid')).to_contain_text('Nova opção')
+                  expect(discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000003"]')).to_have_count(0)
+                  assert discovery_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1')).length")==3, 'Refreshing must not modify the library'
+                  print('Manual refresh keeps the exact loaded image/card nodes while waiting or offline, then displays different suggestions. Account/catalog fixtures simulated.')
+                  discovery_page.screenshot(path='qa/personalized-discovery.png',full_page=True)
+                  discovery_page.close()
+                  print('Five centered tabs, personalized recommendations, existing-title exclusion, Trakt queue on add, available episodes and future releases verified. Account responses are simulated.')
+                  similar_page=browser.new_page(viewport={'width':412,'height':915})
+                  similar_page.on('pageerror',lambda error:errors.append(str(error)))
+                  def similar_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:route.fulfill(status=200,content_type='application/json',body='{}')
+                  similar_page.route('https://**/*',similar_route)
+                  similar_page.add_init_script("""
+                    const seed={id:'tt1335975',type:'movie',name:'47 Ronin',year:'2013',genres:['Action','Fantasy'],description:'Samurai seek revenge.',status:'watchlist'};
+                    const choices=Array.from({length:7},(_,i)=>({id:'tt'+(7000000+i),type:'movie',name:'Samurai candidate '+i,year:'2012',genres:['Action','Fantasy'],description:'Samurai seek revenge in feudal Japan.'}));
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify([seed,...choices.slice(0,5).map(item=>({...item,status:'watchlist'}))]));
+                    localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at:Date.now(),genreKey:'Action|Fantasy',items:[...choices,...Array.from({length:5},(_,i)=>({id:'tt'+(8000000+i),type:'movie',name:'Generic action '+i,genres:['Action','Fantasy'],description:'A fantasy action adventure.'}))]}));
+                    window.modelMode='valid';window.CenaAndroid={appVersion:()=> '0.23.0',traktInventory:()=>{},ready:()=>queueMicrotask(()=>window.CenaLocalModelResult({configured:true,supported:true,name:'fixture.gguf',bytes:1024})),cancelLocalAi:()=>{},
+                      generateLocalAi:(id,prompt)=>{const candidates=JSON.parse(prompt.split('Candidatos: ')[1]);const ids=candidates.slice(0,5).map(item=>item.id);if(window.modelMode==='invalid')ids[0]='tt9999999';queueMicrotask(()=>window.CenaLocalAiResult({requestId:id,status:'ok',text:JSON.stringify(ids)}));}};
+                  """)
+                  similar_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  similar_page.locator('.poster-card[data-id="tt1335975"]').first.click()
+                  similar_page.locator('#similar-titles').click()
+                  expect(similar_page.locator('#similar-grid .poster-card')).to_have_count(5,timeout=30000)
+                  expect(similar_page.locator('#similar-grid .poster-card[data-id="tt1335975"]')).to_have_count(0)
+                  similar_page.locator('#refine-similar').click()
+                  expect(similar_page.locator('#similar-status')).to_contain_text('selecionadas com IA local')
+                  similar_page.evaluate("window.modelMode='invalid'")
+                  similar_page.locator('#refine-similar').click()
+                  expect(similar_page.locator('#similar-status')).to_contain_text('Mantive as opções')
+                  expect(similar_page.locator('#similar-grid .poster-card')).to_have_count(5)
+                  expect(similar_page.locator('#similar-grid .poster-card[data-id="tt9999999"]')).to_have_count(0)
+                  expect(similar_page.locator('#similar-saved')).to_be_checked()
+                  similar_page.locator('#similar-saved').uncheck()
+                  expect(similar_page.locator('#similar-grid .poster-card')).to_have_count(2)
+                  expect(similar_page.locator('#similar-status')).to_contain_text('Não completei')
+                  expect(similar_page.locator('#similar-grid')).not_to_contain_text('Generic action')
+                  similar_page.locator('#similar-saved').check()
+                  expect(similar_page.locator('#similar-grid .poster-card')).to_have_count(5)
+                  similar_page.screenshot(path='qa/five-similar-titles.png',full_page=True)
+                  similar_page.locator('#similar-grid .poster-card').first.click()
+                  expect(similar_page.locator('#detail-content h2')).to_contain_text('Samurai candidate')
+                  similar_page.close()
+                  print('Five title-specific choices, local AI refinement, invalid-ID fallback and detail navigation verified. Model replies simulated in browser; actual GGUF tested separately on Android.')
+                  presidential_page=browser.new_page(viewport={'width':412,'height':915})
+                  presidential_page.on('pageerror',lambda error:errors.append(str(error)))
+                  presidential_data={
+                    'tt0118571':{'id':'tt0118571','type':'movie','name':'Air Force One','genres':['Action','Thriller'],'description':'Terrorists hijack Air Force One with the U.S. President and his family hostage.','releaseInfo':'1997'},
+                    'tt2334879':{'id':'tt2334879','type':'movie','name':'White House Down','genres':['Action','Thriller'],'description':'An armed group invades the White House and threatens the president.','releaseInfo':'2013'},
+                    'tt2302755':{'id':'tt2302755','type':'movie','name':'Olympus Has Fallen','genres':['Action','Thriller'],'description':'A guard must rescue the U.S. President after a terrorist attack.','releaseInfo':'2013'},
+                    'tt3300542':{'id':'tt3300542','type':'movie','name':'London Has Fallen','genres':['Action','Thriller'],'description':'The United States President is protected against terrorists in London.','releaseInfo':'2016'},
+                    'tt6189022':{'id':'tt6189022','type':'movie','name':'Angel Has Fallen','genres':['Action','Thriller'],'description':'A U.S. Secret Service agent uncovers an attack against the president.','releaseInfo':'2019'},
+                    'tt2088003':{'id':'tt2088003','type':'movie','name':'Big Game','genres':['Action','Adventure'],'description':'A boy rescues the American president when Air Force One is shot down.','releaseInfo':'2014'},
+                    'tt1856101':{'id':'tt1856101','type':'movie','name':'Blade Runner 2049','genres':['Action','Drama'],'cast':['Harrison Ford'],'description':'A blade runner uncovers a secret and searches for a missing officer.','releaseInfo':'2017'},
+                    'tt0050083':{'id':'tt0050083','type':'movie','name':'12 Angry Men','genres':['Drama'],'description':'A jury must decide whether a young man is guilty.','releaseInfo':'1957'},
+                    'tt1745960':{'id':'tt1745960','type':'movie','name':'Top Gun Maverick','genres':['Action'],'description':'A U.S. Navy pilot trains elite pilots for a dangerous mission.','releaseInfo':'2022'}
+                  }
+                  def presidential_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:
+                          match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
+                          meta=presidential_data.get(match.group(2)) if match else None
+                          route.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'meta':meta}) if meta else '{}')
+                  presidential_page.route('https://**/*',presidential_route)
+                  presidential_page.add_init_script("""
+                    const metas=DATA_PLACEHOLDER;
+                    const all=Object.values(metas).map(row=>({...row,year:row.releaseInfo,poster:'https://image.tmdb.org/fixture.jpg',status:'watchlist'}));
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify(all.filter(row=>['tt0118571','tt2334879'].includes(row.id))));
+                    localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at:Date.now(),genreKey:'Action|Thriller',items:all}));
+                    window.localCalls=0;window.presidentialModelMode='valid';window.CenaAndroid={appVersion:()=> '0.23.0',traktInventory:()=>{},ready:()=>queueMicrotask(()=>window.CenaLocalModelResult({configured:true,supported:true,name:'fixture.gguf',bytes:1024})),cancelLocalAi:()=>{},generateLocalAi:(id,prompt)=>{window.localCalls++;const choices=JSON.parse(prompt.split('Candidatos: ')[1]);let ids=choices.slice(0,5).map(row=>row.id);if(window.presidentialModelMode==='invalid')ids[0]='tt1745960';queueMicrotask(()=>window.CenaLocalAiResult({requestId:id,status:'ok',text:JSON.stringify(ids)}));}};
+                  """.replace('DATA_PLACEHOLDER',__import__('json').dumps(presidential_data)))
+                  presidential_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(presidential_page.locator('#main h1')).to_be_visible()
+                  presidential_page.locator('nav [data-tab="library"]').click()
+                  presidential_page.locator('.poster-card[data-id="tt0118571"]').click()
+                  presidential_page.locator('#similar-titles').click()
+                  expect(presidential_page.locator('#similar-grid .poster-card')).to_have_count(5)
+                  presidential_page.locator('#similar-preference').fill('Mais ação que envolva o presidente dos EUA')
+                  presidential_page.locator('#search-similar').click()
+                  expect(presidential_page.locator('#similar-status')).to_contain_text('Critérios: presidente dos EUA')
+                  expect(presidential_page.locator('#similar-grid .poster-card')).to_have_count(5)
+                  for wrong in ['tt1856101','tt0050083','tt1745960']:
+                      expect(presidential_page.locator('#similar-grid .poster-card[data-id="'+wrong+'"]').first).to_have_count(0)
+                  presidential_page.locator('#similar-saved').uncheck()
+                  expect(presidential_page.locator('#similar-grid .poster-card')).to_have_count(4)
+                  expect(presidential_page.locator('#similar-omitted')).to_contain_text('White House Down')
+                  presidential_page.locator('#refine-similar').click()
+                  expect(presidential_page.locator('#similar-status')).to_contain_text('4 opções selecionadas com IA local')
+                  presidential_page.evaluate("window.presidentialModelMode='invalid'")
+                  presidential_page.locator('#refine-similar').click()
+                  expect(presidential_page.locator('#similar-status')).to_contain_text('Mantive as opções')
+                  expect(presidential_page.locator('#similar-grid .poster-card')).to_have_count(4)
+                  presidential_page.locator('#similar-preference').fill('Presidente dos EUA anos 80')
+                  presidential_page.locator('#search-similar').click()
+                  expect(presidential_page.locator('#similar-status')).to_contain_text('0 opções')
+                  expect(presidential_page.locator('#similar-grid .poster-card')).to_have_count(0)
+                  before=presidential_page.evaluate('window.localCalls')
+                  presidential_page.locator('#refine-similar').click()
+                  expect(presidential_page.locator('#refine-similar')).to_be_enabled()
+                  assert presidential_page.evaluate('window.localCalls')==before, 'An empty eligible pool must not ask the model to invent five titles'
+                  presidential_page.screenshot(path='qa/presidential-matching.png',full_page=True)
+                  presidential_page.close()
+                  print('Both similarity modes obey presidential/action constraints, reject actor/aviation filler, list omitted saved titles and accept fewer matches. Local replies simulated; catalog retrieval also checked live in APK workflow.')
+                  continuity_page=browser.new_page(viewport={'width':412,'height':915})
+                  continuity_page.on('pageerror',lambda error:errors.append(str(error)))
+                  def continuity_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:
+                          match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
+                          meta=None
+                          if match:
+                              imdb=match.group(2)
+                              meta={'id':imdb,'type':match.group(1),'name':'Verônica com K' if imdb=='tt1234567' else 'The Pacific','poster':'https://image.tmdb.org/fixture.jpg','videos':[{'season':1,'episode':n,'title':'Episódio '+str(n),'released':'2025-01-01T00:00:00Z'} for n in range(1,11)]}
+                          route.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'meta':meta}) if meta else '{}')
+                  continuity_page.route('https://**/*',continuity_route)
+                  continuity_page.add_init_script("""
+                    const at='2026-11-04T00:00:00Z';
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1','[]');
+                    window.tvTrakt={connected:true,configured:true,account:'tv-a',username:'Pessoa A',lastSync:Date.now(),watchlist:[],watched:[],paused:[],progress:[{id:'tt1234567',type:'series',name:'Verônica com K',episodes:4,watchedAt:at},{id:'tt0374463',type:'series',name:'The Pacific',episodes:3,watchedAt:at}]};
+                    window.tvEpisodes={connected:true,account:'tv-a',lastCheck:Date.now(),items:[{id:'tt1234567',name:'Verônica com K',checkedAt:1,completed:4,available:4,historyKey:at+':4',next:{season:1,number:5}},{id:'tt0374463',name:'The Pacific',checkedAt:1,completed:3,available:7,historyKey:at+':3',next:{season:1,number:4}}]};
+                    window.tvNuvio={connected:true,active:true,scope:'nuvio-a:1',profileId:1,profileName:'Pessoa A',lastSync:Date.now(),series:[],watched:[],progress:[]};
+                    window.CenaAndroid={appVersion:()=> '0.23.0',traktInventory:()=>{},nuvioInventory:()=>{},ready:()=>queueMicrotask(()=>{window.CenaTraktResult(window.tvTrakt);window.CenaNuvioResult(window.tvNuvio);window.CenaSeriesResult(window.tvEpisodes);})};
+                  """)
+                  continuity_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Próximo: T1 · E5')
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Próximo: T1 · E4')
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Trakt')
+                  assert continuity_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1')).length")==0, 'Automatic discovery must not add shows to the watchlist'
+                  continuity_page.locator('#nuvio-home [data-nuvio-title="tt1234567"]').click()
+                  expect(continuity_page.locator('#detail-content h2')).to_contain_text('Verônica com K')
+                  continuity_page.locator('#detail .close').click()
+                  continuity_page.evaluate("window.tvTrakt={...window.tvTrakt,lastSync:Date.now()+1000,progress:window.tvTrakt.progress.map(row=>row.id==='tt1234567'?{...row,episodes:5,watchedAt:'2026-11-04T01:00:00Z'}:row)};window.CenaTraktResult(window.tvTrakt)")
+                  expect(continuity_page.locator('#nuvio-home [data-nuvio-title="tt1234567"]')).to_contain_text('5 episódios vistos')
+                  expect(continuity_page.locator('#nuvio-home [data-nuvio-title="tt1234567"]')).not_to_contain_text('Próximo: T1 · E5')
+                  continuity_page.evaluate("window.CenaSeriesResult({...window.tvEpisodes,items:window.tvEpisodes.items.map(row=>row.id==='tt1234567'?{...row,completed:5,available:3,historyKey:'2026-11-04T01:00:00Z:5',next:{season:1,number:6}}:row)})")
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Próximo: T1 · E6')
+                  continuity_page.evaluate("window.CenaTraktResult({connected:false,progress:[],paused:[]});window.CenaSeriesResult({connected:false,items:[]});window.CenaNuvioResult({...window.tvNuvio,series:[{id:'tt1234567',name:'Verônica com K',episodes:4,seen:['1:1','1:2','1:3','1:4'],watchedAt:Date.now()}]})")
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Próximo: T1 · E5',timeout=20000)
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Nuvio')
+                  continuity_page.evaluate("window.CenaNuvioResult({...window.tvNuvio,scope:'nuvio-a:2',profileId:2,series:[{id:'tt0374463',name:'The Pacific',episodes:1,seen:['1:1'],watchedAt:Date.now()}]})")
+                  expect(continuity_page.locator('#nuvio-home')).to_contain_text('Próximo: T1 · E2')
+                  expect(continuity_page.locator('#nuvio-home [data-nuvio-title="tt1234567"]')).to_have_count(0)
+                  assert continuity_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1')).length")==0
+                  continuity_page.screenshot(path='qa/automatic-tv-continuity.png',full_page=True)
+                  continuity_page.close()
+                  print('TV continuity: outside-catalog shows, exact E5/E4, advancing counts, Nuvio-only episode metadata and profile isolation verified with simulated private account data.')
+                  rating_page=browser.new_page(viewport={'width':412,'height':915})
+                  rating_page.on('pageerror',lambda error:errors.append(str(error)))
+                  def rating_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:
+                          match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
+                          meta={'id':match.group(2),'type':match.group(1),'name':'Ficha de teste','poster':'https://image.tmdb.org/fixture.jpg'} if match else None
+                          if meta and meta['id']!='tt6000002':meta['imdbRating']='8.1' if meta['type']=='movie' else '8.7'
+                          route.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'meta':meta}) if meta else '{}')
+                  rating_page.route('https://**/*',rating_route)
+                  rating_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt6000001',type:'movie',name:'Filme com nota',status:'watchlist',rating:'9.99'},{id:'tt6000002',type:'movie',name:'Filme sem nota',status:'watchlist'},{id:'tt6000003',type:'series',name:'Série com nota',status:'watchlist'}]));
+                    localStorage.setItem('cena.story.notes.v1',JSON.stringify({'movie:tt6000001':{rating:'9.99'}}));
+                  """)
+                  rating_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  rating_page.locator('.poster-card[data-id="tt6000001"] .imdb-score').scroll_into_view_if_needed()
+                  expect(rating_page.locator('.poster-card[data-id="tt6000001"] .imdb-score')).to_have_text('★ IMDb 8,1 / 10')
+                  rating_page.locator('.poster-card[data-id="tt6000002"] .imdb-score').scroll_into_view_if_needed()
+                  expect(rating_page.locator('.poster-card[data-id="tt6000002"] .imdb-score')).to_have_text('IMDb —')
+                  rating_page.locator('.poster-card[data-id="tt6000003"] .imdb-score').scroll_into_view_if_needed()
+                  expect(rating_page.locator('.poster-card[data-id="tt6000003"] .imdb-score')).to_have_text('★ IMDb 8,7 / 10')
+                  rating_page.locator('.poster-card[data-id="tt6000001"]').click()
+                  expect(rating_page.locator('.detail-top .imdb-score')).to_have_text('★ IMDb 8,1 / 10')
+                  assert rating_page.evaluate("JSON.parse(localStorage.getItem('cena.story.notes.v1'))['movie:tt6000001'].rating")=='9.99'
+                  rating_page.locator('#detail .close').click()
+                  rating_page.screenshot(path='qa/imdb-public-ratings.png',full_page=True)
+                  rating_page.close()
+                  print('IMDb scores displayed below film/series titles and details; missing rating stays absent; personal Story scores remain separate. Metadata responses simulated.')
+                  nuvio_page=browser.new_page(viewport={'width':412,'height':915})
+                  nuvio_page.on('pageerror',lambda error:errors.append(str(error)))
+                  def nuvio_route(route):
+                      if route.request.resource_type=='image':route.continue_()
+                      else:
+                          match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
+                          meta={'id':match.group(2),'type':match.group(1),'name':'Mr. Robot' if match.group(2)=='tt4158110' else 'Ficha do título','imdbRating':'8.5','poster':'https://images.metahub.space/poster/medium/'+match.group(2)+'/img'} if match else None
+                          route.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'meta':meta}) if meta else '{}')
+                  nuvio_page.route('https://**/*',nuvio_route)
+                  nuvio_page.add_init_script("""
+                    const saved=[{id:'tt1335975',type:'movie',name:'47 Ronin',status:'watchlist'},{id:'tt0903747',type:'series',name:'Breaking Bad',status:'watchlist'},...['tt1375666','tt0133093','tt0111161','tt0110912','tt0816692','tt0120737','tt0167260'].map((id,i)=>({id,type:'movie',name:['A Origem','Matrix','Um Sonho de Liberdade','Pulp Fiction','Interestelar','A Sociedade do Anel','O Retorno do Rei'][i],poster:'https://images.metahub.space/poster/medium/'+id+'/img',status:'watchlist'}))];
+                    localStorage.setItem('cena.discovery.profiles.v1',JSON.stringify(Object.fromEntries(saved.map(item=>[item.type+':'+item.id,{at:Date.now(),item}]))));
+                    localStorage.setItem('cena.discovery.catalog.v1',JSON.stringify({at:Date.now(),genreKey:'',source:'Test catalog',items:[['tt0245429','A Viagem de Chihiro'],['tt0325980','Piratas do Caribe'],['tt0120586','A Outra História Americana'],['tt0110357','O Rei Leão'],['tt0080684','O Império Contra-Ataca']].map(([id,name])=>({id,type:'movie',name,year:'2001',poster:'https://images.metahub.space/poster/medium/'+id+'/img'}))}));
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify(saved));
+                    window.nuvioFixture={connected:true,active:true,profileId:1,profileName:'Perfil A',scope:'account-a:1',account:'Conta de teste',profiles:[{id:1,name:'Perfil A'},{id:2,name:'Perfil B'}],lastSync:Date.now(),watchedCount:2,watched:[{id:'tt1335975',type:'movie',watchedAt:Date.now()},{id:'tt0903747',type:'series',season:1,episode:1}],progress:[{id:'tt0903747',type:'series',season:1,episode:2,position:600000,duration:2400000},{id:'tt4158110',name:'tt4158110',type:'series',season:2,episode:3,position:1560000,duration:3000000},{id:'tt0114369',name:'Quase não iniciado',type:'movie',position:10000,duration:6000000}]};
+                    window.CenaAndroid={appVersion:()=> '0.23.0',traktInventory:()=>{},nuvioInventory:()=>{},ready:()=>{},connectNuvio:()=>window.CenaNuvioResult({connected:false,pairing:true,userCode:'ABC123',verificationUrl:'https://nuvio.tv/link'}),openNuvioVerification:()=>window.nuvioOpened=true,
+                      selectNuvioProfile:id=>window.CenaNuvioResult({...window.nuvioFixture,profileId:id,scope:'account-a:'+id,profileName:'Perfil '+(id===1?'A':'B'),watched:id===1?window.nuvioFixture.watched:[],progress:id===1?window.nuvioFixture.progress:[],watchedCount:id===1?2:0}),syncNuvio:()=>window.CenaNuvioResult(window.nuvioFixture),refreshNuvioProfiles:()=>{},disconnectNuvio:()=>window.CenaNuvioResult({connected:false,active:false})};
+                  """)
+                  nuvio_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(nuvio_page.locator('#main h1')).to_be_visible()
+                  nuvio_page.locator('nav [data-tab="connect"]').click()
+                  nuvio_page.locator('#nuvio-connect').click()
+                  expect(nuvio_page.locator('#nuvio-panel .auth-code')).to_have_text('ABC123')
+                  expect(nuvio_page.locator('#nuvio-panel input[type="password"]')).to_have_count(0)
+                  nuvio_page.locator('#nuvio-authorize').click()
+                  assert nuvio_page.evaluate('window.nuvioOpened')
+                  nuvio_page.evaluate('window.CenaNuvioResult(window.nuvioFixture)')
+                  expect(nuvio_page.locator('#nuvio-panel')).to_contain_text('Fonte dos assistidos: Nuvio')
+                  nuvio_page.locator('nav [data-tab="home"]').click()
+                  expect(nuvio_page.locator('#nuvio-home')).to_contain_text('T1 · E2 · 10 min · 25%')
+                  state=nuvio_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert state[0]['status']=='watched' and state[0]['watchedSource']=='Nuvio'
+                  assert state[1]['status']=='watchlist' and state[1]['nuvioWatchedEpisodes']==1
+                  expect(nuvio_page.locator('#nuvio-home')).to_contain_text('Mr. Robot')
+                  expect(nuvio_page.locator('#nuvio-home')).not_to_contain_text('tt4158110')
+                  expect(nuvio_page.locator('#nuvio-home')).not_to_contain_text('Quase não iniciado')
+                  expect(nuvio_page.locator('#nuvio-home progress')).to_have_count(2)
+                  expect(nuvio_page.locator('#main .hero')).to_have_count(0)
+                  expect(nuvio_page.locator('#main .notice')).to_have_count(0)
+                  order=nuvio_page.evaluate("Array.from(document.querySelectorAll('#main section')).map(e=>e.id).filter(Boolean)")
+                  assert [x for x in order if x!='home-calendar'][:4]==['nuvio-home','recent-history','series-home','home-recommendations']
+                  triangle=nuvio_page.locator('.brand-triangle').bounding_box()
+                  assert triangle['height']>=25 and triangle['width']>=23
+                  assert nuvio_page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'No horizontal page overflow'
+                  before=nuvio_page.evaluate("localStorage.getItem('cena.local.items.v1')")
+                  nuvio_page.locator('#nuvio-home [data-resume-hide="0"]').click()
+                  expect(nuvio_page.locator('#nuvio-home [data-nuvio-title="tt0903747"]')).to_have_count(0)
+                  assert nuvio_page.evaluate("localStorage.getItem('cena.local.items.v1')")==before, 'Hiding must not change watched data'
+                  nuvio_page.locator('nav [data-tab="library"]').click()
+                  nuvio_page.locator('nav [data-tab="home"]').click()
+                  expect(nuvio_page.locator('#nuvio-home [data-nuvio-title="tt0903747"]')).to_have_count(0)
+                  nuvio_page.locator('#resume-restore').click()
+                  expect(nuvio_page.locator('#nuvio-home [data-nuvio-title="tt0903747"]')).to_have_count(1)
+                  nuvio_page.locator('#home-recommendations').scroll_into_view_if_needed()
+                  expect(nuvio_page.locator('#home-recommendation-grid .poster-card')).to_have_count(5,timeout=30000)
+                  expect(nuvio_page.locator('#main section').last.locator('.poster-card')).to_have_count(6)
+                  nuvio_page.evaluate('window.scrollTo(0,0)')
+                  nuvio_page.wait_for_timeout(2000)
+                  nuvio_page.screenshot(path='qa/home-redesign.png',full_page=True)
+                  import base64
+                  nuvio_page.locator('#nuvio-home [data-nuvio-title="tt0903747"]').click()
+                  expect(nuvio_page.locator('#detail-content h2')).to_contain_text('Breaking Bad')
+                  nuvio_page.locator('#detail .close').click()
+                  nuvio_page.locator('nav [data-tab="connect"]').click()
+                  nuvio_page.locator('#nuvio-profile').select_option('2')
+                  nuvio_page.locator('#nuvio-use-profile').click()
+                  state=nuvio_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert state[0]['status']=='watchlist' and 'nuvioScope' not in state[0]
+                  nuvio_page.screenshot(path='qa/nuvio-direct-profile.png',full_page=True)
+                  nuvio_page.close()
+                  print('Nuvio direct UI: browser authorization, no password field, exact film watch check, episode count, milliseconds resume and profile isolation verified. Account responses simulated.')
+                  history_page=browser.new_page(viewport={'width':412,'height':915})
+                  history_page.on('pageerror',lambda error:(errors.append(str(error)),print('HISTORY APP ERROR:',str(error))))
+                  def history_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:route.fulfill(status=200,content_type='application/json',body='{}')
+                  history_page.route('https://**/*',history_route)
+                  history_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt1335975',type:'movie',name:'47 Ronin',year:'2013',status:'watchlist'}]));
+                    window.historyEvents=[{eventId:'9007199254740992',kind:'movie',type:'movie',id:'tt1335975',mediaKey:'movie:tt1335975',name:'47 Ronin',year:2013,watchedAt:'2023-06-01T12:00:00Z',datePrecision:'exact'},{eventId:'9007199254740993',kind:'movie',type:'movie',id:'tt1335975',mediaKey:'movie:tt1335975',name:'47 Ronin',year:2013,watchedAt:'2026-06-01T12:00:00Z',datePrecision:'exact'},{eventId:'3',kind:'movie',type:'movie',id:'tt1335975',mediaKey:'movie:tt1335975',name:'47 Ronin',year:2013,watchedAt:'',datePrecision:'unknown'}];
+                    window.historyFixture={connected:true,scope:'account-a',account:'Conta de teste',lastImport:Date.now(),coverage:'complete',totals:{plays:3,movies:1,series:0,episodes:0,estimatedMinutes:357,timedPlays:3,unknownDates:1},years:[{year:2026,plays:1,movies:1},{year:2023,plays:1,movies:1}],unknown:{plays:1,movies:1},media:[{id:'tt1335975',type:'movie',name:'47 Ronin',year:2013,plays:3,years:[2023,2026],unknownDates:1}],timezone:'UTC'};
+                    window.CenaAndroid={appVersion:()=> '0.23.0',ready:()=>queueMicrotask(()=>window.CenaHistoryResult(window.historyFixture)),traktInventory:()=>{},historyState:()=>window.CenaHistoryResult(window.historyFixture),importHistory:()=>window.historyImportRequested=true,exportHistory:()=>window.historyExportRequested=true,
+                      historyRows:(requestId,year,kind,page,mediaId)=>{const rows=window.historyEvents.filter(row=>(!mediaId||row.id===mediaId)&&(kind==='all'||row.kind===kind)&&(year==='all'||year==='unknown'&&row.datePrecision==='unknown'||row.watchedAt.startsWith(year+'-')));queueMicrotask(()=>window.CenaHistoryRows({requestId,scope:'account-a',rows,total:rows.length,page,hasMore:false}));}};
+                  """)
+                  history_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(history_page.locator('.poster-card .watch-years')).to_have_text('Visto em 2023, 2026')
+                  expect(history_page.locator('#recent-history .poster-card')).to_have_count(1)
+                  history_page.locator('button[aria-label="Ver 47 Ronin"]').click()
+                  expect(history_page.locator('#title-watch-history')).to_contain_text('3 registro(s)')
+                  expect(history_page.locator('#title-watch-history')).to_contain_text('1 sem data')
+                  history_page.locator('#history-title-dates').click()
+                  expect(history_page.locator('.history-row')).to_have_count(3)
+                  history_page.locator('#history-year').select_option('2023')
+                  expect(history_page.locator('.history-row')).to_have_count(1)
+                  expect(history_page.locator('.history-row')).to_contain_text('2023')
+                  history_page.locator('#history-year').select_option('unknown')
+                  expect(history_page.locator('.history-row')).to_have_count(1)
+                  expect(history_page.locator('.history-row')).to_contain_text('Data desconhecida')
+                  history_page.locator('#history-stats-tab').click()
+                  expect(history_page.locator('#history-stats')).to_contain_text('Reproduções')
+                  history_page.locator('#history-year').select_option('all')
+                  expect(history_page.locator('#history-stats')).to_contain_text('5h 57min')
+                  history_page.locator('#profile-shortcut').click()
+                  history_page.locator('.profile-sync summary').click()
+                  history_page.locator('#history-export').click()
+                  assert history_page.evaluate('window.historyExportRequested')
+                  assert history_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))[0].status")=='watchlist'
+                  history_page.screenshot(path='qa/history-year-stats.png',full_page=True)
+                  history_page.close()
+                  print('Historical watch years, separate rewatches, exact identity match, unknown dates, annual filters, statistics, export request and unchanged watchlist verified. Trakt history responses simulated.')
+                  upgrade_page=browser.new_page(viewport={'width':412,'height':915})
+                  upgrade_page.on('pageerror',lambda error:errors.append(str(error)))
+                  def upgrade_route(route):
+                      if route.request.resource_type=='image':route.fulfill(status=200,content_type='image/png',body=png)
+                      else:
+                          match=re.search(r'/meta/(movie|series)/(tt[0-9]+)',route.request.url)
+                          meta={'id':match.group(2),'type':match.group(1),'name':'47 Ronin' if match.group(2)=='tt1335975' else 'Série teste','imdbRating':'8.1','genres':['Action','Fantasy'],'description':'Samurai revenge story. '*50,'poster':'https://image.tmdb.org/fixture.jpg'} if match else None
+                          route.fulfill(status=200,content_type='application/json',body=__import__('json').dumps({'meta':meta}) if meta else '{}')
+                  upgrade_page.route('https://**/*',upgrade_route)
+                  upgrade_page.add_init_script("""
+                    const at=Date.now();
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt1335975',type:'movie',name:'47 Ronin',status:'watchlist',poster:'https://image.tmdb.org/fixture.jpg'},{id:'tt0903747',type:'series',name:'Série teste',status:'watchlist'}]));
+                    window.upgradeHistory={scope:'upgrade-a',connected:true,account:'Conta teste',lastImport:at,coverage:'complete',totals:{plays:4,movies:2,series:1,episodes:2,estimatedMinutes:300,timedPlays:4},years:[{year:2025,plays:4,movies:2,series:1,episodes:2,estimatedMinutes:300,timedPlays:4}],media:[],timezone:'UTC'};
+                    window.CenaAndroid={appVersion:()=> '0.23.0',traktInventory:()=>{},historyState:()=>window.CenaHistoryResult(window.upgradeHistory),historyRows:(id)=>queueMicrotask(()=>window.CenaHistoryRows({requestId:id,scope:'upgrade-a',rows:[],total:0,page:1,hasMore:false})),ready:()=>queueMicrotask(()=>{window.CenaHistoryResult(window.upgradeHistory);window.CenaSeriesResult({lastCheck:at,items:[{id:'tt0903747',checkedAt:at,available:1,next:{season:2,number:3,firstAired:new Date(at+86400000).toISOString()}}]});})};
+                  """)
+                  upgrade_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(upgrade_page.locator('#main h1')).to_be_visible()
+                  upgrade_page.locator('nav [data-tab="library"]').click()
+                  upgrade_page.locator('.poster-card[data-id="tt1335975"]').click()
+                  expect(upgrade_page.locator('#detail-synopsis')).to_contain_text('Samurai')
+                  upgrade_page.locator('#synopsis-expand').click()
+                  expect(upgrade_page.locator('#synopsis-expand')).to_have_attribute('aria-expanded','true')
+                  expect(upgrade_page.locator('#title-feedback')).to_contain_text('Gostei')
+                  upgrade_page.locator('#title-feedback button').filter(has_text='Gostei').click()
+                  assert upgrade_page.evaluate("JSON.parse(localStorage.getItem('cena.feedback.v1'))['movie:tt1335975'].value")=='like'
+                  upgrade_page.locator('#title-collections input').fill('Cinema de samurais')
+                  upgrade_page.locator('#title-collections form button').click()
+                  expect(upgrade_page.locator('#title-collections .chip')).to_contain_text('Cinema de samurais')
+                  upgrade_page.locator('#detail .close').click()
+                  upgrade_page.locator('#open-collections').click()
+                  upgrade_page.locator('#collection-choices button').click()
+                  expect(upgrade_page.locator('#collection-titles')).to_contain_text('47 Ronin')
+                  upgrade_page.locator('#profile-shortcut').click()
+                  upgrade_page.locator('.profile-tools summary').first.click()
+                  upgrade_page.locator('#recap-generate').click()
+                  expect(upgrade_page.locator('#recap-preview canvas')).to_be_visible()
+                  assert upgrade_page.locator('#recap-preview canvas').evaluate('(c)=>c.width===1080&&c.height===1920')
+                  upgrade_page.evaluate("window.CenaBackupFile({format:'cena-backup',version:1,data:{'cena.local.items.v1':[{id:'tt0120873',type:'movie',name:'U.S. Marshals',status:'watchlist'}]},history:{format:'cena-watch-history',account:'Backup teste',events:[{eventId:'9007199254740993',kind:'movie',type:'movie',id:'tt0120873',name:'U.S. Marshals',year:1998,datePrecision:'exact',watchedAt:'2021-05-04T12:00:00Z'}]}})")
+                  expect(upgrade_page.locator('#backup-preview')).to_contain_text('1 títulos')
+                  upgrade_page.locator('#backup-apply').click()
+                  expect(upgrade_page.locator('#backup-archive')).to_contain_text('Consultar histórico restaurado')
+                  upgrade_page.locator('#backup-archive summary').click()
+                  expect(upgrade_page.locator('#backup-archive')).to_contain_text('2021')
+                  assert upgrade_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1')).length")==3
+                  assert upgrade_page.evaluate("JSON.parse(localStorage.getItem('cena.story.notes.v1')||'{}')") == {}
+                  upgrade_page.locator('nav [data-tab="discover"]').click()
+                  upgrade_page.locator('[data-discovery-mode="series"]').click()
+                  expect(upgrade_page.locator('#calendar-panel')).to_contain_text('T2 · E3')
+                  upgrade_page.locator('nav [data-tab="connect"]').click()
+                  expect(upgrade_page.locator('#sync-summary')).to_contain_text('Estado das consultas')
+                  expect(upgrade_page.locator('#vision-model-panel')).to_contain_text('89 MB')
+                  upgrade_page.screenshot(path='qa/project-upgrade.png',full_page=True)
+                  upgrade_page.close()
+                  print('Upgrade: personal feedback, collections, expanded title sheet, confirmed calendar dates, yearly recap and backup preview/merge/archive verified with fixtures.')
+                  artwork_page = browser.new_page(viewport={'width':412,'height':915})
+                  artwork_page.on('pageerror',lambda error: (errors.append(str(error)), print('ARTWORK APP ERROR:',str(error),flush=True)))
+                  artwork_page.on('requestfailed',lambda request: print('ARTWORK REQUEST FAILED:',request.url,request.failure,flush=True) if request.url.startswith('http://127.0.0.1:3000/') else None)
+                  artwork_page.add_init_script("""
+                    localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
+                    if(!localStorage.getItem('cena.local.items.v1')) localStorage.setItem('cena.local.items.v1',JSON.stringify([
+                      {id:'tt2015381',type:'movie',name:'Guardians of the Galaxy',year:'2014',status:'watchlist',poster:''},
+                      {id:'tt0087469',type:'movie',name:'Indiana Jones and the Temple of Doom',year:'1984',status:'watchlist',poster:''},
+                      {id:'tt0097576',type:'movie',name:'Indiana Jones and the Last Crusade',year:'1989',status:'watchlist',poster:''},
+                      {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',status:'watched',watchedSource:'Trakt',poster:''},
+                      {id:'tt0167260',type:'movie',name:'The Lord of the Rings: The Return of the King',year:'2003',status:'watchlist',poster:''},
+                      {id:'tt0367882',type:'movie',name:'Indiana Jones and the Kingdom of the Crystal Skull',year:'2008',status:'watchlist',poster:''},
+                      {id:'tt0253474',type:'movie',name:'The Pianist',year:'2002',status:'watchlist',poster:''},
+                      {id:'tt13073252',type:'movie',name:'O Sequestro do Voo 375',year:'2023',status:'watchlist',poster:''},
+                      {id:'tt8646254',type:'movie',name:'45 do Segundo Tempo',year:'2022',status:'watchlist',poster:''}
+                    ]));
+                  """)
+                  artwork_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
+                  expect(artwork_page.locator('#main h1')).to_be_visible(timeout=20000)
+                  artwork_page.locator('nav [data-tab="library"]').click()
+                  artwork_page.locator('[data-filter="all"]').click()
+                  cards=artwork_page.locator('#library-grid .poster-card')
+                  expect(cards).to_have_count(9)
+                  for index in range(9):
+                      image=cards.nth(index).locator('.poster-art img')
+                      cards.nth(index).scroll_into_view_if_needed()
+                      expect(image).to_be_visible(timeout=60000)
+                      expect(image).to_have_js_property('complete',True)
+                      assert image.evaluate('(image)=>image.naturalWidth')>0
+                  before=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert len(before)==9 and all(item.get('poster','').startswith('https://') for item in before), [(item['id'],bool(item.get('poster'))) for item in before]
+                  assert next(item for item in before if item['id']=='tt0172495')['status']=='watched'
+                  artwork_page.screenshot(path='qa/repaired-posters.png',full_page=True)
+                  artwork_page.reload(wait_until='domcontentloaded')
+                  after=artwork_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))")
+                  assert len(after)==9 and all(item.get('poster') for item in after)
+                  assert next(item for item in after if item['id']=='tt0172495')['watchedSource']=='Trakt'
+                  print('Nine real user-reported posters, including the two Brazilian films, loaded, and persisted without changing saved watched status.')
+                  artwork_page.close()
+                  assert not errors, errors
+                  Path('qa').mkdir(exist_ok=True)
+                  page.screenshot(path='qa/sisu-saved.png', full_page=True)
+                  print('Live browser check passed: SISU was found and saved to the local watchlist.')
+                  browser.close()
+          finally:
+              server.terminate()
+              server.wait(timeout=10)
+          PY
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: CENA-SISU-browser-QA
+          path: cena/qa/*
+          if-no-files-found: error
+

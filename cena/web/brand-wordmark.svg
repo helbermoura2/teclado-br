@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 100" role="img" aria-label="CENA IA">
+ <defs><linearGradient id="word" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#eadfff"/><stop offset="1" stop-color="#bca5dc"/></linearGradient></defs>
+ <g fill="none" stroke="url(#word)" stroke-width="11" stroke-linecap="square" stroke-linejoin="round">
+  <path d="M91 17 H34 Q17 17 17 34 V66 Q17 83 34 83 H91"/>
+  <path d="M191 17 H119 V83 H191 M119 50 H180"/>
+  <path d="M219 83 V17 L293 83 V17"/>
+  <path d="M316 83 L352 17 L390 83 M331 60 H375"/>
+ </g>
+ <g fill="none" stroke="#bc98e7" stroke-width="3.2" stroke-linejoin="round"><path d="M448 17 H458 V83 H448 Z M479 83 L520 17 H531 L573 83 H559 L549 66 H501 L492 83 Z M509 54 H542 L525 27 Z"/></g>
+ <g fill="#dbc8f4"><circle cx="520" cy="31" r="3"/><circle cx="552" cy="65" r="3"/></g>
+</svg>
