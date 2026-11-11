@@ -31,7 +31,7 @@ export function wrapStoryText(ctx,text,width,maxLines){
 }
 function cover(ctx,image,x,y,width,height){const scale=Math.max(width/image.width,height/image.height),w=image.width*scale,h=image.height*scale;ctx.drawImage(image,x+(width-w)/2,y+(height-h)/2,w,h);}
 function fitText(ctx,text,width,maxLines,start,min){let size=start,lines;for(;size>=min;size-=2){ctx.font=`600 ${size}px sans-serif`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`600 ${size}px sans-serif`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
-export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating=''}={}){
+export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null}={}){
   const ctx=canvas.getContext('2d');canvas.width=1080;canvas.height=1920;
   const cached=backgrounds.get(canvas);
   if(cached&&cached.image===image&&typeof ctx.putImageData==='function')ctx.putImageData(cached.pixels,0,0);
@@ -63,10 +63,9 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const opinionTop=Math.min(1420,Math.max(cursor,1370));
   const opinion=fitText(ctx,review.opinion,860,3,44,32);ctx.fillStyle='#fff';
   opinion.lines.forEach((line,i)=>ctx.fillText(line,540,opinionTop+i*(opinion.size+10)));
-  // The app signature uses the original filled purple triangle as its final glyph.
-  ctx.font='800 52px sans-serif';const wordWidth=ctx.measureText('CEN').width,total=wordWidth+52;const start=(1080-total)/2;
-  ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#eee9f6';ctx.fillText('CEN',start,1636);
-  const x=start+wordWidth+6;ctx.fillStyle='#b781fa';ctx.beginPath();ctx.moveTo(x,1636);ctx.lineTo(x+23,1594);ctx.lineTo(x+46,1636);ctx.closePath();ctx.fill();
+  // Both local assets are loaded before saving or sharing, keeping the signature consistent.
+  if(brandMark&&brandWordmark){ctx.drawImage(brandMark,318,1504,144,144);ctx.drawImage(brandWordmark,466,1547,300,52);}
+  else{ctx.textAlign='center';ctx.textBaseline='alphabetic';ctx.fillStyle='#eee9f6';ctx.font='600 44px sans-serif';ctx.fillText('CENA IA',540,1612);}
   canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='2';
   return {titleLines:heading.lines,opinionLines:opinion.lines,opinionBottom:opinionTop+opinion.lines.length*(opinion.size+10),score:review.score};
 }
