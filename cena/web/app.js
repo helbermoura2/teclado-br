@@ -94,19 +94,19 @@ window.CenaHistoryRows=value=>{
  historyRows=value.page===1?value.rows||[]:[...historyRows,...(value.rows||[])];historyPage=value.page;historyHasMore=Boolean(value.hasMore);renderHistoryRows(value.total||0);
 };
 function loadHistoryRows(reset=true){
- if(reset){historyRows=[];historyPage=0;historyHasMore=false;}
+ if(reset){historyRows=[];historyPage=0;historyHasMore=false;const target=$('#history-records');if(target&&historyMode==='history')target.innerHTML='<p class="muted" role="status">Carregando histórico…</p>';}
  if(typeof window.CenaAndroid?.historyRows!=='function'){const target=$('#history-records');if(target)target.innerHTML='<p class="muted">A importação e o histórico completo ficam disponíveis no APK Android.</p>';return;}
  const id=String(++historyRequest);window.CenaAndroid.historyRows(id,historyYear,historyKind,reset?1:historyPage+1,historyMedia);
 }
 function profile(){
- main.innerHTML=`${historyDedicated?'<div class="collection-header"><button class="collection-back" id="history-back" aria-label="Voltar">←</button><h1>Últimos vistos</h1></div>':'<div class="eyebrow">SUA MEMÓRIA DE CINEMA</div><h1>Meu perfil</h1>'}<details class="profile-sync" ${historyDedicated?'hidden':''}><summary>Sincronização e exportação</summary><div id="history-summary"></div></details><div class="history-filters"><label for="history-year">Ano em que assistiu</label><select id="history-year"></select><label for="history-kind" ${historyMode==='stats'?'hidden':''}>Tipo</label><select id="history-kind" ${historyMode==='stats'?'hidden':''}><option value="all">Filmes e episódios</option><option value="movie">Filmes</option><option value="episode">Episódios</option></select></div><div class="chips"><button class="chip ${historyMode==='history'?'selected':''}" id="history-tab">Histórico</button><button class="chip ${historyMode==='stats'?'selected':''}" id="history-stats-tab">Estatísticas</button></div><div id="history-stats"></div><div id="history-records"></div><details class="profile-tools" ${historyDedicated?'hidden':''}><summary>Retrospectiva e backup</summary><section class="panel" id="retrospective-panel"></section><section class="panel" id="backup-panel"></section></details>`;
+ main.innerHTML=`${historyDedicated?'<div class="collection-header"><button class="collection-back" id="history-back" aria-label="Voltar">←</button><h1>Últimos vistos</h1></div>':'<div class="profile-header"><div class="eyebrow">SUA MEMÓRIA DE CINEMA</div><h1>Meu perfil</h1><p>Seu histórico e suas estatísticas em um só lugar.</p></div>'}<div class="profile-main-tabs" role="tablist" aria-label="Áreas do perfil"><button class="profile-main-tab ${historyMode==='stats'?'selected':''}" id="history-stats-tab" role="tab" aria-selected="${historyMode==='stats'}">Estatísticas</button><button class="profile-main-tab ${historyMode==='history'?'selected':''}" id="history-tab" role="tab" aria-selected="${historyMode==='history'}">Histórico</button></div><div class="history-filters"><label for="history-year">Ano em que assistiu</label><select id="history-year"></select><label for="history-kind" ${historyMode==='stats'?'hidden':''}>Tipo</label><select id="history-kind" ${historyMode==='stats'?'hidden':''}><option value="all">Filmes e episódios</option><option value="movie">Filmes</option><option value="episode">Episódios</option></select></div><div id="history-stats"></div><div id="history-records"></div><details class="profile-sync" ${historyDedicated?'hidden':''}><summary>Sincronização e exportação</summary><div id="history-summary"></div></details><details class="profile-tools" ${historyDedicated?'hidden':''}><summary>Retrospectiva e backup</summary><section class="panel" id="retrospective-panel"></section><section class="panel" id="backup-panel"></section></details>`;
  if($('#history-back'))$('#history-back').onclick=()=>window.CenaBack();
  renderHistorySummary();$('#history-kind').value=historyKind;
  mountBackup($('#backup-panel'),{storage,bridge:window.CenaAndroid,toast,onRestore:async()=>{await refresh();items=applyNuvioState(applyHistoryMetadata(items,historyState),nuvioState);storage.setItem('cena.local.items.v1',JSON.stringify(items));sendTraktInventory();resumeHidden=JSON.parse(storage.getItem(resumeHiddenKey)||'{}');profile();const tools=$('.profile-tools');if(tools)tools.open=true;}});
  mountRetrospective($('#retrospective-panel'),{state:historyState,bridge:window.CenaAndroid,toast});
  $('#history-year').onchange=event=>{historyYear=event.target.value;renderHistoryStats();loadHistoryRows(true);};$('#history-kind').onchange=event=>{historyKind=event.target.value;loadHistoryRows(true);};
  $('#history-tab').onclick=()=>{historyMode='history';profile();};$('#history-stats-tab').onclick=()=>{historyMode='stats';profile();};
- loadHistoryRows(true);if(typeof window.CenaAndroid?.historyState==='function')window.CenaAndroid.historyState();
+ if(historyMode==='history')loadHistoryRows(true);if(typeof window.CenaAndroid?.historyState==='function')window.CenaAndroid.historyState();
 }
 function renderHistorySummary(){
  const target=$('#history-summary');if(!target)return;
@@ -762,7 +762,7 @@ function localConnection() {
 // Render a 9:16 PNG locally. Photo captures never leave the device.
 const story=createStoryEditor({$,escape,storage,getItems:()=>items,native,artworkResolver,persistArtwork,toast});
 document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = () => setTab(button.dataset.tab));
-$('#profile-shortcut').onclick=()=>{historyMedia='';historyDedicated=false;setTab('profile');};
+$('#profile-shortcut').onclick=()=>{historyMedia='';historyDedicated=false;historyMode='stats';historyYear='all';historyKind='all';profileStatsTab='library';setTab('profile');};
 $('#search-shortcut').onclick = () => { setTab('library'); $('#query').focus(); };
 $('.brand').onclick = event => { event.preventDefault(); setTab('home'); };
 $('#detail .close').onclick = () => $('#detail').close();
