@@ -6,6 +6,8 @@ return async function story(item) {
   const items=getItems();
   $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" placeholder="Ex.: 8,53 ou 8.53" maxlength="5"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
   const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
+  let brandMark=null,brandWordmark=null;
+  const brandAssets=Promise.all(['brand-mark.png','brand-wordmark.svg'].map(src=>new Promise((resolve,reject)=>{const asset=new Image();asset.onload=()=>resolve(asset);asset.onerror=()=>reject(Error('Não consegui carregar a marca do CENA. Tente novamente.'));asset.src=src;}))).then(([mark,wordmark])=>{brandMark=mark;brandWordmark=wordmark;});
   let image=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
   const notesKey='cena.story.notes.v1',noteId=`${item.type}:${item.id}`;
   let notes={};try{notes=JSON.parse(storage.getItem(notesKey)||'{}');}catch{}
@@ -14,7 +16,7 @@ return async function story(item) {
   let editedTitle=Boolean(notes[noteId]?.title);
   const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
-    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value});
+    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark});
     ratingError.hidden=validRating();
     if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
   };
@@ -27,7 +29,7 @@ return async function story(item) {
   const prepare=async()=>{
     ready=false;share.disabled=true;save.disabled=true;retry.hidden=true;without.hidden=true;status.dataset.state='loading';status.textContent='Carregando a capa…';
     try{
-      const result=await loadStoryPoster(item,{bridge:window.CenaAndroid,resolveArtwork:value=>artworkResolver.resolve(value)});
+      const [result]=await Promise.all([loadStoryPoster(item,{bridge:window.CenaAndroid,resolveArtwork:value=>artworkResolver.resolve(value)}),brandAssets]);
       if(!canvas.isConnected)return;
       image=result.image;draw();
       // Verify exportability before offering save/share, including in web previews.
@@ -41,7 +43,7 @@ return async function story(item) {
     }
   };
   retry.onclick=prepare;
-  without.onclick=()=>{status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();};
+  without.onclick=async()=>{try{await brandAssets;status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();}catch(error){status.dataset.state='error';status.textContent=error.message;}};
   prepare();
   $('#save-story').onclick = () => {
     if(save.disabled)return;
