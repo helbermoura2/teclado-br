@@ -48,6 +48,8 @@ public final class WritingEngineService extends Service {
                         SecretStore.hasOpenRouterKey(WritingEngineService.this);
                     final java.util.concurrent.atomic.AtomicReference<String> geminiIssue=
                         new java.util.concurrent.atomic.AtomicReference<>("");
+                    final java.util.concurrent.atomic.AtomicReference<String> routerIssue=
+                        new java.util.concurrent.atomic.AtomicReference<>("");
                     offline=new OfflineEngine(WritingEngineService.this,()->cancelled);
                     InferenceRouter.Backend remote=(p,n,partial)-> {
                         if(SecretStore.hasGeminiKey(WritingEngineService.this)) {
@@ -77,13 +79,24 @@ public final class WritingEngineService extends Service {
                         String secret=SecretStore.readOpenRouter(WritingEngineService.this);
                         send(receiver,4,"Processando com OpenRouter · "+model+"…",null);
                         router=new OpenRouterClient(secret,model,()->cancelled);
-                        return router.generate(p,n,partial);
+                        try {
+                            return router.generate(p,n,partial);
+                        }
+                        catch(Exception error) {
+                            InferenceRouter.check(()->cancelled);
+                            routerIssue.set(OpenRouterClient.diagnostic(error));
+                            throw error;
+                        }
                     };
                     InferenceResult result=InferenceRouter.run(mode,AiPreferences.connected(WritingEngineService.this),key,ModelStore.model(WritingEngineService.this).isFile(),prompt,limit,remote,offline,()->cancelled,s->send(receiver,4,s,null),s->send(receiver,1,s,null));
-                    if(!geminiIssue.get().isEmpty()&&!result.backend.startsWith("Gemini")) {
+                    StringBuilder notes=new StringBuilder();
+                    if(!geminiIssue.get().isEmpty()&&!result.backend.startsWith("Gemini"))
+                        notes.append("\n").append(geminiIssue.get());
+                    if(!routerIssue.get().isEmpty()&&!result.backend.startsWith("OpenRouter"))
+                        notes.append("\nOpenRouter: ").append(routerIssue.get());
+                    if(notes.length()>0)
                         result=new InferenceResult(result.text,
-                            result.backend+"\nGemini: "+geminiIssue.get(),result.truncated);
-                    }
+                            result.backend+notes.toString(),result.truncated);
                     Bundle extra=new Bundle();
                     extra.putBoolean("truncated",result.truncated);
                     extra.putString("backend",result.backend);
