@@ -227,7 +227,7 @@ jobs:
           settings=Path('heliboard/ai/java/ModelSettingsActivity.java').read_text()
           assert 'geminiModelSelector.getSelectedItemPosition()==1' in settings
           assert 'GeminiClient.verifyAccess(model,key,interrupted);' in settings
-          assert 'O teste NÃO acionou Groq' in settings
+          assert 'O teste NÃO acionou OpenRouter' in settings
           assert 'Este modelo ainda não foi testado' in settings
           print("Gemini 3.6, OpenRouter, seleção de GGUF e logo HBX presentes.")
           print('Diagnósticos visíveis e teste independente do Gemini incluídos.')
