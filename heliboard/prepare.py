@@ -21,9 +21,9 @@ if (root/'.git').exists():
         raise RuntimeError('Prepare requires the pinned upstream commit from upstream.json')
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9016')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9017')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.2-beta.15-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.2-beta.16-hbx"')
 # Robolectric 4.14.1 uses its own MavenArtifactFetcher at unit-test runtime,
 # independent of Gradle's repositories. repo1.maven.org can intermittently
 # reject Android SDK jars, causing many unrelated JVM tests to fail together.
@@ -91,6 +91,28 @@ shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
 
 for module in (suggestions, typing, assistant, visual, toolbar, translation):
     module.apply(context)
+# HBX branding supplied by the app owner. Keep original design pixels rather
+# than synthesizing a different logo; Android crops adaptive icons per launcher.
+art=here/'overlay/hbx_brand.webp'
+assert art.is_file() and art.stat().st_size>1024, 'HBX icon artwork missing'
+drawable=root/'app/src/main/res/drawable-nodpi'
+drawable.mkdir(parents=True,exist_ok=True)
+shutil.copyfile(art,drawable/'hbx_brand.webp')
+adaptive=root/'app/src/main/res/mipmap-anydpi-v26'
+adaptive.mkdir(parents=True,exist_ok=True)
+launcher='''<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@android:color/black"/>
+    <foreground android:drawable="@drawable/hbx_brand"/>
+</adaptive-icon>'''
+for icon in ('ic_launcher.xml','ic_launcher_round.xml'):
+    (adaptive/icon).write_text(launcher)
+# Brand the app label, not the keyboard keys or preexisting personal data.
+for directory in (root/'app/src').glob('*/res/values*'):
+    for file in directory.glob('*.xml'):
+        value=file.read_text()
+        if 'Teclado BR · Heli teste' in value:
+            file.write_text(value.replace('Teclado BR · Heli teste',
+                'HBX · Helber Board X AI'))
 # Native/JVM assertions for the new writing actions ship with the prepared source.
 ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
 ai_tests.mkdir(parents=True, exist_ok=True)
