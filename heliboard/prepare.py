@@ -122,6 +122,8 @@ shutil.copyfile(here/'tests/GeminiDiagnosticTest.java', ai_tests/'GeminiDiagnost
 shutil.copyfile(here/'tests/GeminiCascadeTest.java', ai_tests/'GeminiCascadeTest.java')
 shutil.copyfile(here/'tests/GeminiShortRequestTest.java', ai_tests/'GeminiShortRequestTest.java')
 shutil.copyfile(here/'tests/GeminiOverloadPolicyTest.java', ai_tests/'GeminiOverloadPolicyTest.java')
+shutil.copyfile(here/'tests/OpenRouterPolicyTest.java', ai_tests/'OpenRouterPolicyTest.java')
+shutil.copyfile(here/'tests/OfflineSlotsPolicyTest.java', ai_tests/'OfflineSlotsPolicyTest.java')
 context.report(lock)
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
