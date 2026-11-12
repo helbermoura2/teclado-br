@@ -177,7 +177,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       # Never publish a release when testing an unmerged feature branch.
       - name: Publicar atualização privada verificada
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/barra-palavras-ponto-20261112'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -195,5 +195,5 @@ jobs:
           Instale por cima, sem desinstalar, para preservar dados e modelos.
           Compilação, assinatura e testes Android devem passar antes da publicação.
           NOTES
-          gh release create heli-0.9.2 --target "$RELEASE_COMMIT" --title 'Teclado BR 0.9.2 — palavras ao digitar, atalhos após ponto' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.9.2.apk heli-artifacts/teclado-br-heli-0.9.2-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.2-testes.zip heli-artifacts/sha256-0.9.2.txt
+          gh release create heli-0.9.2 --prerelease --target "$RELEASE_COMMIT" --title 'Teclado BR 0.9.2 — palavras ao digitar, atalhos após ponto' --notes-file heli-artifacts/release-notes.txt heli-artifacts/teclado-br-heli-0.9.2.apk heli-artifacts/teclado-br-heli-0.9.2-fontes.tar.gz heli-artifacts/teclado-br-heli-0.9.2-testes.zip heli-artifacts/sha256-0.9.2.txt
 
