@@ -13,10 +13,10 @@ import java.util.concurrent.*;
 public final class ModelSettingsActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private volatile boolean cancelled;
-    private boolean busy,measuring,bound;
+    private boolean busy,measuring,bound,measureOfflineOnly;
     private LinearLayout root;
     private TextView description,status,keyState,geminiKeyState,geminiTestState,metrics;
-    private Button add,remove,cancel,save,geminiSave,routerSave,routerModelSave,routerTest,activateOffline,geminiTest,geminiProbe,geminiModelSave,measure,cancelMeasure;
+    private Button add,remove,cancel,save,geminiSave,routerSave,routerModelSave,routerTest,activateOffline,geminiTest,geminiProbe,geminiModelSave,measure,measureOffline,cancelMeasure;
     private EditText key,geminiKey;
     private Spinner geminiModelSelector,routerModelSelector,offlineSelector;
     private RadioGroup modes;
@@ -251,7 +251,14 @@ public final class ModelSettingsActivity extends Activity {
         });
         label("Medições no seu aparelho",20);
         label("Teste com uma frase sintética, usando o modo salvo acima. Mede tempo total e pico de memória amostrado. A energia, quando informada pelo Android, é do aparelho inteiro e não isola o teclado. Compare nas mesmas condições.",14);
-        measure=button("Medir IA selecionada","ai_measure",this::startMeasurement);
+        measure=button("Medir IA selecionada","ai_measure",()-> {
+            measureOfflineOnly=false;
+            startMeasurement();
+        });
+        measureOffline=button("Medir somente GGUF ativo","ai_measure_offline",()-> {
+            measureOfflineOnly=true;
+            startMeasurement();
+        });
         cancelMeasure=button("Cancelar medição","ai_cancel_measure",this::stopMeasurement);
         metrics=label(MeasurementHistory.describe(this),14);
         metrics.setContentDescription("ai_measurements");
@@ -548,6 +555,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiModelSave.setEnabled(!busy&&!measuring);
         geminiModelSelector.setEnabled(!busy&&!measuring);
         measure.setEnabled(!busy&&!measuring);
+        measureOffline.setEnabled(!busy&&!measuring&&ModelStore.model(this).isFile());
         cancelMeasure.setEnabled(measuring);
     }
     private final ServiceConnection connection=new ServiceConnection() {
@@ -584,7 +592,12 @@ public final class ModelSettingsActivity extends Activity {
                 else if(code==2) {
                     MeasurementHistory.add(ModelSettingsActivity.this,data);
                     metrics.setText(MeasurementHistory.describe(ModelSettingsActivity.this));
-                    status.setText("Medição concluída. Isso não é uma avaliação automática da qualidade da resposta.");
+                    String edited=data.getString("text","");
+                    String expected="Eu não sei o que fazer hoje.";
+                    String preview=edited.length()>130?edited.substring(0,130)+"…":edited;
+                    status.setText("Medição concluída. Correção esperada: "+expected+
+                        "\nSaída obtida: "+preview+
+                        "\nCompare resultado, tempo e memória. A medição não avalia automaticamente a qualidade.");
                     stopMeasurement();
                 }
                 else if(code==3) {
@@ -599,7 +612,8 @@ public final class ModelSettingsActivity extends Activity {
             parcel.setDataPosition(0);
             Bundle data=new Bundle();
             data.putParcelable("receiver",ResultReceiver.CREATOR.createFromParcel(parcel));
-            data.putString("mode",AiPreferences.mode(this));
+            data.putString("mode",measureOfflineOnly?
+                AiPreferences.OFFLINE:AiPreferences.mode(this));
             data.putString("prompt",PromptBuilder.build("Ortografia e gramática","","","Eu nao sei o que fazer hoje."));
             data.putInt("limit",128);
             data.putBoolean("benchmark",true);
@@ -617,6 +631,7 @@ public final class ModelSettingsActivity extends Activity {
     }
     private void stopMeasurement() {
         measuring=false;
+        measureOfflineOnly=false;
         if(engine!=null)try {
             engine.send(Message.obtain(null,2));
         }
