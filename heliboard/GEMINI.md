@@ -67,3 +67,20 @@ que o teste no dispositivo seja feito. O APK ainda não foi publicado.
   Esses tempos identificam a fase da falha, não asseguram a causa no Google.
 - A chave já cadastrada permanece no Android Keystore, sem migração.
 
+
+## Ajustes beta 15 após testes no aparelho
+
+- HTTP 503 durante geração indica falha de disponibilidade de serviço, não é
+  por si só evidência de chave inválida. Cada modelo Gemini faz **uma única**
+  nova tentativa automática somente quando recebe HTTP 503, com espera curta
+  de 700 ms; outros erros seguem imediatamente ao próximo modelo.
+- A ordem de revisão continua 3.8 → 3.6 → Groq → GGUF no modo Automático.
+  Não repetimos requisições quando o usuário cancela.
+- O botão de **diagnóstico rápido** passa a testar o Gemini selecionado
+  (3.8 ou 3.6), sem alterar o modelo principal nem enviar texto do usuário.
+- No painel de resultados, **Ver diagnóstico completo** revela todos os
+  erros e os tempos em uma área rolável; **Copiar diagnóstico completo**
+  permite compartilhar apenas as mensagens sanitizadas. Não grava chaves,
+  texto do usuário, corpos HTTP nem dados pessoais nos diagnósticos.
+- Esta correção não garante sucesso contra congestionamento persistente no
+  provedor; o resultado depende de teste real no telefone.

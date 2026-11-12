@@ -106,7 +106,7 @@ public final class ModelSettingsActivity extends Activity {
         root.addView(geminiModelSelector,new LinearLayout.LayoutParams(-1,dp(48)));
         geminiModelSave=button("Lembrar modelo do teste (opcional)","ai_save_gemini_model",this::saveGeminiModel);
         geminiTest=button("Testar conexão Gemini","ai_test_gemini",this::testGemini);
-        geminiProbe=button("Diagnóstico rápido do Gemini 3.8","ai_probe_gemini_38",this::probeGemini38);
+        geminiProbe=button("Diagnóstico rápido do Gemini selecionado","ai_probe_gemini",this::probeGeminiSelected);
         geminiTestState=label("Testes independentes e fictícios, sem mensagens pessoais ou Groq. O diagnóstico rápido envia somente 'Responda apenas OK'.",14);
         geminiTestState.setContentDescription("ai_gemini_test_state");
         geminiModelSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -297,32 +297,36 @@ public final class ModelSettingsActivity extends Activity {
         });
     }
     /** Uses only a fixed synthetic prompt; never reads any user composition. */
-    private void probeGemini38() {
+    private void probeGeminiSelected() {
         if(busy||measuring||!geminiProbe.isEnabled())return;
         if(!SecretStore.hasGeminiKey(this)) {
             geminiTestState.setText("Salve sua chave Gemini antes do diagnóstico.");
             return;
         }
+        // This test does not change the writing cascade or require saving the model.
+        final String model=geminiModelSelector.getSelectedItemPosition()==1?
+            GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
         geminiTest.setEnabled(false);
         geminiProbe.setEnabled(false);
         geminiModelSave.setEnabled(false);
         geminiModelSelector.setEnabled(false);
-        geminiTestState.setText("Diagnóstico mínimo: Gemini 3.8, texto fictício curto, sem Groq…");
+        geminiTestState.setText("Diagnóstico mínimo: "+model+
+            ", texto fictício curto, sem Groq…");
         worker.execute(()-> {
             String message;
             try {
                 String key=SecretStore.readGemini(this);
                 java.util.function.BooleanSupplier interrupted=
                     ()->Thread.currentThread().isInterrupted();
-                GeminiClient client=new GeminiClient(GeminiClient.MODEL,key,interrupted);
+                GeminiClient client=new GeminiClient(model,key,interrupted);
                 InferenceResult response=client.generateMinimalProbe();
                 if(response.text==null||response.text.trim().isEmpty())
                     throw new java.io.IOException("Resposta vazia");
-                message="Gemini 3.8 GEROU texto no teste mínimo. "+
+                message=model+" GEROU texto no teste mínimo. "+
                     client.timing()+". Sem acesso a textos pessoais e sem Groq.";
             }
             catch(Exception error) {
-                message="Gemini 3.8 não concluiu o teste mínimo: "+
+                message=model+" não concluiu o teste mínimo: "+
                     GeminiClient.diagnostic(error)+
                     ". Sem Groq e sem conteúdo pessoal. O teste não confirma a causa externa.";
             }
