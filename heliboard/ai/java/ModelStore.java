@@ -36,15 +36,41 @@ final class ModelStore {
         return new File(directory(c),filename(slot,"json"));
     }
     static String selected(Context c) {
-        String pref=c.getSharedPreferences("writing-options",0).getString("offline-slot",CURRENT);
-        for(String choice:SLOTS)if(choice.equals(pref))return pref;
+        // The writing service runs in another Android process. SharedPreferences
+        // cache can be stale there; use a tiny atomic file for the active slot.
+        File active=new File(directory(c),"active-slot.txt");
+        try {
+            if(active.isFile()) {
+                String value=new String(java.nio.file.Files.readAllBytes(active.toPath()),
+                    StandardCharsets.US_ASCII).trim();
+                for(String slot:SLOTS)if(slot.equals(value))return slot;
+            }
+        }catch(IOException ignored){}
+        String pref=c.getSharedPreferences("writing-options",0)
+            .getString("offline-slot",CURRENT);
+        for(String slot:SLOTS)if(slot.equals(pref))return pref;
         return CURRENT;
+    }
+    private static boolean setActive(Context c,String slot) {
+        checked(slot);
+        android.util.AtomicFile active=new android.util.AtomicFile(
+            new File(directory(c),"active-slot.txt"));
+        FileOutputStream out=null;
+        try {
+            out=active.startWrite();
+            out.write(slot.getBytes(StandardCharsets.US_ASCII));
+            active.finishWrite(out);
+            return c.getSharedPreferences("writing-options",0).edit()
+                .putString("offline-slot",slot).commit();
+        }catch(Exception error) {
+            if(out!=null)active.failWrite(out);
+            return false;
+        }
     }
     static boolean select(Context c,String slot) {
         checked(slot);
         if(!model(c,slot).isFile())return false;
-        return c.getSharedPreferences("writing-options",0).edit()
-            .putString("offline-slot",slot).commit();
+        return setActive(c,slot);
     }
     static File model(Context c) {return model(c,selected(c));}
     static File metadata(Context c) {return metadata(c,selected(c));}
@@ -76,8 +102,7 @@ final class ModelStore {
             for(String other:SLOTS) {
                 if(model(c,other).isFile()) {select(c,other);return;}
             }
-            c.getSharedPreferences("writing-options",0).edit()
-                .putString("offline-slot",CURRENT).commit();
+            setActive(c,CURRENT);
         }
     }
     static void importFile(Context c,Uri uri,Progress progress)throws Exception {
