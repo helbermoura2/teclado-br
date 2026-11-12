@@ -56,7 +56,24 @@ public final class WritingEngineService extends Service {
                                 return GeminiCascade.run(
                                     model -> {
                                         gemini=new GeminiClient(model,secret,()->cancelled);
-                                        return gemini.generate(p,n,partial);
+                                        try {
+                                            return gemini.generate(p,n,partial);
+                                        }
+                                        catch(Exception first) {
+                                            if(!GeminiClient.overloaded(first))throw first;
+                                            InferenceRouter.check(()->cancelled);
+                                            send(receiver,4,model+
+                                                ": HTTP 503. Uma nova tentativa curta…",null);
+                                            try { Thread.sleep(700); }
+                                            catch(InterruptedException interrupted) {
+                                                Thread.currentThread().interrupt();
+                                                throw new java.util.concurrent.CancellationException(
+                                                    "Cancelado.");
+                                            }
+                                            InferenceRouter.check(()->cancelled);
+                                            gemini=new GeminiClient(model,secret,()->cancelled);
+                                            return gemini.generate(p,n,partial);
+                                        }
                                     },
                                     ()->cancelled,
                                     progress->send(receiver,4,progress,null),
