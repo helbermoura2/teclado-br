@@ -386,7 +386,7 @@ public final class WritingPanel {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
         };
         String[] names= {
-            "Offline · só no aparelho","Automático · Gemini → Groq → Gemma","Online · Gemini → Groq"
+            "Offline · só no aparelho","Automático · Gemini 3.6 → OpenRouter → GGUF","Online · Gemini 3.6 → OpenRouter"
         };
         for(int i=0;i<modes.length;i++) {
             final String mode=modes[i];
@@ -481,7 +481,7 @@ public final class WritingPanel {
         }
         if(!AiPreferences.canStart(ime)) {
             screen(value,false);
-            notice("Configure o Gemini, a Groq ou importe um modelo offline na engrenagem.");
+            notice("Configure Gemini, OpenRouter ou importe um modelo offline.");
             return;
         }
         if(!task.equals("Compositor")&&!fromClipboard)snapshot.highlight(ime);

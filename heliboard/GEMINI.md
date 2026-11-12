@@ -84,3 +84,16 @@ que o teste no dispositivo seja feito. O APK ainda não foi publicado.
   texto do usuário, corpos HTTP nem dados pessoais nos diagnósticos.
 - Esta correção não garante sucesso contra congestionamento persistente no
   provedor; o resultado depende de teste real no telefone.
+
+## Atualização HBX beta 16
+
+A partir da beta 16, o uso normal do teclado **não chama Groq nem Gemini
+3.8**. A ordem automática é **Gemini 3.6 → OpenRouter → GGUF offline**,
+quando o modo Automático estiver ativado. O Gemini 3.8 continua disponível
+somente no teste independente de diagnóstico.
+
+A chave Groq permanece cifrada no Android Keystore por compatibilidade com
+versões anteriores, mas nunca é lida para processamento nesta versão.
+OpenRouter recebe chave própria; o modelo `openrouter/free` pode usar
+provedores variados. Ver `HBX-BETA16.md` para seleção de Qwen3.5 2B e
+Gemma 4 E4B e testes no telefone.
