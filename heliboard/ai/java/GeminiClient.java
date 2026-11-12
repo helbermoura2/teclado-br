@@ -71,6 +71,11 @@ public final class GeminiClient implements InferenceRouter.Backend {
         if(!MODEL.equals(model)&&!BACKUP_MODEL.equals(model))
             throw new IllegalArgumentException("Modelo Gemini não permitido.");
     }
+    /** Only transient Google 503 is automatically retried once with backoff. */
+    public static boolean overloaded(Exception error) {
+        if(error instanceof TracedFailure)error=((TracedFailure)error).original;
+        return error instanceof Failure && ((Failure)error).status==503;
+    }
     public static boolean tryAlternate(Exception error) {
         if(error instanceof TracedFailure)error=((TracedFailure)error).original;
         if(error instanceof Failure) {
