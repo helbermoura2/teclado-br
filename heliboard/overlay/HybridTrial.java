@@ -137,7 +137,7 @@ public final class HybridTrial {
             test.runOnMainSync(()-> {
                 android.view.View root=helium314.keyboard.keyboard.KeyboardSwitcher.getInstance().getStripContainer();
                 helium314.keyboard.latin.suggestions.SuggestionStripView strip=(helium314.keyboard.latin.suggestions.SuggestionStripView)test.findView(root,v->v instanceof helium314.keyboard.latin.suggestions.SuggestionStripView);
-                strip.setToolbarVisibility(true);
+                strip.requestToolbarVisibility(true);
             });
             test.type("voce");
             long until=android.os.SystemClock.uptimeMillis()+20000;
@@ -363,3 +363,4 @@ public final class HybridTrial {
         result.putString("hybrid_contract","PASS: HTTPS payload, explicit modes, quota/auth/server/malformed/timeout fallback, no network offline, cancellation without fallback, encrypted key, diff, dictionary backup, settings touch flow");
     }
 }
+

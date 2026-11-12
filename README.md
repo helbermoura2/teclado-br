@@ -1,5 +1,16 @@
 # Teclado BR
 
+## Proposta 0.9.2 — palavras ao digitar, atalhos após ponto
+
+Faixa de sugestões sem ícones fixos durante a frase, atalhos depois do ponto e
+retorno às palavras ao começar a frase seguinte. A seta mantém acesso manual às
+ferramentas; dicionário e pins continuam disponíveis na barra expandida.
+
+**Código em revisão, sem APK novo.** 30 verificações Java locais e os pontos de
+integração passaram; compilação e testes Android ainda estão pendentes. Os builds
+continuam manuais para poupar a cota de Actions.
+[Comportamento e validação](heliboard/BARRA-PALAVRAS.md).
+
 ## Em desenvolvimento: 0.9.1 — teclas arredondadas e barra compacta
 
 Após teste visual no Nothing Phone (1), a versão 0.9.0 ainda ficou muito
@@ -245,3 +256,4 @@ Validação manual necessária: ver [docs/TESTES.md](docs/TESTES.md).
    Avaliar modelo local, licença, memória e desempenho no aparelho antes de escolher a implementação.
 
 Projeto privado em desenvolvimento. Sem licença pública de reutilização nesta etapa.
+

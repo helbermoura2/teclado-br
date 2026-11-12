@@ -86,7 +86,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
     void toolbar(ToolbarKey key)throws Exception{
         long deadline=SystemClock.uptimeMillis()+10000;Rect previous=null;int stable=0;
         do{
-            runOnMainSync(()->{View root=KeyboardSwitcher.getInstance().getStripContainer();SuggestionStripView strip=(SuggestionStripView)findView(root,v->v instanceof SuggestionStripView);if(strip!=null)strip.setToolbarVisibility(true);View target=findView(root,v->v.getTag()==key);if(target!=null)target.requestRectangleOnScreen(new Rect(0,0,target.getWidth(),target.getHeight()),true);});Thread.sleep(350);
+            runOnMainSync(()->{View root=KeyboardSwitcher.getInstance().getStripContainer();SuggestionStripView strip=(SuggestionStripView)findView(root,v->v instanceof SuggestionStripView);if(strip!=null)strip.requestToolbarVisibility(true);View target=findView(root,v->v.getTag()==key);if(target!=null)target.requestRectangleOnScreen(new Rect(0,0,target.getWidth(),target.getHeight()),true);});Thread.sleep(350);
             Rect rect=new Rect();runOnMainSync(()->{View target=findView(KeyboardSwitcher.getInstance().getStripContainer(),v->v.getTag()==key&&v.isShown());if(target!=null){int[] xy=new int[2];target.getLocationOnScreen(xy);rect.set(xy[0],xy[1],xy[0]+target.getWidth(),xy[1]+target.getHeight());}});
             if(!rect.isEmpty()&&rect.equals(previous))stable++;else stable=0;
             if(stable>=1){tap(rect);Thread.sleep(350);return;}previous=rect;Thread.sleep(100);
@@ -112,9 +112,9 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         if(!verifyOnly){
             ClipboardManager clip=(ClipboardManager)getTargetContext().getSystemService(Context.CLIPBOARD_SERVICE);
             runOnMainSync(()->clip.setPrimaryClip(ClipData.newPlainText("Teste",PIN_TEXT)));Thread.sleep(400);
-            clear();type("oi"); // word suggestions collapse the toolbar; pinned shortcut must remain accessible
+            clear();type("oi"); // Pins remain available through the expanded clipboard toolbar.
         }
-        tagged(ToolbarKey.CLIPBOARD);
+        toolbar(ToolbarKey.CLIPBOARD);
         long deadline=SystemClock.uptimeMillis()+8000;AccessibilityNodeInfo item;
         do{item=find(n->PIN_TEXT.contentEquals(n.getText()==null?"":n.getText()));if(item!=null)break;Thread.sleep(100);}while(SystemClock.uptimeMillis()<deadline);
         check(item!=null,"Pinned text is missing in clipboard UI");Rect itemRect=new Rect();item.getBoundsInScreen(itemRect);
@@ -139,7 +139,13 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         do {AccessibilityNodeInfo n=find(v->description.contentEquals(v.getContentDescription()==null?"":v.getContentDescription()));if(n!=null&&n.isVisibleToUser())return n;Thread.sleep(100);}while(SystemClock.uptimeMillis()<until);
         throw new AssertionError("AI control missing: "+description);
     }
-    void aiClick(String description)throws Exception {AccessibilityNodeInfo n=aiNode(description);Rect bounds=new Rect();n.getBoundsInScreen(bounds);check(!bounds.isEmpty(),"AI control has no touch area: "+description);check(bounds.bottom<=getTargetContext().getResources().getDisplayMetrics().heightPixels,"AI control clipped: "+description);tap(bounds);Thread.sleep(600);}
+    void aiClick(String description)throws Exception {
+        if (description.equals("Adicionar palavra ao dicionário")) {
+            final boolean[] visible={false};
+            runOnMainSync(()-> {View plus=KeyboardSwitcher.getInstance().getStripContainer().findViewById(helium314.keyboard.latin.R.id.teclado_add_word);visible[0]=plus!=null&&plus.isShown();});
+            if(!visible[0]) ToolbarTrial.expand(this);
+        }
+        AccessibilityNodeInfo n=aiNode(description);Rect bounds=new Rect();n.getBoundsInScreen(bounds);check(!bounds.isEmpty(),"AI control has no touch area: "+description);check(bounds.bottom<=getTargetContext().getResources().getDisplayMetrics().heightPixels,"AI control clipped: "+description);tap(bounds);Thread.sleep(600);}
     // ScrollView can reposition child switches while a visual preview redraws.
     // Use Android's accessibility click for deterministic settings activation,
     // then verify the real checked state instead of assuming a touch worked.
@@ -250,6 +256,7 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         shots=new File(getTargetContext().getCacheDir(),"heli-shots");shots.mkdirs();
         shell("settings put secure show_ime_with_hard_keyboard 1");shell("ime enable br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");shell("ime set br.com.tecladobr.heli.debug/helium314.keyboard.latin.LatinIME");
         Thread.sleep(10000);options(false,false);launch();
+        if(phase.equals("verify_toolbar")){ToolbarTrial.run(this,result);result.putString("result","PASS");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_hybrid")){HybridTrial.run(this,result);result.putString("result","PASS");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_dictionary")||phase.equals("verify_learning_persisted")){personalDictionary(phase.equals("verify_learning_persisted"));result.putString("result","PASS");finish(Activity.RESULT_OK,result);return;}
         if(phase.equals("verify_ai")||phase.equals("verify_ai_missing")){writing(phase.equals("verify_ai"));result.putString("result","PASS");result.putString("coverage","Offline native generation, compositor prompt, editable result, safe replacement and cancellation; missing-model state");finish(Activity.RESULT_OK,result);return;}
@@ -292,3 +299,4 @@ public final class HeliTrialInstrumentation extends Instrumentation {
         result.putString("result","PASS");result.putString("coverage","Globe PT-BR/English switching, pinned clipboard shortcut, long-press pin, expiration exclusion, PT-BR dictionary, centered A-L layout, C long-press cedilla, emoji/globe removed from bottom row, toolbar language switch, add-word menu persisted in personal dictionary, autospace after punctuation, 200 overlapping letters including reversed release order, copy/paste, slide-to-select accent, sentence caps, autocorrection");finish(Activity.RESULT_OK,result);
     }catch(Throwable failure){try{shot("failure");}catch(Exception ignored){}StringWriter trace=new StringWriter();failure.printStackTrace(new PrintWriter(trace));result.putString("failure",trace.toString());result.putString("result","FAIL");finish(Activity.RESULT_CANCELED,result);}}
 }
+

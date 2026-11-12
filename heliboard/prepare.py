@@ -11,7 +11,7 @@ here = Path(__file__).resolve().parent
 root = Path(sys.argv[1]).resolve()
 lock = json.loads((here / 'upstream.json').read_text())
 from patches import PatchContext
-from patches import suggestions, typing, assistant, visual
+from patches import suggestions, typing, assistant, visual, toolbar
 context = PatchContext(root, here)
 replace = context.replace
 if (root/'.git').exists():
@@ -21,9 +21,9 @@ if (root/'.git').exists():
         raise RuntimeError('Prepare requires the pinned upstream commit from upstream.json')
 
 replace('app/build.gradle.kts', 'applicationId = "helium314.keyboard"', 'applicationId = "br.com.tecladobr.heli"')
-replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9001')
+replace('app/build.gradle.kts', 'versionCode = 3603', 'versionCode = 9002')
 replace('app/build.gradle.kts', 'android {', 'android {\n    signingConfigs.getByName("debug") {\n        storeFile = File(System.getenv("HOME") ?: System.getProperty("user.home"), ".android/debug.keystore")\n        storePassword = "android"\n        keyAlias = "androiddebugkey"\n        keyPassword = "android"\n    }')
-replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.1-heli3.6"')
+replace('app/build.gradle.kts', 'versionName = "3.6"', 'versionName = "0.9.2-heli3.6"')
 # Robolectric 4.14.1 uses its own MavenArtifactFetcher at unit-test runtime,
 # independent of Gradle's repositories. repo1.maven.org can intermittently
 # reject Android SDK jars, causing many unrelated JVM tests to fail together.
@@ -77,7 +77,7 @@ for directory in (root/'app/src').glob('*/res/values*'):
 # Add a separate-process editor and framework instrumentation to the trial build only.
 source = root/'app/src/debugNoMinify/java/br/com/tecladobr/heli/testing'
 source.mkdir(parents=True, exist_ok=True)
-for name in ('TrialEditor.java', 'HeliTrialInstrumentation.java', 'HybridTrial.java'):
+for name in ('TrialEditor.java', 'HeliTrialInstrumentation.java', 'HybridTrial.java', 'ToolbarTrial.java'):
     if (here/'overlay'/name).exists(): shutil.copyfile(here/'overlay'/name, source/name)
 manifest = root/'app/src/debugNoMinify/AndroidManifest.xml'
 manifest.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -88,7 +88,7 @@ manifest.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/r
 shutil.copyfile(here/'README.md', root/'TECLADO-BR.md')
 shutil.copyfile(here/'upstream.json', root/'TECLADO-BR-UPSTREAM.json')
 
-for module in (suggestions, typing, assistant, visual):
+for module in (suggestions, typing, assistant, visual, toolbar):
     module.apply(context)
 # Native/JVM assertions for the new writing actions ship with the prepared source.
 ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
@@ -97,3 +97,4 @@ shutil.copyfile(here/'tests/PromptBuilderOneUiTest.java', ai_tests/'PromptBuilde
 context.report(lock)
 shutil.copytree(here, root/'teclado-br-overlay', dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
 print('Prepared', lock['trial_version'], 'from', lock['commit'])
+

@@ -15,6 +15,7 @@ class PatchContext:
     def report(self, lock):
         self.root.joinpath('TECLADO-BR-PATCHES.json').write_text(json.dumps({
             'upstream': lock['commit'], 'version': lock['trial_version'],
-            'modules': ['layout', 'suggestions', 'typing', 'assistant'],
+            'modules': ['layout', 'suggestions', 'typing', 'assistant', 'visual', 'toolbar'],
             'guarded_anchors': self.anchors,
         }, ensure_ascii=False, indent=2)+'\n')
+

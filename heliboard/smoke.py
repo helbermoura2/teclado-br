@@ -16,7 +16,10 @@ def run_phase(phase):
     print(log,flush=True)
     (out/(phase+'-results.txt')).write_text(log)
     return log,'result=PASS' in log and 'INSTRUMENTATION_CODE: -1' in log
-log,ok=run_phase('verify_hybrid')
+log,ok=run_phase('verify_toolbar')
+if ok:
+    hybrid,ok=run_phase('verify_hybrid')
+    log+='\nHYBRID WRITING\n'+hybrid
 if ok:
     dictionary,ok=run_phase('verify_dictionary')
     log+='\nPERSONAL DICTIONARY\n'+dictionary
@@ -60,3 +63,4 @@ for name in files:
         (out/name).write_bytes(data)
 (out/'logcat.txt').write_bytes(subprocess.run(['adb','logcat','-d','-t','3000'],capture_output=True).stdout)
 if not ok:raise SystemExit('HeliBoard interaction test failed')
+
