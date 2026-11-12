@@ -112,7 +112,7 @@ for directory in (root/'app/src').glob('*/res/values*'):
         value=file.read_text()
         if 'Teclado BR · Heli teste' in value:
             file.write_text(value.replace('Teclado BR · Heli teste',
-                'HBX · Helber Board X AI'))
+                'HBX'))
 # Native/JVM assertions for the new writing actions ship with the prepared source.
 ai_tests = root/'app/src/test/java/helium314/keyboard/latin/ai'
 ai_tests.mkdir(parents=True, exist_ok=True)
