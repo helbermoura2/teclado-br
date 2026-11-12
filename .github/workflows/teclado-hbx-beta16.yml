@@ -1,5 +1,5 @@
-name: Teclado BR Gemini beta 16 - HTTP 503 retry e diagnósticos completos
-# Explicitly scoped to the Gemini beta branch. No scheduling or artifacts uploads.
+name: HBX beta 16 - OpenRouter, modelos offline e ícone
+# Scoped to HBX beta test branch. No schedules or workflow artifacts uploads.
 # The official 0.9.1 release and beta7 remain untouched.
 on:
   push:
@@ -229,7 +229,7 @@ jobs:
           assert 'GeminiClient.verifyAccess(model,key,interrupted);' in settings
           assert 'O teste NÃO acionou Groq' in settings
           assert 'Este modelo ainda não foi testado' in settings
-          print("Modelo selecionado, checagem de acesso à API e timeout ampliado estão presentes.")
+          print("Gemini 3.6, OpenRouter, seleção de GGUF e logo HBX presentes.")
           print('Diagnósticos visíveis e teste independente do Gemini incluídos.')
           print('Botão Gemini imediatamente abaixo da chave e confirmação de gravação validados.')
           print('Segredos fora do APK; código de Gemini, atualização e manifesto presente.')
