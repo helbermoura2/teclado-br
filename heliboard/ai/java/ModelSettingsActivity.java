@@ -127,11 +127,11 @@ public final class ModelSettingsActivity extends Activity {
             geminiKey.setText("");
             geminiKeyState.setText("Chave Gemini removida.");
             ensureUsableMode();
-            status.setText("Chave Gemini removida. A chave Groq e o modelo offline foram mantidos.");
+            status.setText("Chave Gemini removida. OpenRouter, Groq inativo e modelos GGUF preservados.");
         });
 
         label("OpenRouter · segunda IA online",20);
-        label("Gratuito com limites de uso. Escolha roteamento gratuito ou Qwen3 32B, conforme disponibilidade. Texto só é enviado quando você aciona a IA. O Groq permanece desativado e sua chave antiga não é apagada.",14);
+        label("Gratuito com limites de uso. No roteamento openrouter/free, o texto pode ser processado por provedores diferentes. Selecione Qwen3 32B quando disponível. O envio só ocorre quando você aciona a IA. Groq está desativado e sua chave antiga fica preservada.",14);
         keyState=label(SecretStore.hasOpenRouterKey(this)?
             "Chave OpenRouter protegida já cadastrada.":
             "Nenhuma chave OpenRouter cadastrada.",14);
@@ -367,7 +367,7 @@ public final class ModelSettingsActivity extends Activity {
                     "A API do Google respondeu, mas a geração falhou: ":
                     "Não foi possível confirmar acesso à API: ")+
                     reason+". Modelo testado: "+model+
-                    ". O teste NÃO acionou Groq. Nenhuma chave ou texto pessoal foi exibido.";
+                    ". O teste NÃO acionou OpenRouter. Nenhuma chave ou texto pessoal foi exibido.";
             }
             final String info=message;
             runOnUiThread(()-> {
