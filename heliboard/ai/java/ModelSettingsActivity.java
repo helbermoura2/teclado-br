@@ -16,9 +16,9 @@ public final class ModelSettingsActivity extends Activity {
     private boolean busy,measuring,bound;
     private LinearLayout root;
     private TextView description,status,keyState,geminiKeyState,geminiTestState,metrics;
-    private Button add,remove,cancel,save,geminiSave,groqSave,geminiTest,geminiProbe,geminiModelSave,measure,cancelMeasure;
+    private Button add,remove,cancel,save,geminiSave,routerSave,routerModelSave,routerTest,activateOffline,geminiTest,geminiProbe,geminiModelSave,measure,cancelMeasure;
     private EditText key,geminiKey;
-    private Spinner geminiModelSelector;
+    private Spinner geminiModelSelector,routerModelSelector,offlineSelector;
     private RadioGroup modes;
     private Messenger engine;
     private int dp(int n) {
@@ -55,10 +55,10 @@ public final class ModelSettingsActivity extends Activity {
         scroll.addView(root);
         setContentView(scroll);
         label("Assistente · configurações",24);
-        label("Somente tarefas iniciadas por você enviam texto à IA. Ordem online fixa: Gemini 3.8 → Gemini 3.6 → Groq. No modo Automático, o Gemma local é o último recurso. Digitação comum nunca envia texto.",14);
+        label("Somente tarefas iniciadas por você enviam texto à IA. Ordem online fixa: Gemini 3.6 → OpenRouter → modelo offline selecionado. O Groq está desativado. Digitação comum não envia textos.",14);
         modes=new RadioGroup(this);
         String[] names= {
-            "Offline · somente no aparelho","Automático · 3.8 → 3.6 → Groq → aparelho","Online · 3.8 → 3.6 → Groq"
+            "Offline · somente no aparelho","Automático · Gemini 3.6 → OpenRouter → aparelho","Online · Gemini 3.6 → OpenRouter"
         };
         String[] values= {
             AiPreferences.OFFLINE,AiPreferences.AUTO,AiPreferences.ONLINE
@@ -76,7 +76,7 @@ public final class ModelSettingsActivity extends Activity {
         }
         root.addView(modes);
         save=button("Salvar modo de IA","ai_save_settings",this::saveMode);
-        label("Gemini 3.8 → 3.6 · ordem automática",20);
+        label("Gemini 3.6 · IA online principal",20);
         label("Você já pode usar sua própria chave do Google AI Studio. Não cole aqui no GitHub ou no chat. A chave é cifrada no aparelho e não entra no APK. Os textos enviados usam a política da sua conta Google; contas pagas podem ter custos.",14);
         geminiKeyState=label(SecretStore.hasGeminiKey(this)?"Chave Gemini protegida já cadastrada.":"Nenhuma chave Gemini cadastrada.",14);
         geminiKeyState.setContentDescription("ai_gemini_key_state");
@@ -90,7 +90,7 @@ public final class ModelSettingsActivity extends Activity {
         geminiKey.setContentDescription("ai_gemini_key");
         root.addView(geminiKey);
         geminiSave=button("Salvar chave Gemini","ai_save_gemini_key",this::saveGeminiKey);
-        label("Modelo para teste individual (não altera a ordem automática)",16);
+        label("Modelo Gemini para diagnóstico individual (não altera o principal)",16);
         geminiModelSelector=new Spinner(this);
         geminiModelSelector.setContentDescription("ai_gemini_model");
         String[] geminiChoices={
@@ -130,28 +130,45 @@ public final class ModelSettingsActivity extends Activity {
             status.setText("Chave Gemini removida. A chave Groq e o modelo offline foram mantidos.");
         });
 
-        label("Groq · reserva online",20);
-        label("Opcional. Groq só é tentada quando Gemini 3.8 e 3.6 não concluem. Se Groq também falhar, o modo Automático usa o Gemma offline. Serviços online podem ter cotas e custos.",14);
-        keyState=label(SecretStore.hasKey(this)?"Chave Groq protegida já cadastrada.":"Nenhuma chave Groq cadastrada.",14);
-        keyState.setContentDescription("ai_key_state");
+        label("OpenRouter · segunda IA online",20);
+        label("Gratuito com limites de uso. Escolha roteamento gratuito ou Qwen3 32B, conforme disponibilidade. Texto só é enviado quando você aciona a IA. O Groq permanece desativado e sua chave antiga não é apagada.",14);
+        keyState=label(SecretStore.hasOpenRouterKey(this)?
+            "Chave OpenRouter protegida já cadastrada.":
+            "Nenhuma chave OpenRouter cadastrada.",14);
+        keyState.setContentDescription("ai_openrouter_key_state");
         key=new EditText(this);
         key.setSingleLine(true);
         key.setTextColor(Color.WHITE);
         key.setHintTextColor(Color.LTGRAY);
-        key.setHint("Cole a chave da Groq (opcional)");
+        key.setHint("Cole sua chave do OpenRouter");
         key.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);
         key.setImeOptions(android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING);
-        key.setContentDescription("ai_groq_key");
+        key.setContentDescription("ai_openrouter_key");
         root.addView(key);
-        groqSave=button("Salvar chave Groq","ai_save_groq_key",this::saveGroqKey);
-        button("Abrir minhas chaves Groq",null,()->open("https://console.groq.com/keys"));
-        button("Remover só a chave Groq","ai_remove_key",()-> {
+        routerSave=button("Salvar chave OpenRouter","ai_save_openrouter_key",this::saveOpenRouterKey);
+        label("Modelo OpenRouter para revisão e teste",16);
+        routerModelSelector=new Spinner(this);
+        String[] routerChoices={"Roteamento gratuito (openrouter/free)",
+            "Qwen3 32B gratuito (se disponível)"};
+        ArrayAdapter<String> routerAdapter=new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item,routerChoices);
+        routerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        routerModelSelector.setAdapter(routerAdapter);
+        routerModelSelector.setSelection(OpenRouterClient.QWEN.equals(
+            AiPreferences.openRouterModel(this))?1:0);
+        root.addView(routerModelSelector,new LinearLayout.LayoutParams(-1,dp(48)));
+        routerModelSave=button("Salvar modelo OpenRouter","ai_save_openrouter_model",
+            this::saveOpenRouterModel);
+        routerTest=button("Testar conexão OpenRouter","ai_test_openrouter",this::testOpenRouter);
+        button("Criar minha chave OpenRouter",null,
+            ()->open("https://openrouter.ai/settings/keys"));
+        button("Remover só a chave OpenRouter","ai_remove_openrouter_key",()-> {
             stopMeasurement();
-            SecretStore.remove(this);
+            SecretStore.removeOpenRouter(this);
             key.setText("");
-            keyState.setText("Chave Groq removida.");
+            keyState.setText("Chave OpenRouter removida.");
             ensureUsableMode();
-            status.setText("Chave Groq removida. A chave Gemini e o modelo offline foram mantidos.");
+            status.setText("OpenRouter removido. Chave Gemini, Groq inativo e GGUF preservados.");
         });
         label("Modelo offline",20);
         description=label(ModelStore.description(this),15);
@@ -193,7 +210,7 @@ public final class ModelSettingsActivity extends Activity {
     }
     private void ensureUsableMode() {
         if(AiPreferences.ONLINE.equals(AiPreferences.mode(this))&&
-            !SecretStore.hasGeminiKey(this)&&!SecretStore.hasKey(this)) {
+            !SecretStore.hasGeminiKey(this)&&!SecretStore.hasOpenRouterKey(this)) {
             AiPreferences.mode(this,AiPreferences.OFFLINE);
             for(int i=0;i<modes.getChildCount();i++) {
                 RadioButton r=(RadioButton)modes.getChildAt(i);
@@ -208,7 +225,7 @@ public final class ModelSettingsActivity extends Activity {
         String selected=(String)modes.findViewById(checked).getTag();
         if(AiPreferences.ONLINE.equals(selected)&&
             !SecretStore.hasGeminiKey(this)&&!SecretStore.hasKey(this)) {
-            status.setText("Cadastre e salve primeiro sua chave Gemini ou Groq.");
+            status.setText("Cadastre e salve sua chave Gemini ou OpenRouter.");
             return;
         }
         save.setEnabled(false);
@@ -231,7 +248,7 @@ public final class ModelSettingsActivity extends Activity {
             GeminiClient.BACKUP_MODEL:GeminiClient.MODEL;
         if(AiPreferences.geminiModel(this,model))
             geminiTestState.setText("Modelo selecionado: "+model+
-                ". Esse ajuste vale apenas para testes. A revisão sempre tenta 3.8, depois 3.6 e Groq.");
+                ". Esse ajuste vale apenas para testes. A revisão usa Gemini 3.6 e depois OpenRouter.");
         else geminiTestState.setText("Não foi possível salvar o modelo Gemini.");
     }
     private void testGemini() {
@@ -275,7 +292,7 @@ public final class ModelSettingsActivity extends Activity {
                 long elapsed=Math.max(1,(SystemClock.elapsedRealtime()-started)/1000);
                 message="Gemini FUNCIONOU: "+model+" respondeu em "+elapsed+
                     " s. A chave e a geração de texto estão funcionando. "+
-                    "Tempos: "+client.timing()+". Ordem automática 3.8 → 3.6 → Groq fixa. Sem Groq neste teste.";
+                    "Tempos: "+client.timing()+". Ordem automática: Gemini 3.6 → OpenRouter. Sem outras IAs neste teste.";
             }
             catch(Exception error) {
                 String reason=GeminiClient.diagnostic(error);
@@ -369,30 +386,78 @@ public final class ModelSettingsActivity extends Activity {
             });
         });
     }
-    private void saveGroqKey() {
+    private String chosenRouterModel() {
+        return routerModelSelector.getSelectedItemPosition()==1?
+            OpenRouterClient.QWEN:OpenRouterClient.FREE;
+    }
+    private void saveOpenRouterModel() {
+        if(busy||measuring)return;
+        status.setText(AiPreferences.openRouterModel(this,chosenRouterModel())?
+            "Modelo OpenRouter escolhido: "+chosenRouterModel():
+            "Não foi possível salvar o modelo OpenRouter.");
+    }
+    private void saveOpenRouterKey() {
         if(busy||measuring)return;
         String secret=key.getText().toString().trim();
         if(secret.isEmpty()) {
-            keyState.setText("Cole uma chave Groq para salvar.");
+            keyState.setText("Cole sua chave OpenRouter antes de salvar.");
             return;
         }
-        groqSave.setEnabled(false);
-        keyState.setText("Salvando chave Groq no aparelho…");
+        routerSave.setEnabled(false);
         worker.execute(()-> {
-            boolean stored=false;
+            boolean success=false;
             try {
-                SecretStore.save(this,secret);
-                stored=secret.equals(SecretStore.read(this));
-            } catch(Exception ignored){}
-            final boolean success=stored;
+                SecretStore.saveOpenRouter(this,secret);
+                success=secret.equals(SecretStore.readOpenRouter(this));
+            }catch(Exception ignored){}
+            final boolean stored=success;
             runOnUiThread(()-> {
                 if(isDestroyed())return;
-                if(success) {
-                    key.setText("");
-                    keyState.setText("Chave Groq salva e protegida no aparelho.");
-                    status.setText("Groq configurada como reserva online.");
-                } else keyState.setText("Não foi possível salvar a chave Groq. Confira a chave e tente novamente.");
-                groqSave.setEnabled(true);
+                key.setText("");
+                keyState.setText(stored?
+                    "Chave OpenRouter salva e protegida no aparelho.":
+                    "Não foi possível salvar a chave OpenRouter.");
+                if(stored)status.setText("OpenRouter pronto como reserva online. Groq desativado.");
+                routerSave.setEnabled(true);
+            });
+        });
+    }
+    private void testOpenRouter() {
+        if(busy||measuring||!routerTest.isEnabled())return;
+        if(!SecretStore.hasOpenRouterKey(this)) {
+            status.setText("Salve a chave OpenRouter antes de testar.");
+            return;
+        }
+        final String model=chosenRouterModel();
+        if(!AiPreferences.openRouterModel(this,model)) {
+            status.setText("Não foi possível salvar o modelo do teste.");
+            return;
+        }
+        routerTest.setEnabled(false);
+        routerModelSave.setEnabled(false);
+        routerModelSelector.setEnabled(false);
+        status.setText("Testando OpenRouter com frase fictícia…");
+        worker.execute(()-> {
+            String output;
+            try {
+                String secret=SecretStore.readOpenRouter(this);
+                InferenceResult response=new OpenRouterClient(secret,model,
+                    ()->Thread.currentThread().isInterrupted())
+                    .generate("Corrija apenas: Eu nao sei.",80,s->{});
+                output="OpenRouter respondeu: "+response.backend+
+                    ". Teste fictício concluído (sem Groq).";
+            }
+            catch(Exception e) {
+                output="OpenRouter não concluiu: "+OpenRouterClient.diagnostic(e)+
+                    ". Nenhuma chave ou texto pessoal foi exibido.";
+            }
+            final String info=output;
+            runOnUiThread(()-> {
+                if(isDestroyed())return;
+                status.setText(info);
+                routerTest.setEnabled(!busy&&!measuring);
+                routerModelSave.setEnabled(!busy&&!measuring);
+                routerModelSelector.setEnabled(!busy&&!measuring);
             });
         });
     }
@@ -411,7 +476,10 @@ public final class ModelSettingsActivity extends Activity {
         cancel.setEnabled(busy);
         save.setEnabled(!busy&&!measuring);
         geminiSave.setEnabled(!busy&&!measuring);
-        groqSave.setEnabled(!busy&&!measuring);
+        routerSave.setEnabled(!busy&&!measuring);
+        routerTest.setEnabled(!busy&&!measuring);
+        routerModelSave.setEnabled(!busy&&!measuring);
+        routerModelSelector.setEnabled(!busy&&!measuring);
         geminiTest.setEnabled(!busy&&!measuring);
         geminiProbe.setEnabled(!busy&&!measuring);
         geminiModelSave.setEnabled(!busy&&!measuring);
