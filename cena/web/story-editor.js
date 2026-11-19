@@ -1,7 +1,7 @@
 import {renderStory,parseStoryRating} from './story-layout.js';
 import {storyMetadata} from './story-metadata.js';
 import {availabilityRows,cinemaLabel} from './availability.js';
-import {loadStoryPoster,loadStoryBackdrop} from './story-artwork.js';
+import {loadStoryPoster,loadStoryBackdrop,loadCanvasImage} from './story-artwork.js';
 export function createStoryEditor({$,escape,storage,getItems,native,artworkResolver,persistArtwork,toast,wireStreaming}){
 return async function story(item) {
   const items=getItems();
@@ -14,11 +14,11 @@ return async function story(item) {
   let notes={};try{notes=JSON.parse(storage.getItem(notesKey)||'{}');}catch{}
   if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
   if(notes[noteId]){caption.value=String(notes[noteId].caption||'').slice(0,140);rating.value=String(notes[noteId].rating??'');if(notes[noteId].title)title.value=String(notes[noteId].title).slice(0,180);}
-  let availability=[];
+  let availability=[],providerIcon=null,iconKey='';
   let editedTitle=Boolean(notes[noteId]?.title);
   const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
-    renderStory(canvas,{image:image&&(backdrop||image),title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,availability:$('#story-include').checked?availability:[]});
+    renderStory(canvas,{image:image&&(backdrop||image),title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,providerIcon,availability:$('#story-include').checked?availability:[]});
     ratingError.hidden=validRating();
     if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
   };
@@ -30,6 +30,14 @@ return async function story(item) {
     const cinema=cinemaLabel(cinemaDate);
     availability=[...rows.slice(0,cinema?2:3).map(row=>row.label+' · '+row.names.slice(0,3).join(', ')),...(cinema?[cinema]:[])];
     providerNode.textContent=availability.length?'Disponibilidade no Brasil · TMDB e JustWatch':!configured?'Conecte o TMDB em Perfil para consultar serviços.':value?'Disponibilidade não confirmada nesta consulta.':'Consultando serviços no Brasil…';
+    const key=/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value?.logo||'')&&value?.name?value.logo:'';
+    if(key!==iconKey){
+      iconKey=key;providerIcon=null;
+      if(key)loadCanvasImage('https://image.tmdb.org/t/p/w92'+key).then(asset=>{
+        if(iconKey!==key||!canvas.isConnected)return;
+        providerIcon={name:String(value.name),image:asset};draw();
+      }).catch(()=>{});
+    }
     draw();
   };
   $('#story-include').onchange=draw;

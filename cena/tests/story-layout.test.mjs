@@ -17,18 +17,19 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'11');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'12');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
 test('story composes the official watermark and availability inside the export area',()=>{
  const text=[],images=[];
  const ctx={...context(),fillText:(label,x,y)=>text.push({label,x,y}),drawImage:(...args)=>images.push(args)};
  const canvas={dataset:{},getContext:()=>ctx};
- const mark={width:432,height:432},wordmark={width:265,height:45};
+ const mark={width:432,height:432},wordmark={width:265,height:45},provider={width:92,height:92};
  renderStory(canvas,{image:{width:500,height:750},brandMark:mark,brandWordmark:wordmark,
-   title:'Peaky Blinders: O Homem Imortal',caption:'Quero assistir 🍿',rating:'8. 1',
+   providerIcon:{name:'Netflix',image:provider},title:'Peaky Blinders: O Homem Imortal',caption:'Quero assistir 🍿',rating:'8. 1',
    availability:['Assinatura · Netflix, Netflix Standard with Ads','Aluguel · Outro serviço','Estreia prevista no cinema · 22/11/2026']});
  assert.ok(images.some(([asset,,,width])=>asset===mark&&width>600));
+ assert.ok(images.some(([asset,,,width])=>asset===provider&&width===44));
  assert.ok(text.some(({label})=>label==='Netflix'));
  assert.ok(text.some(({label})=>label.includes('Também no plano com anúncios')));
  assert.ok(text.some(({label})=>label==='22/11/2026'));
