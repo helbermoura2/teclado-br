@@ -256,3 +256,25 @@ nav .camera-nav svg { stroke: #261137; }
   #main[data-screen="home"] .section-heading button:active,
   #hero-scan:active { transform: scale(.97); }
 }
+
+.story-preview {
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border: 1px solid #483750;
+  border-radius: 14px;
+  background: #110e17;
+}
+.story-preview canvas { width: min(100%, 258px); margin: 0; }
+.story-templates, .story-export {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.story-templates button, .story-export button { min-height: 44px; }
+.story-export { margin-top: 12px; }
+.story-export .wide { margin: 0; }
+.story #story-include { accent-color: #c99af5; }
+#main[data-screen="scan"] .scan-controls button { border-radius: 12px; }
+#main[data-screen="scan"] .scan-controls button:focus-visible,
+.story button:focus-visible { outline: 2px solid #e6ccff; outline-offset: 2px; }
