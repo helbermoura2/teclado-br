@@ -70,7 +70,7 @@ return async function story(item) {
   };
   retry.onclick=prepare;
   without.onclick=async()=>{try{await brandAssets;status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();}catch(error){status.dataset.state='error';status.textContent=error.message;}};
-  Promise.all([document.fonts?.load('800 62px Manrope'),document.fonts?.load('400 33px Manrope')]).then(()=>{if(canvas.isConnected)draw();}).catch(()=>{});
+  Promise.all([document.fonts?.load('800 88px "Playfair Display"'),document.fonts?.load('800 62px Manrope'),document.fonts?.load('400 33px Manrope')]).then(()=>{if(canvas.isConnected)draw();}).catch(()=>{});
   prepare();
   $('#save-story').onclick = () => {
     if(save.disabled)return;

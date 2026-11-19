@@ -35,6 +35,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const {left,right,top}=storyLayout.safe;
   const width=right-left;
   const sans='Manrope, sans-serif';
+  const serif='"Playfair Display", Georgia, serif';
   const imageHeight=1080;
   const cached=backgrounds.get(canvas);
   if(cached&&cached.image===image&&typeof ctx.putImageData==='function'){
@@ -87,7 +88,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   }
   const titleWidth=width-24;
   const colon=title.indexOf(': ');
-  const heading=fitText(ctx,title,titleWidth,2,88,40,sans,800);
+  const heading=fitText(ctx,title,titleWidth,2,88,40,serif,800);
   const mainTitle=colon>0?title.slice(0,colon):'';
   const subtitle=colon>0?title.slice(colon+2):'';
   const subtitleSize=Math.round(heading.size*.79);
@@ -98,18 +99,29 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const titleLines=splitTitle?[...mainLines,...subLines]:heading.lines;
   let cursor=image?742:640;
   const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'].filter(Boolean).join(' · ');
-  ctx.font=`800 25px ${sans}`;ctx.fillStyle='#eed095';
-  ctx.fillText(details,left,cursor-38);
+  ctx.font=`800 25px ${sans}`;ctx.fillStyle='#e9dfe8';
+  ctx.fillText(details.toLocaleUpperCase('pt-BR'),left,cursor-38);
   const titleInk=ctx.createLinearGradient(0,cursor,0,cursor+95);
   titleInk.addColorStop(0,'#fff7e5');titleInk.addColorStop(1,'#c5a982');
   titleLines.forEach((line,i)=>{
     const subtitleLine=splitTitle&&i>=mainLines.length;
     const size=subtitleLine?subtitleSize:heading.size;
-    ctx.font=`${subtitleLine?650:800} ${size}px ${sans}`;
+    ctx.font=`${subtitleLine?650:800} ${size}px ${subtitleLine?sans:serif}`;
+    ctx.shadowColor='#140b19';ctx.shadowBlur=5;ctx.shadowOffsetY=2;
     ctx.fillStyle=subtitleLine?'#e5d4ba':titleInk;
     ctx.fillText(line,left,cursor);
     cursor+=size+8;
   });
+  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  if(subtitle){
+    const lettering=fitText(ctx,subtitle.toLocaleUpperCase('pt-BR'),width,1,76,35,serif,800);
+    const steel=ctx.createLinearGradient(0,cursor,0,cursor+lettering.size);
+    steel.addColorStop(0,'#d9c49c');steel.addColorStop(.36,'#a18a70');steel.addColorStop(.58,'#ddd0ab');steel.addColorStop(1,'#735b4d');
+    ctx.save();
+    ctx.globalAlpha=.7;ctx.shadowColor='#0c0712';ctx.shadowBlur=6;ctx.shadowOffsetY=3;
+    ctx.fillStyle=steel;ctx.fillText(lettering.lines[0],left,cursor+4);ctx.restore();
+    cursor+=lettering.size+10;
+  }
   const review=storyOpinion(caption,rating);
   cursor=Math.max(cursor+24,image?1060:855);
   if(!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase()&&cursor<1250){
@@ -121,12 +133,12 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const opinionX=hasScore&&review.opinion?left+225:left;
   const opinion=fitText(ctx,review.opinion,right-opinionX,3,36,27,sans,400);
   if(hasScore){
-    ctx.font=`800 48px ${sans}`;ctx.fillStyle='#eed095';
+    ctx.font=`800 48px ${sans}`;ctx.fillStyle='#f5edf8';
     ctx.fillText(`${String(review.score).replace('.',',')} / 10`,left,cursor);
     const stars='★★★★★',starsY=cursor+54;
     ctx.font=`700 31px ${sans}`;
     const starsWidth=ctx.measureText(stars).width;
-    ctx.fillStyle='#76657c';ctx.fillText(stars,left,starsY);
+    ctx.fillStyle='#ad94b8';ctx.fillText('☆☆☆☆☆',left,starsY);
     if(review.score>0){
       ctx.save();ctx.beginPath();
       ctx.roundRect(left,starsY,starsWidth*review.score/10,38,0);ctx.clip();
@@ -177,14 +189,21 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
       const lineHeight=compact?32:43;
       names.forEach((line,index)=>ctx.fillText(line,contentX,y+index*lineHeight));
       ctx.font=`500 ${compact?18:23}px ${sans}`;ctx.fillStyle='#d3bbdf';
-      const detail=[label,hasBoth?'Também no plano com anúncios':''].filter(Boolean).join(' · ');
-      if(detail)ctx.fillText(detail,contentX,y+names.length*lineHeight);
-      y+=Math.max(49,names.length*lineHeight+(detail?27:7));
+      const detail=label.toLocaleUpperCase('pt-BR');
+      const detailY=y+names.length*lineHeight;
+      if(detail)ctx.fillText(detail,contentX,detailY);
+      if(hasBoth){
+        const note='Também no plano com anúncios';
+        const noteX=compact?contentX+ctx.measureText(detail).width+20:contentX;
+        ctx.font=`italic 500 ${compact?18:21}px ${sans}`;
+        ctx.fillText(note,noteX,detailY+(compact?0:25));
+      }
+      y+=Math.max(49,names.length*lineHeight+(detail?27:7)+(hasBoth&&!compact?25:0));
 
     }
     ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
     ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+20,1608));
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='13';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='14';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }
