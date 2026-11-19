@@ -26,3 +26,13 @@ export async function loadStoryPoster(item,{bridge,resolveArtwork,loadImage=load
   for(const url of urls){try{return {image:await loadImage(url),sourceUrl:url};}catch{}}
   throw Error('Não consegui carregar a capa para o Story. Tente novamente.');
 }
+
+export async function loadStoryBackdrop(item,address,bridge){
+  const url=trustedArtwork(address);
+  if(!url)return null;
+  try{
+    const source=typeof bridge?.loadStoryArtwork==='function'
+      ? (await requestNative(bridge,item,[url])).image : url;
+    return await loadCanvasImage(source);
+  }catch{return null;}
+}

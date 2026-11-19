@@ -1,7 +1,7 @@
 import {renderStory,parseStoryRating} from './story-layout.js';
 import {storyMetadata} from './story-metadata.js';
 import {availabilityRows,cinemaLabel} from './availability.js';
-import {loadStoryPoster} from './story-artwork.js';
+import {loadStoryPoster,loadStoryBackdrop} from './story-artwork.js';
 export function createStoryEditor({$,escape,storage,getItems,native,artworkResolver,persistArtwork,toast,wireStreaming}){
 return async function story(item) {
   const items=getItems();
@@ -9,7 +9,7 @@ return async function story(item) {
   const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
   let brandMark=null,brandWordmark=null;
   const brandAssets=Promise.all(['brand-mark.png','brand-wordmark.svg'].map(src=>new Promise((resolve,reject)=>{const asset=new Image();asset.onload=()=>resolve(asset);asset.onerror=()=>reject(Error('Não consegui carregar a marca do CENA. Tente novamente.'));asset.src=src;}))).then(([mark,wordmark])=>{brandMark=mark;brandWordmark=wordmark;});
-  let image=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
+  let image=null,backdrop=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
   const notesKey='cena.story.notes.v1',noteId=`${item.type}:${item.id}`;
   let notes={};try{notes=JSON.parse(storage.getItem(notesKey)||'{}');}catch{}
   if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
@@ -18,7 +18,7 @@ return async function story(item) {
   let editedTitle=Boolean(notes[noteId]?.title);
   const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
-    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,availability:$('#story-include').checked?availability:[]});
+    renderStory(canvas,{image:image&&(backdrop||image),title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,availability:$('#story-include').checked?availability:[]});
     ratingError.hidden=validRating();
     if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
   };
@@ -34,7 +34,13 @@ return async function story(item) {
   };
   $('#story-include').onchange=draw;
   wireStreaming();
-  storyMetadata(item).then(value=>{if(!canvas.isConnected)return;metadata=value;if(!editedTitle)title.value=value.title;draw();}).catch(()=>{});
+  storyMetadata(item).then(async value=>{
+    if(!canvas.isConnected)return;
+    metadata=value;if(!editedTitle)title.value=value.title;draw();
+    if(!value.backdrop)return;
+    backdrop=await loadStoryBackdrop(item,value.backdrop,window.CenaAndroid);
+    if(backdrop&&canvas.isConnected&&image)draw();
+  }).catch(()=>{});
   draw();
   const status=$('#story-status'),share=$('#share-story'),save=$('#save-story'),retry=$('#retry-story'),without=$('#story-without-poster');
   const enable=()=>{ready=true;draw();};

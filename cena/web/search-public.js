@@ -46,7 +46,7 @@ function cinemetaItem(meta) {
   if (!/^tt\d{5,12}$/.test(meta?.imdb_id || meta?.id || '') || !['movie','series'].includes(meta.type) || !meta.name) return null;
   return { id: meta.imdb_id || meta.id, type: meta.type, name: meta.name, originalName: meta.name,
     year: String(meta.releaseInfo || meta.year || '').slice(0,4), description: meta.description || '',
-    poster: /^https:\/\//.test(meta.poster || '') ? meta.poster : '', genre: (meta.genres || []).join(' · '),
+    poster: /^https:\/\//.test(meta.poster || '') ? meta.poster : '', backdrop: meta.background || '', genre: (meta.genres || []).join(' · '),
     genres: meta.genres || [], cast: meta.cast || [], directors: Array.isArray(meta.director) ? meta.director : meta.director ? [meta.director] : [],
     runtime: meta.runtime || '', rating: meta.imdbRating || '', imdbRating:meta.imdbRating??null, imdbRatingAt:Date.now(), source: 'Cinemeta', sourceUrl: `https://www.imdb.com/title/${meta.imdb_id || meta.id}/` };
 }
@@ -127,7 +127,7 @@ export async function getTitleDetails(item, fetcher = fetch) {
   const responseMeta = replies[0].status === 'fulfilled' ? cinemetaItem(replies[0].value.meta) : null;
   const meta=responseMeta?.id===item.id&&responseMeta.type===item.type?responseMeta:null;
   const page = replies[1]?.status === 'fulfilled' ? Object.values(replies[1].value.query?.pages || {}).find(page => page.extract) : null;
-  const result = { ...item, ...((!item.name || /^tt\d+$/.test(item.name)) && meta?.id===item.id && meta.type===item.type ? {name:meta.name} : {}), year:item.year || (meta?.id===item.id ? meta.year : '') || '', poster: item.poster || (meta?.id===item.id ? meta.poster : '') || '', ...(meta ? {runtime:meta.runtime,rating:meta.rating,imdbRating:meta.imdbRating,imdbRatingAt:meta.imdbRatingAt,cast:meta.cast,directors:meta.directors,genres:meta.genres,genre:meta.genre || item.genre} : {}),
+  const result = { ...item, ...((!item.name || /^tt\d+$/.test(item.name)) && meta?.id===item.id && meta.type===item.type ? {name:meta.name} : {}), year:item.year || (meta?.id===item.id ? meta.year : '') || '', poster: item.poster || (meta?.id===item.id ? meta.poster : '') || '', ...(meta ? {backdrop:item.backdrop || meta.backdrop,runtime:meta.runtime,rating:meta.rating,imdbRating:meta.imdbRating,imdbRatingAt:meta.imdbRatingAt,cast:meta.cast,directors:meta.directors,genres:meta.genres,genre:meta.genre || item.genre} : {}),
     plot: meta?.id===item.id&&meta.type===item.type ? meta.description : item.plot||'',
     description: page?.extract || meta?.description || item.description || '',
     detailsAvailable: Boolean(meta || page), detailError: replies.every(reply => reply.status === 'rejected') ? 'Não consegui carregar mais informações. Confira a conexão e tente novamente.' : '' };
