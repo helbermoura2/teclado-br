@@ -42,7 +42,7 @@ class StoryArtworkTest {
             until(scenario,"document.querySelector('#story-status')?.dataset.state==='ready'",45)
             assertEquals("true",evaluate(scenario,"document.querySelector('#story-canvas').dataset.posterLoaded==='true' && !document.querySelector('#share-story').disabled"))
             evaluate(scenario,"document.querySelector('#story-rating').value='8,53';document.querySelector('#story-rating').dispatchEvent(new Event('input'));document.querySelector('#story-caption').value='Um filme inesquecível.';document.querySelector('#story-caption').dispatchEvent(new Event('input'));document.querySelector('#story-title').value='O Pianista';document.querySelector('#story-title').dispatchEvent(new Event('input'));true")
-            assertEquals("true",evaluate(scenario,"document.querySelector('#story-canvas').dataset.storyRating==='8.53' && document.querySelector('#story-canvas').dataset.storyTitle==='O Pianista' && document.querySelector('#story-canvas').dataset.layoutVersion==='2'"))
+            assertEquals("true",evaluate(scenario,"document.querySelector('#story-canvas').dataset.storyRating==='8.53' && document.querySelector('#story-canvas').dataset.storyTitle==='O Pianista' && document.querySelector('#story-canvas').dataset.layoutVersion==='3'"))
             val encoded=JSONArray("["+evaluate(scenario,"document.querySelector('#story-canvas').toDataURL('image/png')")+"]").getString(0).substringAfter(',')
             val bytes=Base64.decode(encoded,Base64.DEFAULT);val bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.size)
             assertEquals(1080,bitmap.width);assertEquals(1920,bitmap.height)

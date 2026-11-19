@@ -2,16 +2,32 @@ package app.cena
 
 import android.app.Activity
 import org.json.JSONObject
+import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
 internal object StreamingPolicy {
     fun posterPath(value:String)=value.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.(jpg|png)"))}.orEmpty()
+    fun nextBrazilianCinemaDate(data:JSONObject,today:java.time.LocalDate):String {
+        val countries=data.optJSONArray("results")?:return ""
+        val brazil=(0 until countries.length()).mapNotNull{countries.optJSONObject(it)}.firstOrNull{it.optString("iso_3166_1")=="BR"}
+        val releases=brazil?.optJSONArray("release_dates")?:return ""
+        return (0 until releases.length()).mapNotNull{releases.optJSONObject(it)}.filter{it.optInt("type") in 2..3}
+            .mapNotNull{runCatching{java.time.LocalDate.parse(it.optString("release_date").take(10))}.getOrNull()}
+            .filter{it>=today}.minOrNull()?.toString().orEmpty()
+    }
     fun select(data:JSONObject?):JSONObject {
         val platforms=listOf("flatrate","free","ads").mapNotNull{data?.optJSONArray(it)}.firstOrNull{it.length()>0}
         val first=platforms?.optJSONObject(0);val logo=first?.optString("logo_path").orEmpty()
-        return JSONObject().put("name",first?.optString("provider_name").orEmpty()).put("logo",logo.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.png"))}.orEmpty())
+        val groups=JSONObject()
+        for(mode in listOf("flatrate","free","ads","rent","buy")){
+            val options=data?.optJSONArray(mode)?:continue
+            val names=(0 until options.length()).mapNotNull{i->options.optJSONObject(i)?.optString("provider_name")?.trim()?.take(60)?.takeIf{it.isNotEmpty()}}.distinct().take(12)
+            if(names.isNotEmpty())groups.put(mode,JSONArray(names))
+        }
+        return JSONObject().put("name",first?.optString("provider_name").orEmpty())
+            .put("logo",logo.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.png"))}.orEmpty()).put("groups",groups)
     }
 }
 
@@ -43,6 +59,22 @@ class StreamingProviders(private val activity:Activity,private val notify:(JSONO
                 val response=StreamingPolicy.select(data).put("kind","provider").put("id",id).put("type",type).put("poster",StreamingPolicy.posterPath(match?.optString("poster_path").orEmpty()))
                 cache[cacheKey]=System.currentTimeMillis() to response;emit(response)
             }catch(_:Exception){emit(JSONObject().put("kind","provider").put("id",id).put("type",type).put("error",true))}
+        }
+    }
+    fun findCinema(id:String){
+        if(!id.matches(Regex("tt\\d{5,12}")))return
+        executor.execute{
+            val apiKey=key()
+            if(apiKey.isBlank())return@execute
+            val result=JSONObject().put("kind","cinema").put("id",id).put("type","movie")
+            try{
+                val tmdb=get("find/$id?external_source=imdb_id",apiKey).optJSONArray("movie_results")?.optJSONObject(0)?.optLong("id")?:0
+                require(tmdb>0)
+                val today=java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo"))
+                val date=StreamingPolicy.nextBrazilianCinemaDate(get("movie/$tmdb/release_dates",apiKey),today)
+                result.put("date",date)
+            }catch(_:Exception){result.put("error",true)}
+            emit(result)
         }
     }
     fun close(){executor.shutdownNow()}

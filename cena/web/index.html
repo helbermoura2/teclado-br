@@ -14,10 +14,10 @@
     <main id="main"></main>
     <nav aria-label="Navegação principal">
       <button data-tab="home" class="active"><span>⌂</span>Início</button>
-      <button data-tab="library"><span>▦</span>Catálogo</button>
-      <button data-tab="scan" class="camera-nav" aria-label="Fotografar capa"><span>▣</span></button>
+      <button data-tab="library"><span aria-hidden="true">▦</span>Minha lista</button>
+      <button data-tab="scan" class="camera-nav" aria-label="Fotografar capa"><span aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="3"/></svg></span><small>Capturar</small></button>
       <button data-tab="discover" aria-label="Descobrir filmes e séries"><span>✧</span>Descobrir</button>
-      <button data-tab="connect"><span>⇄</span>Conectar</button>
+      <button data-tab="profile" aria-label="Estatísticas"><span aria-hidden="true">▥</span>Estatísticas</button>
     </nav>
   </div>
   <dialog id="detail"><button class="close" aria-label="Fechar">×</button><div id="detail-content"></div></dialog>

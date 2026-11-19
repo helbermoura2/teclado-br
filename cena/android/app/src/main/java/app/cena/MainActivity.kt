@@ -290,6 +290,7 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun streamingStatus(){streaming.status()}
         @JavascriptInterface fun configureStreaming(key:String){streaming.configure(key)}
         @JavascriptInterface fun findStreaming(id:String,type:String){streaming.find(id,type)}
+        @JavascriptInterface fun findCinema(id:String){streaming.findCinema(id)}
         @JavascriptInterface fun visionModelState(){emitVisualModel()}
         @JavascriptInterface fun downloadVisualModel(){if(!visualDownloadQueued.compareAndSet(false,true))return;emitVisualModel();try{visionExecutor.execute{try{if(!isDestroyed)VisualModelStore.download(applicationContext){emitVisualModel()}}finally{visualDownloadQueued.set(false);emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){visualDownloadQueued.set(false)}}
         @JavascriptInterface fun cancelVisualModel(){VisualModelStore.cancel()}
@@ -305,6 +306,18 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun pickBackup()=runOnUiThread{if(!isDestroyed)openBackupFile.launch(arrayOf("application/json","text/plain","application/octet-stream"))}
         @JavascriptInterface fun historyState(){historyTask()}
         @JavascriptInterface fun importHistory(){WatchHistoryWorker.schedule(applicationContext,true);historyTask()}
+        @JavascriptInterface fun historyPeriod(requestId:String,period:String){
+            if(!requestId.matches(Regex("[0-9]{1,12}")))return
+            val validDate=period.matches(Regex("[0-9]{4}(-[0-9]{2}){0,2}"))&&runCatching{
+                val date=when(period.length){4->"$period-01-01";7->"$period-01";else->period}
+                java.time.LocalDate.parse(date).year in 1..9999
+            }.getOrDefault(false)
+            if(period !in setOf("today","month","year","all")&&!validDate)return
+            historyTask{
+                val value=history.moviePeriod(period).put("requestId",requestId)
+                runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryPeriod && window.CenaHistoryPeriod($value)",null)}
+            }
+        }
         @JavascriptInterface fun historyRows(requestId:String,year:String,kind:String,page:Int,mediaId:String){
             if(!requestId.matches(Regex("[0-9]{1,12}"))||year.length>12||mediaId.length>20)return
             historyTask{val value=history.page(year,kind,page,mediaId).put("requestId",requestId);runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryRows && window.CenaHistoryRows($value)",null)}}

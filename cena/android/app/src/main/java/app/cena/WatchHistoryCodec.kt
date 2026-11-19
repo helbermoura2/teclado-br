@@ -3,6 +3,7 @@ package app.cena
 import org.json.JSONObject
 import org.json.JSONArray
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 
 object WatchHistoryCodec {
@@ -22,6 +23,39 @@ object WatchHistoryCodec {
   return JSONObject().put("eventId",eventId).put("source","Trakt").put("kind",kind).put("type",if(kind=="movie")"movie" else "series").put("id",id).put("mediaKey",key).put("episodeKey",episodeKey)
    .put("name",title.optString("title","Título sem nome").take(300)).put("year",title.opt("year")?:"").put("episodeTitle",episode?.optString("title").orEmpty().take(300)).put("season",season).put("episode",number)
    .put("watchedAt",if(ms!=null)instant.toString() else "").put("watchedMs",ms?:JSONObject.NULL).put("datePrecision",if(ms!=null)"exact" else "unknown").put("runtimeMinutes",minutes).put("action",row.optString("action").take(40))
+ }
+ fun moviePeriod(rows:List<JSONObject>,period:String,zone:ZoneId=ZoneId.systemDefault(),today:LocalDate=LocalDate.now(zone)):JSONObject {
+  val start=when(period){
+   "all"->null
+   "today"->today
+   "month"->today.withDayOfMonth(1)
+   "year"->today.withDayOfYear(1)
+   else->LocalDate.parse(when(period.length){4->"$period-01-01";7->"$period-01";else->period})
+  }
+  val end=when{period=="month"||period.length==7->start?.plusMonths(1);period=="year"||period.matches(Regex("[0-9]{4}"))->start?.plusYears(1);else->start?.plusDays(1)}
+  val movies=rows.asSequence().filter{it.optString("kind")=="movie"}.map{row->
+   val date=if(row.optString("datePrecision")=="exact"&&!row.isNull("watchedMs"))
+    Instant.ofEpochMilli(row.optLong("watchedMs")).atZone(zone).toLocalDate() else null
+   row to date
+  }.filter{(_,date)->start==null||(date!=null&&date>=start&&date<requireNotNull(end))}.toList()
+  val dates=movies.mapNotNull{it.second}.toSet()
+  var streak=0;var longestStreak=0;var previous:LocalDate?=null
+  for(date in dates.sorted()){
+   streak=if(previous?.plusDays(1)==date)streak+1 else 1
+   longestStreak=maxOf(longestStreak,streak);previous=date
+  }
+  val weekdays=movies.mapNotNull{it.second?.dayOfWeek?.value}.groupingBy{it}.eachCount()
+  val topWeekday=weekdays.entries.sortedWith(compareByDescending<Map.Entry<Int,Int>>{it.value}.thenBy{it.key}).firstOrNull()
+  val known=movies.map{it.first}.filter{val key=it.optString("mediaKey");key.isNotBlank()&&!key.contains(":unknown:")}.groupBy{it.optString("mediaKey")}
+  val rewatched=known.values.filter{it.size>1}.sortedByDescending{it.size}.take(5).map{
+   JSONObject().put("name",it.first().optString("name","Filme sem nome")).put("plays",it.size)
+  }
+  return JSONObject().put("movies",known.size).put("moviePlays",movies.size)
+   .put("movieMinutes",movies.sumOf{it.first.optInt("runtimeMinutes").coerceAtLeast(0).toLong()})
+   .put("timedMovies",movies.count{it.first.optInt("runtimeMinutes")>0}).put("activeDays",dates.size)
+   .put("firstMovieDate",dates.minOrNull()?.toString().orEmpty()).put("unknownMovieDates",movies.count{it.second==null})
+   .put("longestStreak",longestStreak).put("topWeekday",topWeekday?.key?:0).put("topWeekdayPlays",topWeekday?.value?:0)
+   .put("rewatched",JSONArray(rewatched))
  }
  fun summary(rows:List<JSONObject>,zone:ZoneId=ZoneId.systemDefault()):JSONObject {
   fun stats(events:List<JSONObject>):JSONObject {

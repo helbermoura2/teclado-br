@@ -41,7 +41,7 @@ class AssetsUpgradeTest {
             assertTrue(evaluate(scenario, "location.pathname").contains("/cena-0.23.0/"))
             assertTrue(evaluate(scenario, "document.querySelector('#app-version').textContent").contains("0.23.0"))
             assertTrue(evaluate(scenario, "typeof window.CenaStremioResult").contains("function"))
-            evaluate(scenario, "document.querySelector('nav [data-tab=connect]').click(); true")
+            evaluate(scenario, "document.querySelector('#profile-shortcut').click(); document.querySelector('#profile-connections').click(); true")
             assertTrue(evaluate(scenario, "document.querySelector('#stremio-connect') !== null").contains("true"))
             evaluate(scenario, "document.querySelector('nav [data-tab=scan]').click(); true")
             assertTrue(evaluate(scenario, "document.querySelector('#pick-image') !== null").contains("true"))
@@ -49,7 +49,7 @@ class AssetsUpgradeTest {
             assertTrue(evaluate(scenario, "document.querySelector('main h1').textContent").contains("Capturar"))
             scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
             val backDeadline=android.os.SystemClock.uptimeMillis()+5000
-            while (!evaluate(scenario, "document.querySelector('nav [data-tab=connect]').classList.contains('active')").contains("true")) {
+            while (!evaluate(scenario, "document.querySelector('#update-panel') !== null").contains("true")) {
                 assertTrue(android.os.SystemClock.uptimeMillis()<backDeadline)
                 Thread.sleep(100)
             }

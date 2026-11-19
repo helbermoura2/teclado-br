@@ -66,3 +66,64 @@ nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}nav button{
 .brand .brand-triangle{width:46px;height:46px}@media(max-width:360px){.brand .brand-triangle{width:42px;height:42px}}
 
 .brand .brand-wordmark{display:block;width:119px;height:31px;object-fit:contain}.brand{gap:0}.brand-group{gap:5px}@media(max-width:360px){.brand .brand-wordmark{width:102px;height:27px}}
+
+/* Cinema-first navigation and editorial surfaces */
+:root{--bg:#0b0910;--panel:#181421;--line:#ffffff26;--cena-violet:#c394ff;--cena-mist:#cebedb}
+body,.app{background:var(--bg)}
+header{border-bottom:1px solid #ffffff14}
+.brand .brand-triangle{transform-origin:center}
+main h1{font-size:clamp(28px,5.4vw,45px);letter-spacing:-.045em;line-height:1.08}
+main p.muted, .poster-card small{color:var(--cena-mist)}
+.capture-hero{position:relative;isolation:isolate;margin:8px 0 22px;padding:clamp(20px,5vw,34px);border:1px solid #c394ff49;border-radius:24px;background:radial-gradient(ellipse at 94% 12%,#7446a75c,transparent 65%),#20162e}
+.capture-hero h1{max-width:21ch;margin:0;color:#f8f1ff}
+.capture-hero p{color:#dfcdec;margin:10px 0 18px}
+.capture-hero button{min-height:46px}
+.capture-hero button span{margin-left:10px}
+nav{background:#191522f7;backdrop-filter:none}
+nav button{font-size:10px;min-height:53px;line-height:1.2;white-space:normal}
+nav button.active{color:#e0c7ff}
+nav button.active:not(.camera-nav)>span{border-radius:9px;background:#a469ed35}
+nav .camera-nav{height:auto;width:100%;border:0;border-radius:0;background:none;box-shadow:none;display:grid;justify-items:center;align-content:center;gap:3px;padding:0;color:#f5e6ff}
+nav .camera-nav>span{display:grid;place-items:center;width:37px;height:33px;background:#7a3ed4;border-radius:11px}
+nav .camera-nav.active>span{background:#a05aed}
+nav .camera-nav svg{width:19px;fill:none;stroke:#fff;stroke-width:1.7;stroke-linejoin:round}
+nav .camera-nav small{font-size:10px}
+#main[data-screen=scan] .scan-controls{margin-top:18px}
+#main[data-screen=scan] .scan-frame{min-height:0;max-height:40vh}
+#main[data-screen=scan] .scan-frame img{max-height:38vh;object-fit:contain}
+.scan-help,.library-filter-panel{margin:16px 0;padding:12px 14px;border:1px solid var(--line);border-radius:12px;color:var(--cena-mist)}
+.scan-help summary,.library-filter-panel summary{cursor:pointer}
+#scan-query{min-height:52px}
+#detail-providers{margin-top:15px;padding:13px 15px;border:1px solid #c394ff2c;border-radius:13px;background:#a473fb0e}
+#detail-providers h3,#detail-providers p{margin:0 0 6px}
+#detail-providers h3{font-size:15px}
+#detail-providers small{color:var(--cena-mist)}
+.connection-jumps,.period-controls,.story-templates{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}
+.connection-jumps a{padding:10px 13px;text-decoration:none;border-radius:12px;background:#a473fb17;color:#e0c7ff;border:1px solid var(--line)}
+#main[data-screen=connect] .panel{backdrop-filter:none;background:#181421;scroll-margin-top:75px}
+.period-controls button{min-height:43px;padding-inline:12px}
+.period-controls [aria-pressed=true]{background:#7a3ed4;color:#fff}
+.period-date{display:flex;align-items:center;gap:9px;color:var(--cena-mist);font-size:13px}
+.period-date input{min-width:0;max-width:155px;color:inherit;background:#191420;border:1px solid var(--line);border-radius:9px;padding:9px}
+.period-grid strong{font-variant-numeric:tabular-nums}
+.rewatch-list{padding-left:22px;color:var(--cena-mist)}
+.rewatch-list strong{margin-left:8px;color:var(--cena-violet)}
+.story :is(#story-include){width:auto;accent-color:#a05aed}
+.story-templates .selected{border-color:#c394ff}
+:focus-visible{outline:2px solid #dab7ff;outline-offset:3px}
+@media(prefers-reduced-motion:no-preference){
+ .brand .brand-triangle{animation:cena-mark-in 580ms cubic-bezier(.2,.8,.2,1) both}
+ .brand .brand-wordmark{animation:cena-name-in 480ms 120ms cubic-bezier(.2,.8,.2,1) both}
+ dialog[open] #detail-content{animation:cena-panel-in 220ms cubic-bezier(.2,.8,.2,1) both}
+ .capture-hero button,nav .camera-nav>span,.chip{transition:transform 120ms ease,background-color 150ms ease}
+ .capture-hero button:active,nav .camera-nav:active>span,.chip:active{transform:scale(.96)}
+}
+@keyframes cena-mark-in{from{opacity:.35;transform:scale(.9)}60%{filter:drop-shadow(0 0 10px #b073edaa)}to{opacity:1;transform:none}}
+@keyframes cena-name-in{from{opacity:0;clip-path:inset(0 75% 0 0);transform:translateX(-4px)}to{opacity:1;clip-path:inset(0);transform:none}}
+@keyframes cena-panel-in{from{opacity:.68;transform:translateY(9px)}to{opacity:1;transform:none}}
+.period-custom{margin:12px 0;color:var(--cena-mist)}
+.period-custom summary{cursor:pointer;padding-block:7px}
+.period-custom .period-date{justify-content:space-between;margin-block:8px}
+#main[data-screen=discover] .poster-rail .poster-art{aspect-ratio:2/3}
+#main[data-screen=discover] .poster-rail .poster-card strong{min-height:2.5em;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+#main[data-screen=discover] .poster-rail .recommendation-reason{display:none}

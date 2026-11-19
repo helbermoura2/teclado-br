@@ -36,6 +36,11 @@ class WatchHistoryRepository(context:Context,private val source:WatchHistorySour
    .put("importing",running.get()||meta.optBoolean("pending")).put("page",meta.optInt("nextPage",1)-1).put("pages",meta.optInt("pages")).put("processed",meta.optInt("processed")).put("expected",meta.optLong("expected",-1)).put("coverage",meta.optString("coverage","unverified"))
    .put("error",meta.optString("error",preferences.getString("error","").orEmpty())).put("invalid",meta.optInt("invalid"))
  }
+ fun moviePeriod(period:String):JSONObject {
+  val owner=ownerForView()
+  val rows=if(owner.isBlank())emptyList()else store.rows(owner)
+  return WatchHistoryCodec.moviePeriod(rows,period).put("scope",if(owner.isBlank())""else scope(owner))
+ }
  fun page(year:String,kind:String,page:Int,mediaId:String=""):JSONObject {val owner=ownerForView();require(page in 1..100000);return (if(owner.isBlank())JSONObject().put("rows",JSONArray()).put("total",0).put("page",page).put("hasMore",false)else store.page(owner,year,kind,page,mediaId)).put("scope",if(owner.isBlank())""else scope(owner))}
  fun importBatch(force:Boolean=false):HistoryPass {
   if(!running.compareAndSet(false,true))return HistoryPass.COMPLETE

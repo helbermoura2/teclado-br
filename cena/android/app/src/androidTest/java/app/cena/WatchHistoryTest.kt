@@ -26,6 +26,21 @@ class WatchHistoryTest {
   val boundary=WatchHistoryCodec.parse(raw("1","2025-01-01T01:00:00Z"))!!;val epoch=WatchHistoryCodec.parse(raw("2","1970-01-01T00:00:00Z"))!!;val ep=WatchHistoryCodec.parse(raw("3","2024-02-01T00:00:00Z",false))!!
   val stats=WatchHistoryCodec.summary(listOf(boundary,epoch,ep),ZoneId.of("America/Sao_Paulo"));assertEquals(0,stats.getJSONObject("totals").getInt("unknownDates"));assertEquals(1,stats.getJSONObject("totals").getInt("series"));assertEquals(1,stats.getJSONObject("totals").getInt("episodes"));assertEquals(2024,stats.getJSONArray("years").getJSONObject(0).getInt("year"));assertEquals(1969,stats.getJSONArray("years").getJSONObject(1).getInt("year"))
  }
+ @Test fun filmPeriodsUseViewingDateAndKeepUnknownDatesOutOfTheCalendar(){
+  val rows=listOf(raw("1","2026-06-01T01:00:00Z"),raw("2","2026-06-01T12:00:00Z"),raw("3","invalid"),raw("4","2026-06-01T12:00:00Z",false)).mapNotNull(WatchHistoryCodec::parse)
+  val zone=ZoneId.of("America/Sao_Paulo")
+  val today=java.time.LocalDate.parse("2026-06-01")
+  val day=WatchHistoryCodec.moviePeriod(rows,"today",zone,today)
+  assertEquals(119,day.getInt("movieMinutes"))
+  assertEquals(1,day.getInt("moviePlays"))
+  assertEquals(1,WatchHistoryCodec.moviePeriod(rows,"2026-05",zone,today).getInt("moviePlays"))
+  assertEquals(2,WatchHistoryCodec.moviePeriod(rows,"2026",zone,today).getInt("moviePlays"))
+  val total=WatchHistoryCodec.moviePeriod(rows,"all",zone,today)
+  assertEquals(3,total.getInt("moviePlays"))
+  assertEquals(1,total.getInt("movies"))
+  assertEquals(1,total.getInt("unknownMovieDates"))
+  assertEquals(2,total.getInt("longestStreak"))
+ }
  @Test fun allPagesCommitAtomicallyResumeAndNeverDuplicateOrLoseRevisits(){
   context.deleteDatabase("cena-watch-history.db");val source=Fake();source.pages.add(JSONArray().put(raw("1","2023-01-01T12:00:00Z")));source.pages.add(JSONArray().put(raw("2")))
   WatchHistoryRepository(context,source,{source.now}).use{repo->
