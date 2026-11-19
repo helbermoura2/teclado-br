@@ -63,6 +63,7 @@ return async function story(item) {
   };
   retry.onclick=prepare;
   without.onclick=async()=>{try{await brandAssets;status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();}catch(error){status.dataset.state='error';status.textContent=error.message;}};
+  document.fonts?.load('600 68px "Playfair Display"').then(()=>{if(canvas.isConnected)draw();}).catch(()=>{});
   prepare();
   $('#save-story').onclick = () => {
     if(save.disabled)return;

@@ -125,8 +125,6 @@ nav .camera-nav small{font-size:10px}
 #main[data-screen=discover] .poster-rail .recommendation-reason{display:none}
 
 /* Keep account setup visible alongside search and capture. */
-.header-tools .connections-shortcut{padding:7px 9px;min-height:36px;border-radius:10px;border:1px solid #c394ff55;background:#a473fb20;color:#f0dfff;font-size:11px;font-weight:700}
-.header-tools .connections-shortcut:active{background:#a473fb40}
 .hero-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .connections-heading p{color:var(--cena-mist);margin-top:8px}
 .connection-jumps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:17px 0 20px}
@@ -134,7 +132,7 @@ nav .camera-nav small{font-size:10px}
 .connection-jumps button:hover,.connection-jumps button:focus-visible{background:#a473fb34}
 .connection-jumps :is(strong,small){display:block}
 .connection-jumps small{margin-top:4px;color:var(--cena-mist);font-size:11px}
-@media(max-width:400px){.header-tools{gap:3px}.header-tools .icon-button{min-width:30px;width:32px;height:34px}.header-tools .connections-shortcut{padding-inline:6px}.brand .brand-wordmark{width:101px}.brand .brand-triangle{width:38px;height:38px}.brand-group{gap:2px}}
+@media(max-width:400px){.header-tools{gap:3px}.header-tools .icon-button{min-width:30px;width:32px;height:34px}.brand .brand-wordmark{width:101px}.brand .brand-triangle{width:38px;height:38px}.brand-group{gap:2px}}
 @media(max-width:340px){header{padding-inline:10px}.brand .brand-wordmark{width:87px}.brand .brand-triangle{width:30px;height:32px}.version-tag{font-size:8px;padding-inline:2px}}
 @media(prefers-reduced-motion:no-preference){
  .brand.brand-intro .brand-triangle{animation:cena-brand-light 1150ms 230ms cubic-bezier(.2,.85,.2,1) both}

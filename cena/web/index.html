@@ -5,12 +5,12 @@
   <meta name="theme-color" content="#101017"><meta name="description" content="CENA: fotografe uma capa e organize sua próxima sessão.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://upload.wikimedia.org https://images.metahub.space https://m.media-amazon.com; connect-src 'self' http: https:; object-src 'none'; base-uri 'none'; frame-src 'none'">
   <title>CENA · Seu próximo play</title>
-  <link rel="icon" href="icon.svg"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="icon.svg"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="editorial.css">
   <script type="module" src="app.js"></script>
 </head>
 <body>
   <div class="app">
-    <header><div class="brand-group"><a class="brand" href="#home" aria-label="CENA IA, início"><span class="brand-triangle" aria-hidden="true"><img src="brand-mark.png" alt=""></span><img class="brand-wordmark" src="brand-wordmark.svg" alt=""></a><span class="version-tag" id="app-version">v0.24.1</span></div><div class="header-tools"><button id="connections-shortcut" class="connections-shortcut" type="button">Conexões</button><button class="icon-button" id="profile-shortcut" aria-label="Meu perfil e histórico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></button><button class="icon-button" id="search-shortcut" aria-label="Buscar títulos">⌕</button></div></header>
+    <header><div class="brand-group"><a class="brand" href="#home" aria-label="CENA IA, início"><span class="brand-triangle" aria-hidden="true"><img src="brand-mark.png" alt=""></span><img class="brand-wordmark" src="brand-wordmark.svg" alt=""></a><span class="version-tag" id="app-version">v0.25.0</span></div><div class="header-tools"><button class="icon-button" id="profile-shortcut" aria-label="Perfil e configurações"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg><span>Perfil</span></button><button class="icon-button" id="search-shortcut" aria-label="Buscar títulos">⌕</button></div></header>
     <main id="main"></main>
     <nav aria-label="Navegação principal">
       <button data-tab="home" class="active"><span>⌂</span>Início</button>

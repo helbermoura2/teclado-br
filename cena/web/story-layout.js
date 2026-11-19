@@ -49,7 +49,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   if(image){ctx.save();ctx.beginPath();ctx.roundRect(p.x,p.y,p.width,p.height,20);ctx.clip();cover(ctx,image,p.x,p.y,p.width,p.height);ctx.restore();}
   const center=540;
   ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle='#f7f0ff';
-  const heading=fitText(ctx,title,880,2,guide?76:68,39,guide?'sans-serif-condensed, sans-serif':'Georgia, serif');
+  const heading=fitText(ctx,title,880,2,guide?76:68,39,guide?'sans-serif-condensed, sans-serif':"\"Playfair Display\", Georgia, serif");
   const titleTop=p.y+p.height+40;
   heading.lines.forEach((line,i)=>ctx.fillText(line,center,titleTop+i*(heading.size+8)));
   let cursor=titleTop+heading.lines.length*(heading.size+8)+14;
@@ -62,7 +62,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.font='25px sans-serif';ctx.fillText(wrapStoryText(ctx,originalTitle,830,1)[0]||'',center,cursor);cursor+=36;
   }
   const sources=availability.slice(0,3);
-  const opinion=fitText(ctx,review.opinion,850,sources.length?2:3,38,29,'Georgia, serif');
+  const opinion=fitText(ctx,review.opinion,850,sources.length?2:3,38,29,"\"Playfair Display\", Georgia, serif");
   ctx.fillStyle='#fff';const opinionTop=cursor+5;
   opinion.lines.forEach((line,i)=>ctx.fillText(line,center,opinionTop+i*(opinion.size+9)));
   const opinionBottom=opinionTop+opinion.lines.length*(opinion.size+9);
