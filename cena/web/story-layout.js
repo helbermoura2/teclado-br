@@ -30,7 +30,7 @@ export function wrapStoryText(ctx,text,width,maxLines){
   return lines;
 }
 function fitText(ctx,text,width,maxLines,start,min,font="sans-serif",weight=600){let size=start,lines;for(;size>=min;size-=2){ctx.font=`${weight} ${size}px ${font}`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`${weight} ${size}px ${font}`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
-export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcon=null}={}){
+export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcon=null,mist=null}={}){
   const ctx=canvas.getContext('2d');canvas.width=1080;canvas.height=1920;
   const {left,right,top}=storyLayout.safe;
   const width=right-left;
@@ -38,7 +38,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const serif='"Playfair Display", Georgia, serif';
   const imageHeight=1080;
   const cached=backgrounds.get(canvas);
-  if(cached&&cached.image===image&&typeof ctx.putImageData==='function'){
+  if(cached&&cached.image===image&&cached.mist===mist&&typeof ctx.putImageData==='function'){
     ctx.putImageData(cached.pixels,0,0);
   }else{
     const base=ctx.createLinearGradient(0,0,1080,1920);
@@ -47,10 +47,10 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     if(image){
       ctx.save();
       ctx.beginPath();ctx.roundRect(0,0,1080,imageHeight,0);ctx.clip();
-      const scale=Math.max(1080/image.width,imageHeight/image.height);
+      const scale=Math.max(1080/image.width,imageHeight/image.height)*(image.width>image.height?1.23:1);
       const w=image.width*scale,h=image.height*scale;
       ctx.filter='contrast(1.1) saturate(.90) sepia(.12)';
-      ctx.drawImage(image,(1080-w)/2,(imageHeight-h)*.02,w,h);
+      ctx.drawImage(image,(1080-w)*.46,(imageHeight-h)*.045,w,h);
       ctx.restore();
     }
     const shade=ctx.createLinearGradient(0,0,0,imageHeight);
@@ -59,20 +59,21 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     shade.addColorStop(.72,'#18131fbd');
     shade.addColorStop(1,'#18131f');
     ctx.fillStyle=shade;ctx.fillRect(0,0,1080,imageHeight);
+    if(mist)ctx.drawImage(mist,0,0,1080,1920);
     if(typeof ctx.createRadialGradient==='function'){
       for(const [x,y,r,color] of [[100,1320,490,'#8b64ae55'],[940,1580,500,'#61338d68'],[430,1850,420,'#7d509d50']]){
         const mist=ctx.createRadialGradient(x,y,0,x,y,r);
         mist.addColorStop(0,color);mist.addColorStop(1,'#45256100');
         ctx.fillStyle=mist;ctx.fillRect(x-r,y-r,r*2,r*2);
       }
-      for(let i=1;i<=85;i++){
-        const x=(i*197.37)%1080,y=1470+(i*139.17)%450;
+      for(let i=1;i<=115;i++){
+        const x=(i*197.37)%1080,y=1440+(i*139.17)%480;
         const size=1+i%5;
         ctx.fillStyle=i%3===0?'#ba87d855':'#9a59cb49';
         ctx.fillRect(x,y,size,size);
       }
     }
-    if(typeof ctx.getImageData==='function')backgrounds.set(canvas,{image,pixels:ctx.getImageData(0,0,1080,1920)});
+    if(typeof ctx.getImageData==='function')backgrounds.set(canvas,{image,mist,pixels:ctx.getImageData(0,0,1080,1920)});
   }
   if(brandMark){
     ctx.save();ctx.globalAlpha=.15;
@@ -88,7 +89,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   }
   const titleWidth=width-24;
   const colon=title.indexOf(': ');
-  const heading=fitText(ctx,title,titleWidth,2,88,40,serif,800);
+  const heading=fitText(ctx,title,titleWidth,2,88,40,sans,800);
   const mainTitle=colon>0?title.slice(0,colon):'';
   const subtitle=colon>0?title.slice(colon+2):'';
   const subtitleSize=Math.round(heading.size*.79);
@@ -106,20 +107,24 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   titleLines.forEach((line,i)=>{
     const subtitleLine=splitTitle&&i>=mainLines.length;
     const size=subtitleLine?subtitleSize:heading.size;
-    ctx.font=`${subtitleLine?650:800} ${size}px ${subtitleLine?sans:serif}`;
+    ctx.font=`${subtitleLine?650:800} ${size}px ${sans}`;
     ctx.shadowColor='#140b19';ctx.shadowBlur=5;ctx.shadowOffsetY=2;
+    ctx.strokeStyle='#624e3a';ctx.lineWidth=2;
+    ctx.strokeText?.(line,left,cursor);
     ctx.fillStyle=subtitleLine?'#e5d4ba':titleInk;
     ctx.fillText(line,left,cursor);
     cursor+=size+8;
   });
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;
   if(subtitle){
-    const lettering=fitText(ctx,subtitle.toLocaleUpperCase('pt-BR'),width,1,76,35,serif,800);
+    const lettering=fitText(ctx,subtitle.toLocaleUpperCase('pt-BR'),width*1.34,1,96,35,serif,800);
     const steel=ctx.createLinearGradient(0,cursor,0,cursor+lettering.size);
     steel.addColorStop(0,'#d9c49c');steel.addColorStop(.36,'#a18a70');steel.addColorStop(.58,'#ddd0ab');steel.addColorStop(1,'#735b4d');
     ctx.save();
     ctx.globalAlpha=.7;ctx.shadowColor='#0c0712';ctx.shadowBlur=6;ctx.shadowOffsetY=3;
-    ctx.fillStyle=steel;ctx.fillText(lettering.lines[0],left,cursor+4);ctx.restore();
+    ctx.strokeStyle='#d1b788';ctx.lineWidth=2;
+    ctx.strokeText?.(lettering.lines[0],left,cursor+4,width);
+    ctx.fillStyle=steel;ctx.fillText(lettering.lines[0],left,cursor+4,width);ctx.restore();
     cursor+=lettering.size+10;
   }
   const review=storyOpinion(caption,rating);
@@ -204,6 +209,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
     ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+20,1608));
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='14';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='15';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }
