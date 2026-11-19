@@ -111,3 +111,11 @@ test('static application modules and API traffic have independent rate limits',a
  assert.equal((await app.request('/nuvio-panel.js')).status,200);
  assert.equal((await app.request('/api/unknown.js')).status,429);
 });
+
+// Every local ES module referenced by app.js must resolve in browser previews.
+test('cinematic Story module and background are served by the preview server', async t => {
+ const app=await fixture(t);
+ assert.equal((await app.request('/availability.js')).status,200);
+ assert.equal((await app.request('/story-editor.js')).status,200);
+ assert.equal((await app.request('/story-mist.png')).status,200);
+});
