@@ -181,47 +181,56 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
       else if(ads>=0)providers[ads]='Netflix com anúncios';
       return {label,providers,hasBoth};
     });
-    const tileWidth=152;
-    const panelWidth=Math.max(406,Math.max(...rows.map(row=>row.providers.length))*tileWidth+28);
-    const panelX=left-18;
-    const panelHeight=48+rows.reduce((sum,row)=>sum+(row.label==='Cinema'?58:116+(row.hasBoth?20:0)),0)+10;
-    const ruleY=Math.max(opinionBottom+22,Math.min(image?1332:1190,1732-panelHeight));
-    const panel=ctx.createLinearGradient(panelX,ruleY,panelX+panelWidth,ruleY+panelHeight);
-    panel.addColorStop(0,'#3b3647ed');panel.addColorStop(1,'#30243cdb');
-    ctx.fillStyle=panel;ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,20);ctx.fill();
-    ctx.strokeStyle='#d9c1e77a';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#f2e6fc';ctx.font=`750 23px ${sans}`;
-    ctx.fillText('▶  ONDE ASSISTIR NO BRASIL',left,ruleY+11);
-    let y=ruleY+47;
-    for(const [index,{label,providers,hasBoth}] of rows.entries()){
-      if(index){ctx.fillStyle='#c8b9d333';ctx.fillRect(left,y-3,panelWidth-36,1);}
-      ctx.font=`750 17px ${sans}`;ctx.fillStyle='#d9c4ed';
-      ctx.fillText(label.toLocaleUpperCase('pt-BR'),left,y+3);
+    const multiple=rows.some(row=>row.providers.length>1);
+    const panelX=left-12,panelWidth=multiple?598:510;
+    const rowHeight=row=>row.label==='Cinema'?54:28+Math.ceil(row.providers.length/2)*61+(row.hasBoth?24:0);
+    const panelHeight=56+rows.reduce((sum,row)=>sum+rowHeight(row),0);
+    const ruleY=Math.max(opinionBottom+28,Math.min(image?1350:1210,1735-panelHeight));
+    ctx.save();ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,27);ctx.clip();
+    ctx.filter='blur(15px)';
+    ctx.drawImage(canvas,0,0);
+    ctx.restore();
+    const glass=ctx.createLinearGradient(panelX,ruleY,panelX+panelWidth,ruleY+panelHeight);
+    glass.addColorStop(0,'#4b424dba');glass.addColorStop(.50,'#24202bdc');glass.addColorStop(1,'#30223bbd');
+    ctx.fillStyle=glass;ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,27);ctx.fill();
+    const edge=ctx.createLinearGradient(0,ruleY,0,ruleY+panelHeight);
+    edge.addColorStop(0,'#e1d8dc82');edge.addColorStop(1,'#bb9fc22e');
+    ctx.strokeStyle=edge;ctx.lineWidth=1.4;ctx.stroke();
+    const inset=left+12;
+    ctx.fillStyle='#f0d8ad';ctx.beginPath();
+    ctx.moveTo(inset,ruleY+21);ctx.lineTo(inset+13,ruleY+28);ctx.lineTo(inset,ruleY+35);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#f0e7f1';ctx.font=`800 20px ${sans}`;
+    ctx.fillText('ONDE ASSISTIR NO BRASIL',inset+25,ruleY+16);
+    let y=ruleY+48;
+    for(const [index,row] of rows.entries()){
+      const {label,providers,hasBoth}=row;
+      if(index){ctx.fillStyle='#e0cde621';ctx.fillRect(inset,y-4,panelWidth-48,1);}
+      ctx.font=`750 15px ${sans}`;ctx.fillStyle='#cfb9d6';
+      ctx.fillText(label.toLocaleUpperCase('pt-BR'),inset,y+6);
       if(label==='Cinema'){
         ctx.font=`700 23px ${sans}`;ctx.fillStyle='#fff';
-        ctx.fillText('Assisti no cinema',left,y+25);
-        y+=58;continue;
-      }
-      providers.forEach((name,i)=>{
-        const center=left+tileWidth*(i+.5);
-        const image=providerIcons.get(name)||(/^Netflix com anúncios$/i.test(name)?providerIcons.get('Netflix'):null);
-        ctx.save();ctx.beginPath();ctx.roundRect(center-22,y+27,44,44,9);ctx.clip();
-        if(image)ctx.drawImage(image,center-22,y+27,44,44);
-        else{
-          ctx.fillStyle='#594268';ctx.fillRect(center-22,y+27,44,44);
-          ctx.textAlign='center';ctx.font=`800 22px ${sans}`;ctx.fillStyle='#fff';
-          ctx.fillText(name.slice(0,1).toLocaleUpperCase('pt-BR'),center,y+34);
+        ctx.fillText('Assisti no cinema',inset,y+25);
+      }else{
+        const cellWidth=providers.length>1?(panelWidth-48)/2:panelWidth-48;
+        providers.forEach((name,i)=>{
+          const x=inset+(i%2)*cellWidth,tileY=y+26+Math.floor(i/2)*61;
+          const icon=providerIcons.get(name)||(/^Netflix com anúncios$/i.test(name)?providerIcons.get('Netflix'):null);
+          if(icon){
+            ctx.save();ctx.beginPath();ctx.roundRect(x,tileY+2,44,44,9);ctx.clip();
+            ctx.drawImage(icon,x,tileY+2,44,44);ctx.restore();
+          }
+          const nameX=x+(icon?56:0);
+          const heading=fitText(ctx,name,cellWidth-(icon?65:12),2,27,20,sans,700);
+          ctx.fillStyle='#f9f2fa';
+          const nameY=tileY+(heading.lines.length===1?10:0);
+          heading.lines.forEach((line,lineIndex)=>ctx.fillText(line,nameX,nameY+lineIndex*25));
+        });
+        if(hasBoth){
+          ctx.font=`italic 500 17px ${sans}`;ctx.fillStyle='#d5c4d9';
+          ctx.fillText('Também no plano com anúncios',inset,y+rowHeight(row)-24);
         }
-        ctx.restore();ctx.textAlign='center';
-        const title=fitText(ctx,name,tileWidth-10,2,21,17,sans,700);
-        ctx.fillStyle='#fff';title.lines.forEach((line,lineIndex)=>ctx.fillText(line,center,y+74+lineIndex*20));
-        ctx.textAlign='left';
-      });
-      if(hasBoth){
-        ctx.font=`italic 500 17px ${sans}`;ctx.fillStyle='#d3bbdf';
-        ctx.fillText('Também no plano com anúncios',left,y+112);
       }
-      y+=116+(hasBoth?20:0);
+      y+=rowHeight(row);
     }
     if(rows.some(row=>row.label!=='Cinema')){
       ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
@@ -238,6 +247,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='21';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='22';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }
