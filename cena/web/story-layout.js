@@ -1,6 +1,14 @@
 // All coordinates are export pixels. Keep important content inside Instagram's UI margins.
 const backgrounds=new WeakMap();
 export const storyLayout={width:1080,height:1920,safe:{top:220,bottom:1660,left:100,right:980}};
+export const defaultStoryLogoPosition={x:100,y:220};
+export function constrainStoryLogo(position){
+  const {x,y}=position||{};
+  return {
+    x:Number.isFinite(x)?Math.round(Math.min(495,Math.max(32,x))):defaultStoryLogoPosition.x,
+    y:Number.isFinite(y)?Math.round(Math.min(1580,Math.max(75,y))):defaultStoryLogoPosition.y,
+  };
+}
 export function parseStoryRating(value){
   const raw=String(value??'').trim().replace(/\s*([.,])\s*/g,'$1');
   if(!/^\d{1,2}([.,]\d{1,2})?$/.test(raw))return null;
@@ -30,9 +38,9 @@ export function wrapStoryText(ctx,text,width,maxLines){
   return lines;
 }
 function fitText(ctx,text,width,maxLines,start,min,font="sans-serif",weight=600){let size=start,lines;for(;size>=min;size-=2){ctx.font=`${weight} ${size}px ${font}`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`${weight} ${size}px ${font}`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
-export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcon=null,mist=null}={}){
+export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcon=null,mist=null,logoPosition}={}){
   const ctx=canvas.getContext('2d');canvas.width=1080;canvas.height=1920;
-  const {left,right,top}=storyLayout.safe;
+  const {left,right}=storyLayout.safe;
   const width=right-left;
   const sans='Manrope, sans-serif';
   const serif='"Playfair Display", Georgia, serif';
@@ -80,13 +88,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   }
   if(mist)ctx.drawImage(mist,0,0,1080,1920);
   ctx.textAlign='left';ctx.textBaseline='top';
-  if(brandMark&&brandWordmark){
-    ctx.drawImage(brandMark,left-11,top-3,100,100);
-    ctx.drawImage(brandWordmark,left+101,top+18,392,66);
-  }else{
-    ctx.fillStyle='#eee9f6';ctx.font=`800 42px ${sans}`;
-    ctx.fillText('CENA IA',left,top+20);
-  }
   const titleWidth=width-24;
   const colon=title.indexOf(': ');
   const heading=fitText(ctx,title,titleWidth,2,88,40,sans,800);
@@ -98,7 +99,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const subLines=wrapStoryText(ctx,subtitle,titleWidth,10);
   const splitTitle=mainTitle&&subtitle&&mainLines.length+subLines.length<=2;
   const titleLines=splitTitle?[...mainLines,...subLines]:heading.lines;
-  let cursor=image?742:640;
+  let cursor=image?803:701;
   const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'].filter(Boolean).join(' · ');
   ctx.font=`800 25px ${sans}`;ctx.fillStyle='#e9dfe8';
   ctx.fillText(details.toLocaleUpperCase('pt-BR'),left,cursor-38);
@@ -128,7 +129,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     cursor+=lettering.size+10;
   }
   const review=storyOpinion(caption,rating);
-  cursor=Math.max(cursor+24,image?1060:855);
+  cursor=Math.max(cursor+24,image?1120:915);
   if(!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase()&&cursor<1250){
     ctx.font=`500 24px ${sans}`;ctx.fillStyle='#d6c8ea';
     ctx.fillText(wrapStoryText(ctx,originalTitle,width,1)[0]||'',left,cursor);cursor+=34;
@@ -158,7 +159,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   opinion.lines.forEach((line,i)=>ctx.fillText(line,opinionX,cursor+i*(opinion.size+10)));
   const opinionBottom=cursor+Math.max(hasScore?89:0,opinion.lines.length*(opinion.size+10));
   if(sources.length){
-    const ruleY=Math.max(opinionBottom+28,image?1290:1150);
+    const ruleY=Math.max(opinionBottom+28,image?1350:1210);
     ctx.textAlign='left';
     const compact=sources.length>1;
     const contentX=left+61;
@@ -220,8 +221,18 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
 
     }
     ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
-    ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+20,1608));
+    ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+20,1668));
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='16';
+  const logo=constrainStoryLogo(logoPosition);
+  ctx.textAlign='left';ctx.textBaseline='top';
+  if(brandMark&&brandWordmark){
+    ctx.drawImage(brandMark,logo.x-11,logo.y-3,100,100);
+    ctx.drawImage(brandWordmark,logo.x+101,logo.y+18,392,66);
+  }else{
+    ctx.fillStyle='#eee9f6';ctx.font=`800 42px ${sans}`;
+    ctx.fillText('CENA IA',logo.x,logo.y+20);
+  }
+  canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='17';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }

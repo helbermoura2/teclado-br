@@ -18,7 +18,7 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'16');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'17');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
 test('story composes the official watermark and availability inside the export area',()=>{
@@ -36,7 +36,7 @@ test('story composes the official watermark and availability inside the export a
  assert.ok(text.some(({label})=>label==='22/11/2026'));
  assert.ok(text.some(({label})=>label==='8,1 / 10'));
  assert.ok(text.map(({label})=>label).join(' ').includes('O Homem Imortal'));
- assert.ok(text.every(({y})=>y>=storyLayout.safe.top&&y<storyLayout.safe.bottom));
+ assert.ok(text.every(({label,y})=>y>=storyLayout.safe.top&&y<(label==='TMDB / JustWatch'?1720:storyLayout.safe.bottom)));
 });
 test('localized title comes from an exact IMDb and type match, keeping the original name and release year',async()=>{
  const item={id:'tt0405094',type:'movie',name:'The Lives of Others',originalName:'The Lives of Others'};

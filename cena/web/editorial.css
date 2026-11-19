@@ -405,3 +405,6 @@ nav .camera-nav svg { stroke: #261137; }
   .scan-sweep { animation: scan-sweep 2.6s ease-in-out infinite alternate; }
 }
 @keyframes scan-sweep { to { transform: translateY(59px); opacity: .3; } }
+
+.story-logo-moving { touch-action: none; cursor: move; }
+#story-logo-controls input[type=range] { display: block; width: 100%; padding: 0; accent-color: #b995d5; }
