@@ -266,12 +266,12 @@ nav .camera-nav svg { stroke: #261137; }
   background: #110e17;
 }
 .story-preview canvas { width: min(100%, 258px); margin: 0; }
-.story-templates, .story-export {
+.story-export {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
-.story-templates button, .story-export button { min-height: 44px; }
+.story-export button { min-height: 44px; }
 .story-export { margin-top: 12px; }
 .story-export .wide { margin: 0; }
 .story #story-include { accent-color: #c99af5; }

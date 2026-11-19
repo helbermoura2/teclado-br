@@ -5,7 +5,7 @@ import {loadStoryPoster} from './story-artwork.js';
 export function createStoryEditor({$,escape,storage,getItems,native,artworkResolver,persistArtwork,toast,wireStreaming}){
 return async function story(item) {
   const items=getItems();
-  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><div class="story-templates" role="group" aria-label="Modelo do Story"><button class="chip selected" data-template="editorial" aria-pressed="true">Cartaz editorial</button><button class="chip" data-template="guide" aria-pressed="false">Guia de sessão</button></div><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><div class="story-preview"><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas></div><p id="story-availability" data-stream-key="${escape(item.type+':'+item.id)}" class="muted" role="status"></p><label for="story-include"><input id="story-include" type="checkbox" checked> Incluir onde assistir</label><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Ex.: 8,1 ou 8.1" maxlength="12"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><div class="story-export"><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button></div><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
+  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><div class="story-preview"><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas></div><p id="story-availability" data-stream-key="${escape(item.type+':'+item.id)}" class="muted" role="status"></p><label for="story-include"><input id="story-include" type="checkbox" checked> Incluir onde assistir</label><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Ex.: 8,1 ou 8.1" maxlength="12"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="140">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><div class="story-export"><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button></div><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
   const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
   let brandMark=null,brandWordmark=null;
   const brandAssets=Promise.all(['brand-mark.png','brand-wordmark.svg'].map(src=>new Promise((resolve,reject)=>{const asset=new Image();asset.onload=()=>resolve(asset);asset.onerror=()=>reject(Error('Não consegui carregar a marca do CENA. Tente novamente.'));asset.src=src;}))).then(([mark,wordmark])=>{brandMark=mark;brandWordmark=wordmark;});
@@ -14,11 +14,11 @@ return async function story(item) {
   let notes={};try{notes=JSON.parse(storage.getItem(notesKey)||'{}');}catch{}
   if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
   if(notes[noteId]){caption.value=String(notes[noteId].caption||'').slice(0,140);rating.value=String(notes[noteId].rating??'');if(notes[noteId].title)title.value=String(notes[noteId].title).slice(0,180);}
-  let template='editorial',availability=[];
+  let availability=[];
   let editedTitle=Boolean(notes[noteId]?.title);
   const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
-    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,template,availability:$('#story-include').checked?availability:[]});
+    renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,availability:$('#story-include').checked?availability:[]});
     ratingError.hidden=validRating();
     if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
   };
@@ -33,21 +33,6 @@ return async function story(item) {
     draw();
   };
   $('#story-include').onchange=draw;
-  canvas.closest('.story').querySelectorAll('[data-template]').forEach(button=>button.onclick=()=>{
-    template=button.dataset.template;
-    for(const option of canvas.closest('.story').querySelectorAll('[data-template]')){
-      const selected=option===button;option.setAttribute('aria-pressed',String(selected));option.classList.toggle('selected',selected);
-    }
-    draw();
-    if(window.matchMedia('(prefers-reduced-motion: no-preference)').matches){
-      canvas.getAnimations().forEach(animation=>animation.cancel());
-      canvas.animate([
-        {clipPath:'inset(0 0 88% 0)',opacity:.72},
-        {clipPath:'inset(0 0 46% 0)',opacity:.94,offset:.55},
-        {clipPath:'inset(0 0 0 0)',opacity:1},
-      ],{duration:320,easing:'cubic-bezier(.2,.65,.3,1)'});
-    }
-  });
   wireStreaming();
   storyMetadata(item).then(value=>{if(!canvas.isConnected)return;metadata=value;if(!editedTitle)title.value=value.title;draw();}).catch(()=>{});
   draw();
