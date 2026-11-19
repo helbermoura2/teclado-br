@@ -9,7 +9,7 @@ test('personal scores including zero and decimal commas are separated from a tra
  assert.deepEqual(storyOpinion('Minha opinião','0'),{opinion:'Minha opinião',score:0});
  assert.equal(storyOpinion('11/10').score,null);assert.equal(storyOpinion('18/10').score,null);
  assert.equal(storyOpinion('Muito bom, 8/10','9').score,9);
- assert.equal(parseStoryRating('8.53'),8.53);assert.equal(parseStoryRating('8,53'),8.53);assert.equal(parseStoryRating('10.00'),10);
+ assert.equal(parseStoryRating('8.53'),8.53);assert.equal(parseStoryRating('8. 1'),8.1);assert.equal(parseStoryRating('8 , 1'),8.1);assert.equal(parseStoryRating('8 1'),null);assert.equal(parseStoryRating('8,53'),8.53);assert.equal(parseStoryRating('10.00'),10);
  assert.deepEqual(storyOpinion('Muito bom, 8.53/10'),{opinion:'Muito bom',score:8.53});
  for(const invalid of ['10.01','8.531','-1','abc','8e0'])assert.equal(parseStoryRating(invalid),null);
 
@@ -17,7 +17,7 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'5');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'6');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
 test('story composes the official watermark and availability inside the export area',()=>{
@@ -26,11 +26,13 @@ test('story composes the official watermark and availability inside the export a
  const canvas={dataset:{},getContext:()=>ctx};
  const mark={width:432,height:432},wordmark={width:265,height:45};
  renderStory(canvas,{image:{width:500,height:750},brandMark:mark,brandWordmark:wordmark,
-   title:'Peaky Blinders: O Homem Imortal',caption:'Quero assistir 🍿',
+   title:'Peaky Blinders: O Homem Imortal',caption:'Quero assistir 🍿',rating:'8. 1',
    availability:['Assinatura · Netflix, Netflix Standard with Ads','Aluguel · Outro serviço','Estreia prevista no cinema · 22/11/2026']});
  assert.ok(images.some(([asset,,,width])=>asset===mark&&width>600));
  assert.ok(text.some(({label})=>label==='Netflix, Netflix com anúncios'));
  assert.ok(text.some(({label})=>label==='22/11/2026'));
+ assert.ok(text.some(({label})=>label==='8,1 / 10'));
+ assert.ok(text.some(({label})=>label==='O Homem Imortal'));
  assert.ok(text.every(({y})=>y>=storyLayout.safe.top&&y<storyLayout.safe.bottom));
 });
 test('localized title comes from an exact IMDb and type match, keeping the original name and release year',async()=>{

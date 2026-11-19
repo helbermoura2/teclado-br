@@ -2,7 +2,7 @@
 const backgrounds=new WeakMap();
 export const storyLayout={width:1080,height:1920,poster:{x:100,y:320,width:464,height:696},safe:{top:220,bottom:1660,left:100,right:980}};
 export function parseStoryRating(value){
-  const raw=String(value??'').trim();
+  const raw=String(value??'').trim().replace(/\s*([.,])\s*/g,'$1');
   if(!/^\d{1,2}([.,]\d{1,2})?$/.test(raw))return null;
   const score=Number(raw.replace(',','.'));return Number.isFinite(score)&&score>=0&&score<=10?score:null;
 }
@@ -73,46 +73,73 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const anchor=guide?center:left;
   ctx.textAlign=guide?'center':'left';ctx.textBaseline='top';
   ctx.fillStyle='#f7f0ff';
-  const heading=fitText(ctx,title,width,2,guide?73:68,39,serif);
-  const titleTop=image?p.y+p.height+34:guide?690:840;
-  heading.lines.forEach((line,i)=>ctx.fillText(line,anchor,titleTop+i*(heading.size+7)));
-  let cursor=titleTop+heading.lines.length*(heading.size+7)+8;
-  ctx.font='600 26px sans-serif';ctx.fillStyle='#d6c8ea';
-  const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'];
+  const titleTop=image?p.y+p.height+32:guide?690:840;
+  const colon=title.indexOf(': ');
+  const heading=fitText(ctx,title,width,2,guide?69:64,39,serif);
+  const mainTitle=colon>0?title.slice(0,colon):'';
+  const subtitle=colon>0?title.slice(colon+2):'';
+  const splitTitle=mainTitle&&subtitle
+    &&ctx.measureText(mainTitle).width<=width&&ctx.measureText(subtitle).width<=width;
+  const titleLines=splitTitle?[mainTitle,subtitle]:heading.lines;
+  titleLines.forEach((line,i)=>{
+    const subtitleLine=splitTitle&&i===1;
+    ctx.font=`600 ${subtitleLine?Math.round(heading.size*.79):heading.size}px ${serif}`;
+    ctx.fillStyle=subtitleLine?'#e7d8ed':'#f7f0ff';
+    ctx.fillText(line,anchor,titleTop+i*(heading.size+5));
+  });
+  let cursor=titleTop+(titleLines.length-1)*(heading.size+5)+(splitTitle?Math.round(heading.size*.79):heading.size)+18;
+  ctx.font='600 24px sans-serif';ctx.fillStyle='#d6c8ea';
+  const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'].filter(Boolean).join(' · ');
   const review=storyOpinion(caption,rating);
-  if(review.score!==null)details.push(`${String(review.score).replace('.',',')} / 10`);
-  ctx.fillText(details.filter(Boolean).join(' · '),anchor,cursor);cursor+=37;
+  ctx.fillText(details,anchor,cursor);
+  if(review.score!==null){
+    const score=`${String(review.score).replace('.',',')} / 10`;
+    if(!guide){
+      ctx.textAlign='right';
+      ctx.font='700 27px sans-serif';ctx.fillStyle='#ead3ff';
+      ctx.fillText(score,right,cursor-2);
+      ctx.textAlign='left';
+    }else{
+      ctx.font='700 25px sans-serif';ctx.fillStyle='#ead3ff';
+      ctx.fillText(score,anchor,cursor+31);cursor+=31;
+    }
+  }
+  cursor+=37;
   if(!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase()&&cursor<1250){
-    ctx.font='24px sans-serif';ctx.fillText(wrapStoryText(ctx,originalTitle,width,1)[0]||'',anchor,cursor);cursor+=34;
+    ctx.font='24px sans-serif';ctx.fillStyle='#d6c8ea';
+    ctx.fillText(wrapStoryText(ctx,originalTitle,width,1)[0]||'',anchor,cursor);cursor+=34;
   }
   const sources=availability.slice(0,3);
-  const opinion=fitText(ctx,review.opinion,width,sources.length?2:3,33,27,serif);
-  ctx.fillStyle='#f6eafc';const opinionTop=cursor+5;
-  opinion.lines.forEach((line,i)=>ctx.fillText(line,anchor,opinionTop+i*(opinion.size+8)));
-  const opinionBottom=opinionTop+opinion.lines.length*(opinion.size+8);
+  const opinion=fitText(ctx,review.opinion,width,3,31,26);
+  ctx.font=`400 ${opinion.size}px sans-serif`;
+  ctx.fillStyle='#f6edf9';const opinionTop=cursor+11;
+  opinion.lines.forEach((line,i)=>ctx.fillText(line,anchor,opinionTop+i*(opinion.size+9)));
+  const opinionBottom=opinionTop+opinion.lines.length*(opinion.size+9);
   if(sources.length){
-    const ruleY=opinionBottom+24;
+    const ruleY=opinionBottom+25;
     ctx.textAlign='left';
     ctx.fillStyle='#ab91c2';ctx.fillRect(left,ruleY,width,1);
     ctx.fillStyle='#ddc9ed';ctx.font='700 19px sans-serif';
-    ctx.fillText('ONDE ASSISTIR NO BRASIL',left,ruleY+15);
-    let y=ruleY+47;
+    ctx.fillText('ONDE ASSISTIR NO BRASIL',left,ruleY+16);
+    let y=ruleY+48;
     for(const row of sources){
       const separator=row.indexOf(' · ');
       const label=separator<0?'':row.slice(0,separator);
       const names=separator<0?row:row.slice(separator+3)
         .replace(/(^|, )Netflix Standard with Ads(?=, |$)/gi,'$1Netflix com anúncios');
-      ctx.font='600 19px sans-serif';ctx.fillStyle='#d3bbdf';
-      if(label)ctx.fillText(label,left,y+5);
-      ctx.font='600 27px sans-serif';ctx.fillStyle='#fff';
-      const namesX=left+(label?255:0);
-      const lines=wrapStoryText(ctx,names,right-namesX,sources.length===1?2:1);
-      lines.forEach((line,index)=>ctx.fillText(line,namesX,y+index*30));
-      y+=Math.max(34,lines.length*30+7);
+      ctx.font='600 21px sans-serif';
+      const labelText=label?`${label} · `:'';
+      const indent=ctx.measureText(labelText).width+5;
+      ctx.fillStyle='#d3bbdf';
+      if(label)ctx.fillText(labelText,left,y+3);
+      ctx.font='600 25px sans-serif';ctx.fillStyle='#fff';
+      const lines=wrapStoryText(ctx,names,width-indent,sources.length===1?2:1);
+      lines.forEach((line,index)=>ctx.fillText(line,left+indent,y+index*29));
+      y+=Math.max(35,lines.length*29+7);
     }
-    ctx.font='500 17px sans-serif';ctx.fillStyle='#c9b6d8';
-    ctx.fillText('TMDB / JustWatch',left,y+4);
+    ctx.font='500 18px sans-serif';ctx.fillStyle='#c9b6d8';
+    ctx.fillText('TMDB / JustWatch',left,y+6);
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='5';canvas.dataset.storyTemplate=template;
-  return {titleLines:heading.lines,opinionLines:opinion.lines,opinionBottom,score:review.score};
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='6';canvas.dataset.storyTemplate=template;
+  return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }
