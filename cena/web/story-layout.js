@@ -83,10 +83,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     }
     if(typeof ctx.getImageData==='function')backgrounds.set(canvas,{image,pixels:ctx.getImageData(0,0,1080,1920)});
   }
-  if(brandMark){
-    ctx.save();ctx.globalAlpha=.29;
-    ctx.drawImage(brandMark,600,caption.length>110?1225:1110,560,560);ctx.restore();
-  }
   if(mist)ctx.drawImage(mist,0,0,1080,1920);
   ctx.textAlign='left';ctx.textBaseline='top';
   const titleWidth=width-24;
@@ -159,6 +155,21 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   ctx.fillStyle='#f6edf9';
   opinion.lines.forEach((line,i)=>ctx.fillText(line,opinionX,cursor+i*(opinion.size+10)));
   const opinionBottom=cursor+Math.max(hasScore?89:0,opinion.lines.length*(opinion.size+10));
+  if(brandMark){
+    const markY=Math.max(1230,opinionBottom+28);
+    const markSize=Math.min(560,1880-markY);
+    if(markSize>0){
+      const markX=1160-markSize;
+      ctx.save();
+      ctx.globalAlpha=.29;
+      ctx.drawImage(brandMark,markX,markY,markSize,markSize);
+      ctx.restore();
+      if(mist){
+        ctx.save();ctx.beginPath();ctx.roundRect(markX,markY,markSize,markSize,0);ctx.clip();
+        ctx.drawImage(mist,0,0,1080,1920);ctx.restore();
+      }
+    }
+  }
   if(sources.length){
     const ruleY=Math.max(opinionBottom+28,image?1350:1210);
     ctx.textAlign='left';
@@ -240,6 +251,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='19';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='20';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }
