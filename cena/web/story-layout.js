@@ -46,11 +46,12 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const {left,right,top}=storyLayout.safe;
   const width=right-left,center=540;
   const p=guide?{x:336,y:324,width:408,height:612}:storyLayout.poster;
+  const sans='Manrope, sans-serif';
   const serif='"Playfair Display", Georgia, serif';
   if(brandMark){
     ctx.save();
-    ctx.globalAlpha=guide?.17:.31;
-    ctx.drawImage(brandMark,guide?225:385,190,guide?640:820,guide?640:820);
+    ctx.globalAlpha=guide?.09:.12;
+    ctx.drawImage(brandMark,guide?216:236,230,guide?648:820,guide?648:820);
     ctx.restore();
   }
   const brandX=guide?404:left;
@@ -68,7 +69,10 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillStyle='#211d2d';ctx.beginPath();ctx.roundRect(p.x,p.y,p.width,p.height,15);
     ctx.fill();ctx.restore();
     ctx.save();ctx.beginPath();ctx.roundRect(p.x,p.y,p.width,p.height,15);ctx.clip();
-    cover(ctx,image,p.x,p.y,p.width,p.height);ctx.restore();
+    const scale=Math.min(p.width/image.width,p.height/image.height);
+    const w=image.width*scale,h=image.height*scale;
+    ctx.drawImage(image,p.x+(p.width-w)/2,p.y+(p.height-h)/2,w,h);
+    ctx.restore();
   }
   const anchor=guide?center:left;
   ctx.textAlign=guide?'center':'left';ctx.textBaseline='top';
@@ -88,58 +92,59 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText(line,anchor,titleTop+i*(heading.size+5));
   });
   let cursor=titleTop+(titleLines.length-1)*(heading.size+5)+(splitTitle?Math.round(heading.size*.79):heading.size)+18;
-  ctx.font='600 24px sans-serif';ctx.fillStyle='#d6c8ea';
+  ctx.font=`600 24px ${sans}`;ctx.fillStyle='#d6c8ea';
   const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'].filter(Boolean).join(' · ');
   const review=storyOpinion(caption,rating);
   ctx.fillText(details,anchor,cursor);
-  if(review.score!==null){
-    const score=`${String(review.score).replace('.',',')} / 10`;
-    if(!guide){
-      ctx.textAlign='right';
-      ctx.font='700 27px sans-serif';ctx.fillStyle='#ead3ff';
-      ctx.fillText(score,right,cursor-2);
-      ctx.textAlign='left';
-    }else{
-      ctx.font='700 25px sans-serif';ctx.fillStyle='#ead3ff';
-      ctx.fillText(score,anchor,cursor+31);cursor+=31;
-    }
-  }
   cursor+=37;
   if(!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase()&&cursor<1250){
     ctx.font='24px sans-serif';ctx.fillStyle='#d6c8ea';
     ctx.fillText(wrapStoryText(ctx,originalTitle,width,1)[0]||'',anchor,cursor);cursor+=34;
   }
   const sources=availability.slice(0,3);
-  const opinion=fitText(ctx,review.opinion,width,3,31,26);
-  ctx.font=`400 ${opinion.size}px sans-serif`;
+  if(review.score!==null){
+    ctx.font=`800 29px ${sans}`;ctx.fillStyle='#ead3ff';
+    ctx.fillText(`${String(review.score).replace('.',',')} / 10`,anchor,cursor+5);
+    cursor+=39;
+  }
+  const opinion=fitText(ctx,review.opinion,width,3,31,26,sans);
+  ctx.font=`400 ${opinion.size}px ${sans}`;
   ctx.fillStyle='#f6edf9';const opinionTop=cursor+11;
   opinion.lines.forEach((line,i)=>ctx.fillText(line,anchor,opinionTop+i*(opinion.size+9)));
   const opinionBottom=opinionTop+opinion.lines.length*(opinion.size+9);
   if(sources.length){
-    const ruleY=opinionBottom+25;
+    const ruleY=opinionBottom+(guide?30:24);
     ctx.textAlign='left';
     ctx.fillStyle='#ab91c2';ctx.fillRect(left,ruleY,width,1);
-    ctx.fillStyle='#ddc9ed';ctx.font='700 19px sans-serif';
+    ctx.fillStyle='#ddc9ed';ctx.font=`700 ${guide?24:19}px ${sans}`;
     ctx.fillText('ONDE ASSISTIR NO BRASIL',left,ruleY+16);
     let y=ruleY+48;
     for(const row of sources){
       const separator=row.indexOf(' · ');
       const label=separator<0?'':row.slice(0,separator);
-      const names=separator<0?row:row.slice(separator+3)
-        .replace(/(^|, )Netflix Standard with Ads(?=, |$)/gi,'$1Netflix com anúncios');
-      ctx.font='600 21px sans-serif';
+      const providers=(separator<0?row:row.slice(separator+3)).split(', ');
+      const netflixAds=providers.findIndex(name=>/^Netflix (Standard with Ads|com anúncios)$/i.test(name));
+      const hasBoth=netflixAds>=0&&providers.some(name=>/^Netflix$/i.test(name));
+      if(hasBoth)providers.splice(netflixAds,1);
+      else if(netflixAds>=0)providers[netflixAds]='Netflix com anúncios';
+      ctx.font=`600 21px ${sans}`;
       const labelText=label?`${label} · `:'';
-      const indent=ctx.measureText(labelText).width+5;
+      const indent=label?ctx.measureText(labelText).width+5:0;
       ctx.fillStyle='#d3bbdf';
       if(label)ctx.fillText(labelText,left,y+3);
-      ctx.font='600 25px sans-serif';ctx.fillStyle='#fff';
-      const lines=wrapStoryText(ctx,names,width-indent,sources.length===1?2:1);
+      ctx.font=`700 ${guide?27:25}px ${sans}`;ctx.fillStyle='#fff';
+      const lines=wrapStoryText(ctx,providers.join(', '),width-indent,sources.length===1?2:1);
       lines.forEach((line,index)=>ctx.fillText(line,left+indent,y+index*29));
       y+=Math.max(35,lines.length*29+7);
+      if(hasBoth){
+        ctx.font=`500 19px ${sans}`;ctx.fillStyle='#d3bbdf';
+        ctx.fillText('Também no plano com anúncios',left+indent,y-3);
+        y+=24;
+      }
     }
-    ctx.font='500 18px sans-serif';ctx.fillStyle='#c9b6d8';
+    ctx.font=`500 18px ${sans}`;ctx.fillStyle='#c9b6d8';
     ctx.fillText('TMDB / JustWatch',left,y+6);
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='6';canvas.dataset.storyTemplate=template;
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='7';canvas.dataset.storyTemplate=template;
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }

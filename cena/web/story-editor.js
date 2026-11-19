@@ -41,7 +41,11 @@ return async function story(item) {
     draw();
     if(window.matchMedia('(prefers-reduced-motion: no-preference)').matches){
       canvas.getAnimations().forEach(animation=>animation.cancel());
-      canvas.animate([{opacity:.65,transform:'translateY(4px)'},{opacity:1,transform:'translateY(0)'}],{duration:200,easing:'ease-out'});
+      canvas.animate([
+        {clipPath:'inset(0 0 88% 0)',opacity:.72},
+        {clipPath:'inset(0 0 46% 0)',opacity:.94,offset:.55},
+        {clipPath:'inset(0 0 0 0)',opacity:1},
+      ],{duration:320,easing:'cubic-bezier(.2,.65,.3,1)'});
     }
   });
   wireStreaming();
@@ -67,7 +71,7 @@ return async function story(item) {
   };
   retry.onclick=prepare;
   without.onclick=async()=>{try{await brandAssets;status.dataset.state='title-only';status.textContent='Você escolheu compartilhar apenas o título.';without.hidden=true;enable();}catch(error){status.dataset.state='error';status.textContent=error.message;}};
-  document.fonts?.load('600 68px "Playfair Display"').then(()=>{if(canvas.isConnected)draw();}).catch(()=>{});
+  Promise.all([document.fonts?.load('600 68px "Playfair Display"'),document.fonts?.load('600 25px Manrope')]).then(()=>{if(canvas.isConnected)draw();}).catch(()=>{});
   prepare();
   $('#save-story').onclick = () => {
     if(save.disabled)return;
