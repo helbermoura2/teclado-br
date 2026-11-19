@@ -2,6 +2,8 @@
 const backgrounds=new WeakMap();
 export const storyLayout={width:1080,height:1920,safe:{top:220,bottom:1660,left:100,right:980}};
 export const storyCaptionLimit=240;
+// Modelo cinematográfico CENA IA: exportação vertical, com áreas de resenha e streaming legíveis.
+export const cinematicStoryStyle={streamingPanelWidth:900,streamingPanelMaxBottom:1750,creditsY:1820};
 export const defaultStoryLogoPosition={x:100,y:220};
 export function constrainStoryLogo(position){
   const {x,y}=position||{};
@@ -136,7 +138,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const opinionX=hasScore&&review.opinion?left+225:left;
   const opinion=fitText(ctx,review.opinion,right-opinionX,review.opinion.length>110?6:3,36,24,sans,400);
   if(hasScore){
-    ctx.font=`800 48px ${sans}`;ctx.fillStyle='#f5edf8';
+    ctx.font=`800 48px ${sans}`;ctx.fillStyle='#f2ce8e';
     ctx.fillText(`${String(review.score).replace('.',',')} / 10`,left,cursor);
     const stars='★★★★★',starsY=cursor+54;
     ctx.font=`700 31px ${sans}`;
@@ -181,11 +183,15 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
       else if(ads>=0)providers[ads]='Netflix com anúncios';
       return {label,providers,hasBoth};
     });
-    const multiple=rows.some(row=>row.providers.length>1);
-    const panelX=left-12,panelWidth=multiple?650:700;
+    const panelX=left-12,panelWidth=cinematicStoryStyle.streamingPanelWidth;
     const rowHeight=row=>row.label==='Cinema'?54:28+Math.ceil(row.providers.length/2)*61+(row.hasBoth?24:0);
-    const panelHeight=56+rows.reduce((sum,row)=>sum+rowHeight(row),0);
-    const ruleY=Math.max(opinionBottom+28,Math.min(image?1350:1210,1735-panelHeight));
+    let panelHeight=56+rows.reduce((sum,row)=>sum+rowHeight(row),0);
+    // Quando a resenha ocupa mais linhas, preserva a primeira opção de streaming
+    // em vez de deixar o cartão sair da área exportada.
+    while(rows.length>1&&opinionBottom+28+panelHeight>cinematicStoryStyle.streamingPanelMaxBottom){
+      rows.pop();panelHeight=56+rows.reduce((sum,row)=>sum+rowHeight(row),0);
+    }
+    const ruleY=Math.max(opinionBottom+28,Math.min(image?1285:1190,cinematicStoryStyle.streamingPanelMaxBottom-panelHeight));
     ctx.save();ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,27);ctx.clip();
     ctx.filter='blur(15px)';
     ctx.drawImage(canvas,0,0);
@@ -234,7 +240,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     }
     if(rows.some(row=>row.label!=='Cinema')){
       ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
-      ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+19,1668));
+      ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.min(1855,Math.max(cinematicStoryStyle.creditsY,y+21)));
     }
   }
   const logo=constrainStoryLogo(logoPosition);
@@ -247,6 +253,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='23';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='24';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }
