@@ -1,3 +1,4 @@
+import {storyAvailability} from '../web/availability.js';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {renderStory,storyOpinion,wrapStoryText,storyLayout,parseStoryRating} from '../web/story-layout.js';
@@ -17,7 +18,7 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'15');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=3);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'16');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
 test('story composes the official watermark and availability inside the export area',()=>{
@@ -42,4 +43,10 @@ test('localized title comes from an exact IMDb and type match, keeping the origi
  const result=await storyMetadata(item,{details:async()=>({...item,year:'2006'}),search:async()=>[{...item,id:'tt9999999',name:'Wrong movie'},{...item,name:'A Vida dos Outros',localWikiTitle:'A Vida dos Outros (filme)'}]});
  assert.equal(result.title,'A Vida dos Outros');assert.equal(result.originalTitle,'The Lives of Others');assert.equal(result.year,'2006');
  const offline=await storyMetadata(item,{details:async()=>{throw Error('offline');},search:async()=>[{...item,id:'tt9999999',name:'Wrong movie'}]});assert.equal(offline.title,item.name);
+});
+
+test('Story availability includes rental when streaming, free and cinema offers compete',()=>{
+ const groups={flatrate:['Netflix'],free:['Pluto TV'],ads:['Outro'],rent:['Apple TV']};
+ assert.deepEqual(storyAvailability({groups},'2026-11-20'),['Assinatura · Netflix','Aluguel · Apple TV','Estreia prevista no cinema · 20/11/2026']);
+ assert.deepEqual(storyAvailability({groups:{flatrate:['Netflix'],rent:[]}}),['Assinatura · Netflix']);
 });

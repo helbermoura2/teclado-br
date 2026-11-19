@@ -38,7 +38,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const serif='"Playfair Display", Georgia, serif';
   const imageHeight=1080;
   const cached=backgrounds.get(canvas);
-  if(cached&&cached.image===image&&cached.mist===mist&&typeof ctx.putImageData==='function'){
+  if(cached&&cached.image===image&&typeof ctx.putImageData==='function'){
     ctx.putImageData(cached.pixels,0,0);
   }else{
     const base=ctx.createLinearGradient(0,0,1080,1920);
@@ -59,7 +59,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     shade.addColorStop(.72,'#18131fbd');
     shade.addColorStop(1,'#18131f');
     ctx.fillStyle=shade;ctx.fillRect(0,0,1080,imageHeight);
-    if(mist)ctx.drawImage(mist,0,0,1080,1920);
     if(typeof ctx.createRadialGradient==='function'){
       for(const [x,y,r,color] of [[100,1320,490,'#8b64ae55'],[940,1580,500,'#61338d68'],[430,1850,420,'#7d509d50']]){
         const mist=ctx.createRadialGradient(x,y,0,x,y,r);
@@ -73,12 +72,13 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
         ctx.fillRect(x,y,size,size);
       }
     }
-    if(typeof ctx.getImageData==='function')backgrounds.set(canvas,{image,mist,pixels:ctx.getImageData(0,0,1080,1920)});
+    if(typeof ctx.getImageData==='function')backgrounds.set(canvas,{image,pixels:ctx.getImageData(0,0,1080,1920)});
   }
   if(brandMark){
-    ctx.save();ctx.globalAlpha=.15;
-    ctx.drawImage(brandMark,535,1080,640,640);ctx.restore();
+    ctx.save();ctx.globalAlpha=.29;
+    ctx.drawImage(brandMark,520,1090,655,655);ctx.restore();
   }
+  if(mist)ctx.drawImage(mist,0,0,1080,1920);
   ctx.textAlign='left';ctx.textBaseline='top';
   if(brandMark&&brandWordmark){
     ctx.drawImage(brandMark,left-11,top-3,100,100);
@@ -160,17 +160,10 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   if(sources.length){
     const ruleY=Math.max(opinionBottom+28,image?1290:1150);
     ctx.textAlign='left';
-    const panel=ctx.createLinearGradient(left,ruleY,right,ruleY+160);
-    panel.addColorStop(0,'#3b3647d9');panel.addColorStop(1,'#30243cb8');
-    ctx.fillStyle=panel;ctx.beginPath();ctx.roundRect(left-18,ruleY-5,width+36,58+sources.length*62+(sources.length===1?30:0),22);ctx.fill();
-    ctx.strokeStyle='#d9c1e77a';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#ddc9ed';ctx.font=`700 27px ${sans}`;
-    ctx.beginPath();
-    ctx.moveTo(left,ruleY+20);ctx.lineTo(left+19,ruleY+31);ctx.lineTo(left,ruleY+42);ctx.closePath();ctx.fill();
-    ctx.fillText('ONDE ASSISTIR NO BRASIL',left+32,ruleY+16);
-    let y=ruleY+53;
     const compact=sources.length>1;
-    for(const row of sources){
+    const contentX=left+61;
+    const planNote='Também no plano com anúncios';
+    const rows=sources.map(row=>{
       const separator=row.indexOf(' · ');
       const label=separator<0?'':row.slice(0,separator);
       const providers=(separator<0?row:row.slice(separator+3)).split(', ');
@@ -178,9 +171,30 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
       const hasBoth=netflixAds>=0&&providers.some(name=>/^Netflix$/i.test(name));
       if(hasBoth)providers.splice(netflixAds,1);
       else if(netflixAds>=0)providers[netflixAds]='Netflix com anúncios';
+      return {label,providers,hasBoth};
+    });
+    const titleFont=`700 ${compact?29:39}px ${sans}`;
+    const detailFont=`500 ${compact?18:23}px ${sans}`;
+    const noteFont=`italic 500 ${compact?18:21}px ${sans}`;
+    const textWidth=Math.max(...rows.map(({label,providers,hasBoth})=>{
+      ctx.font=titleFont;const names=ctx.measureText(providers.join(', ')).width;
+      ctx.font=detailFont;const detail=ctx.measureText(label.toLocaleUpperCase('pt-BR')).width;
+      ctx.font=noteFont;const note=hasBoth?ctx.measureText(planNote).width:0;
+      return Math.max(names,compact&&note?detail+20+note:Math.max(detail,note));
+    }));
+    const panelRight=Math.min(right+18,Math.max(left+490,contentX+textWidth+22));
+    const panel=ctx.createLinearGradient(left,ruleY,panelRight,ruleY+160);
+    panel.addColorStop(0,'#3b3647ed');panel.addColorStop(1,'#30243cdb');
+    ctx.fillStyle=panel;ctx.beginPath();ctx.roundRect(left-18,ruleY-5,panelRight-left+18,58+sources.length*62+(sources.length===1?30:0),22);ctx.fill();
+    ctx.strokeStyle='#d9c1e77a';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#ddc9ed';ctx.font=`700 27px ${sans}`;
+    ctx.beginPath();
+    ctx.moveTo(left,ruleY+20);ctx.lineTo(left+19,ruleY+31);ctx.lineTo(left,ruleY+42);ctx.closePath();ctx.fill();
+    ctx.fillText('ONDE ASSISTIR NO BRASIL',left+32,ruleY+16);
+    let y=ruleY+53;
+    for(const {label,providers,hasBoth} of rows){
       const cinema=label.startsWith('Estreia');
       const icon=cinema?'▤':label==='Aluguel'?'◷':label==='Compra'?'↓':'▶';
-      const contentX=left+61;
       ctx.fillStyle='#392748';ctx.beginPath();ctx.roundRect(left,y+2,44,44,10);ctx.fill();
       if(providerIcon&&providers.some(name=>name.toLowerCase()===providerIcon.name.toLowerCase())){
         ctx.save();ctx.beginPath();ctx.roundRect(left,y+2,44,44,10);ctx.clip();
@@ -189,19 +203,18 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
         ctx.fillStyle='#edd6ff';ctx.font=`700 24px ${sans}`;
         ctx.textAlign='center';ctx.fillText(icon,left+22,y+9);ctx.textAlign='left';
       }
-      ctx.font=`700 ${compact?29:39}px ${sans}`;ctx.fillStyle='#fff';
-      const names=wrapStoryText(ctx,providers.join(', '),right-contentX,compact?1:2);
+      ctx.font=titleFont;ctx.fillStyle='#fff';
+      const names=wrapStoryText(ctx,providers.join(', '),panelRight-contentX-16,compact?1:2);
       const lineHeight=compact?32:43;
       names.forEach((line,index)=>ctx.fillText(line,contentX,y+index*lineHeight));
-      ctx.font=`500 ${compact?18:23}px ${sans}`;ctx.fillStyle='#d3bbdf';
+      ctx.font=detailFont;ctx.fillStyle='#d3bbdf';
       const detail=label.toLocaleUpperCase('pt-BR');
       const detailY=y+names.length*lineHeight;
       if(detail)ctx.fillText(detail,contentX,detailY);
       if(hasBoth){
-        const note='Também no plano com anúncios';
         const noteX=compact?contentX+ctx.measureText(detail).width+20:contentX;
-        ctx.font=`italic 500 ${compact?18:21}px ${sans}`;
-        ctx.fillText(note,noteX,detailY+(compact?0:25));
+        ctx.font=noteFont;
+        ctx.fillText(planNote,noteX,detailY+(compact?0:25));
       }
       y+=Math.max(49,names.length*lineHeight+(detail?27:7)+(hasBoth&&!compact?25:0));
 
@@ -209,6 +222,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
     ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+20,1608));
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='15';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='16';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }

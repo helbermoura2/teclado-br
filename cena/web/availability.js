@@ -16,3 +16,13 @@ export function cinemaLabel(date) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || '');
   return match ? `Estreia prevista no cinema · ${match[3]}/${match[2]}/${match[1]}` : '';
 }
+
+export function storyAvailability(value, cinemaDate) {
+  const rows=availabilityRows(value);
+  const cinema=cinemaLabel(cinemaDate);
+  const limit=cinema?2:3;
+  const selected=rows.slice(0,limit);
+  const rental=rows.find(row=>row.label==='Aluguel');
+  if(rental&&!selected.includes(rental))selected[limit-1]=rental;
+  return [...selected.map(({label,names})=>label+' · '+names.slice(0,3).join(', ')),...(cinema?[cinema]:[])];
+}

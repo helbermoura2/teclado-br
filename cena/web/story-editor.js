@@ -1,6 +1,6 @@
 import {renderStory,parseStoryRating} from './story-layout.js';
 import {storyMetadata} from './story-metadata.js';
-import {availabilityRows,cinemaLabel} from './availability.js';
+import {storyAvailability} from './availability.js';
 import {loadStoryPoster,loadStoryBackdrop,loadCanvasImage} from './story-artwork.js';
 export function createStoryEditor({$,escape,storage,getItems,native,artworkResolver,persistArtwork,toast,wireStreaming}){
 return async function story(item) {
@@ -27,9 +27,7 @@ return async function story(item) {
   caption.oninput=rating.oninput=()=>{draw();remember();};title.oninput=()=>{editedTitle=true;draw();remember();};
   const providerNode=$('#story-availability');
   providerNode.onCenaAvailability=(value,configured,cinemaDate)=>{
-    const rows=availabilityRows(value);
-    const cinema=cinemaLabel(cinemaDate);
-    availability=[...rows.slice(0,cinema?2:3).map(row=>row.label+' · '+row.names.slice(0,3).join(', ')),...(cinema?[cinema]:[])];
+    availability=storyAvailability(value,cinemaDate);
     providerNode.textContent=availability.length?'Disponibilidade no Brasil · TMDB e JustWatch':!configured?'Conecte o TMDB em Perfil para consultar serviços.':value?'Disponibilidade não confirmada nesta consulta.':'Consultando serviços no Brasil…';
     const key=/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value?.logo||'')&&value?.name?value.logo:'';
     if(key!==iconKey){
