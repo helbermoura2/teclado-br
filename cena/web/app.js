@@ -196,7 +196,7 @@ function paintStreaming(node,value){
    node.innerHTML=`<h3>Onde assistir no Brasil</h3>${rows.length?rows.map(row=>`<p><strong>${escape(row.label)}</strong> · ${escape(row.names.join(', '))}</p>`).join('')+'<small>JustWatch via TMDB</small>':`<p class="muted">${!streamingConfigured?'Conecte o TMDB em Conexões.':value?'Disponibilidade não confirmada nesta consulta.':'Consultando serviços…'}</p>`}`;
    return;
  }
- node.replaceChildren();if(!value?.logo||!/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value.logo))return;const img=document.createElement('img');img.src='https://image.tmdb.org/t/p/w92'+value.logo;img.alt='Disponível em '+String(value.name||'streaming');img.loading='lazy';node.append(img);node.title=img.alt;node.classList.add('has-stream');}
+ node.replaceChildren();node.classList.remove('has-stream');node.removeAttribute('title');if(!value?.logo||!/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value.logo))return;const img=document.createElement('img');img.src='https://image.tmdb.org/t/p/w92'+value.logo;img.alt='Disponível em '+String(value.name||'streaming');img.loading='lazy';node.append(img);node.title=img.alt;node.classList.add('has-stream');}
 const streamingObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting)requestStreaming(entry.target);},{rootMargin:'150px'}):null;
 function requestCinema(node,key){
  if(!streamingConfigured||typeof window.CenaAndroid?.findCinema!=='function'||!node.onCenaAvailability||!/^movie:tt\d{5,12}$/.test(key)||cinemaData.has(key)||cinemaPending.has(key))return;
@@ -403,11 +403,23 @@ function notice() {
   if (apiBase === 'local') return `<div class="notice">${traktState.connected ? `Trakt conectado${traktState.pending?.length ? ` · ${traktState.pending.length} envio(s) pendente(s)` : ' · consulta de assistidos ativada'}` : 'Sua lista está salva neste aparelho. Conecte o Trakt para sincronizar com o Nuvio.'}</div>`;
   return config?.searchMode === 'sample' ? '<div class="notice">Prévia com 6 títulos de amostra. Busca completa disponível ao configurar o TMDB no servidor.</div>' : '';
 }
-function poster(item, badge = '', showRating = false) {
-  const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
-  return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}<span class="stream-badge" data-stream-key="${escape(key)}"></span></div>`;
+function streamBadge(key){
+  return `<span class="stream-badge" data-stream-key="${escape(key)}"></span>`;
 }
-function grid(rows,recommendation=false) { return `<div class="grid">${rows.map(item => `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item, item.status === 'watched' ? '✓ Assistido' : item.watchedEpisodes ? `${item.watchedEpisodes} episódios vistos` : '',true)}<strong>${escape(item.name)}</strong>${historyBadge(item)}<small>${escape(item.year)} · ${titleType(item)}</small>${recommendation?`<p class="recommendation-reason">${escape(item.recommendationReason)}</p>`:''}</button>`).join('')}</div>`; }
+function seriesBadges(item){
+  return `<span class="series-badges">${scoreMarkup(item)}${streamBadge(`${item.type}:${item.id}`)}</span>`;
+}
+function poster(item, badge = '', showRating = false, showStreaming = true) {
+  const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
+  return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}${showStreaming?streamBadge(key):''}</div>`;
+}
+function grid(rows,recommendation=false) {
+  return `<div class="grid">${rows.map(item=>{
+    const series=item.type==='series';
+    const badge=item.status==='watched'?'✓ Assistido':item.watchedEpisodes?`${item.watchedEpisodes} episódios vistos`:'';
+    return `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item,badge,!series,!series)}<strong>${escape(item.name)}</strong>${historyBadge(item)}<small>${escape(item.year)} · ${titleType(item)}</small>${series?seriesBadges(item):''}${recommendation?`<p class="recommendation-reason">${escape(item.recommendationReason)}</p>`:''}</button>`;
+  }).join('')}</div>`;
+}
 function wireImages() {
   wireRatings();wireStreaming();
   for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
@@ -544,7 +556,7 @@ function refreshCurrentView(){
 function seriesRows(){return homeSeries(items,seriesState,nuvioState,{trakt:traktState,nuvioRows:nuvioSeriesRows});}
 function seriesContent(limit=Infinity){
  const rows=seriesRows();seriesResults=rows.map(row=>row.item);
- return `<div class="series-toolbar"><details><summary>Sobre o progresso</summary><p class="muted">Nuvio e Trakt podem ter perfis ou horários diferentes. Cada contagem vem da fonte indicada.</p></details><button class="secondary" data-series-refresh>Atualizar episódios</button></div>${seriesState.error?`<p class="notice">${escape(seriesState.error)}</p>`:''}${!rows.length?'<p class="muted">As séries iniciadas recebidas das suas contas aparecerão automaticamente aqui.</p>':`<div class="grid series-grid">${rows.slice(0,limit).map(({item,headline,detail,source,state})=>`<button class="poster-card series-grid-card" data-series-id="${escape(item.id)}">${poster({...item,name:titleName(item)},'',true)}<span class="series-card-copy"><strong>${escape(titleName(item))}</strong><span class="series-status">${escape(headline)}</span><small>${escape(detail)}</small>${state?.warning?`<small>${escape(state.warning)}</small>`:''}<small>Fonte: ${escape(source)}</small></span></button>`).join('')}</div>`}`;
+ return `<div class="series-toolbar"><details><summary>Sobre o progresso</summary><p class="muted">Nuvio e Trakt podem ter perfis ou horários diferentes. Cada contagem vem da fonte indicada.</p></details><button class="secondary" data-series-refresh>Atualizar episódios</button></div>${seriesState.error?`<p class="notice">${escape(seriesState.error)}</p>`:''}${!rows.length?'<p class="muted">As séries iniciadas recebidas das suas contas aparecerão automaticamente aqui.</p>':`<div class="grid series-grid">${rows.slice(0,limit).map(({item,headline,detail,source,state})=>`<button class="poster-card series-grid-card" data-series-id="${escape(item.id)}">${poster({...item,name:titleName(item)},'',false,false)}<span class="series-card-copy"><strong>${escape(titleName(item))}</strong>${seriesBadges(item)}<span class="series-status">${escape(headline)}</span><small>${escape(detail)}</small>${state?.warning?`<small>${escape(state.warning)}</small>`:''}<small>Fonte: ${escape(source)}</small></span></button>`).join('')}</div>`}`;
 }
 
 function renderSeriesSections(){
@@ -648,7 +660,29 @@ async function runSearch(query, coverLines = null) {
   } catch (error) { if (generation === searchGeneration && target.isConnected) target.innerHTML = `<div class="error" role="alert">${escape(error.message)}</div>`; }
 }
 function scan() {
-  main.innerHTML = `<h1>Capturar título</h1><p class="muted">Use a câmera ou escolha uma imagem da galeria.</p><div class="scan-frame" ${scanPhoto?"":"hidden"}>${scanPhoto ? `<img src="${escape(scanPhoto)}" alt="Foto da capa escolhida">` : '<div class="scan-corners"><span class="scan-symbol">▣</span>A próxima sessão<br>começa com uma foto.</div>'}</div><div class="scan-controls"><button class="primary wide" id="take-photo">${scanPhoto ? 'Fotografar novamente' : 'Abrir câmera'}</button><button class="secondary wide" id="pick-image">Escolher imagem</button></div><details class="scan-help"><summary>Como o reconhecimento funciona</summary><p>${native ? 'Fotografe, escolha um print ou use Compartilhar → CENA. Inclua o título e a imagem da capa no recorte. A leitura e a comparação visual com IA acontecem no aparelho; sua imagem não é enviada ao servidor.' : 'Na prévia web, você pode escolher ou fotografar uma capa e digitar o título. A leitura automática do texto está preparada no aplicativo Android.'}</p></details><form id="scan-search" class="search-row"><textarea id="scan-query" rows="3" placeholder="Título completo da capa" aria-label="Título completo identificado na imagem" minlength="2" maxlength="150" required></textarea><button class="primary">Buscar</button></form><div id="detected-lines"></div><div id="search-results"></div>`;
+  main.innerHTML = `
+    <section class="scan-intro">
+      <h1>Capturar título</h1>
+      <p>Fotografe a capa de um filme ou série para descobrir o título.</p>
+      ${scanPhoto?`<div class="scan-frame"><img src="${escape(scanPhoto)}" alt="Foto da capa escolhida"></div>`:`<div class="scan-viewfinder" aria-hidden="true">
+        <svg viewBox="0 0 112 84"><path d="M27 10H12v15m73-15h15v15M12 59v15h15m73-15v15H85"/><rect x="39" y="18" width="34" height="48" rx="4"/><path d="m43 52 7-8 7 6 6-10 6 8M47 57h18"/><circle cx="50" cy="33" r="3"/></svg>
+        <span class="scan-sweep"></span>
+      </div>`}
+      <div class="scan-controls">
+        <button class="primary wide" id="take-photo">${scanPhoto?'Fotografar novamente':'Abrir câmera'}</button>
+        <button class="secondary wide" id="pick-image">Escolher imagem</button>
+      </div>
+      <p class="scan-tip">Enquadre a capa inteira e evite reflexos.</p>
+    </section>
+    <section class="scan-manual">
+      <form id="scan-search">
+        <label for="scan-query">Buscar pelo nome</label>
+        <div class="search-row"><textarea id="scan-query" rows="1" placeholder="Nome do filme ou série" minlength="2" maxlength="150" required></textarea><button class="primary">Buscar</button></div>
+      </form>
+      <div id="detected-lines"></div>
+      <div id="search-results"></div>
+    </section>
+    <details class="scan-help"><summary>Como o reconhecimento funciona</summary><p>${native?'Você pode fotografar, escolher um print ou usar Compartilhar → CENA. A leitura e a comparação visual com IA acontecem no aparelho.':'Na prévia web, escolha ou fotografe a capa e digite o título. O reconhecimento automático está no aplicativo Android.'}</p></details>`;
   $('#take-photo').onclick = () => { if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
   $('#pick-image').onclick = () => { if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
   $('#scan-search').onsubmit = event => { event.preventDefault(); runSearch($('#scan-query').value); };

@@ -345,3 +345,63 @@ nav .camera-nav svg { stroke: #261137; }
   }
   .history-row:active, .series-grid-card:active { opacity: .78; }
 }
+
+.scan-intro {
+  padding: clamp(14px, 4vw, 26px);
+  border: 1px solid #654978;
+  border-radius: 18px;
+  background: radial-gradient(ellipse at 50% 30%, #3d2550, #191320 73%);
+}
+.scan-intro h1 { margin: 0 0 7px; }
+.scan-intro p { margin: 0; color: #e4d5ee; font-size: 14px; }
+.scan-viewfinder {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(100%, 175px);
+  margin: 12px auto;
+}
+.scan-viewfinder svg { width: 100%; stroke: #dfb9ff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.scan-sweep { position: absolute; top: 27%; left: 21%; right: 21%; height: 1px; background: #d4a3fc; }
+#main[data-screen="scan"] .scan-controls { margin: 8px 0; }
+.scan-controls .wide { margin: 0; }
+.scan-intro .scan-tip { font-size: 12px; }
+.scan-manual { margin-top: 16px; }
+.scan-manual label { font-size: 14px; font-weight: 800; }
+#scan-search .search-row { margin: 7px 0 0; align-items: stretch; }
+#scan-search textarea { min-width: 0; min-height: 46px; padding: 10px; resize: vertical; }
+#scan-search button { min-height: 46px; }
+.series-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  margin-block: 4px;
+  text-align: left;
+}
+.series-badges .imdb-score {
+  padding-inline: 5px;
+  border-radius: 5px;
+  background: #332819;
+  color: #ffe293;
+  font-size: 10px;
+}
+.series-badges .imdb-score[data-rating-state="missing"] { display: none; }
+.series-badges .stream-badge {
+  display: inline-flex;
+  min-width: 1px;
+  min-height: 1px;
+}
+.series-badges .stream-badge img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+#main[data-screen="discover"] [data-catalog-type="series"] .series-badges { grid-column: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  .scan-sweep { animation: scan-sweep 2.6s ease-in-out infinite alternate; }
+}
+@keyframes scan-sweep { to { transform: translateY(59px); opacity: .3; } }
