@@ -18,7 +18,7 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=6);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'20');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=6);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'21');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
 test('story composes the official watermark and availability inside the export area',()=>{
@@ -27,16 +27,16 @@ test('story composes the official watermark and availability inside the export a
  const canvas={dataset:{},getContext:()=>ctx};
  const mark={width:432,height:432},wordmark={width:265,height:45},provider={width:92,height:92};
  const rendered=renderStory(canvas,{image:{width:500,height:750},brandMark:mark,brandWordmark:wordmark,
-   providerIcon:{name:'Netflix',image:provider},title:'Peaky Blinders: O Homem Imortal',caption:'Quero assistir 🍿',rating:'8. 1',
-   availability:['Assinatura · Netflix, Netflix Standard with Ads','Aluguel · Outro serviço','Estreia prevista no cinema · 22/11/2026']});
+   providerIcons:new Map([['Netflix',provider]]),title:'Peaky Blinders: O Homem Imortal',caption:'Quero assistir 🍿',rating:'8. 1',
+   availability:['Assinatura · Netflix, Netflix Standard with Ads','Aluguel · Outro serviço','Cinema · Assisti no cinema']});
  assert.ok(images.some(([asset,,y,width])=>asset===mark&&width>=500&&y>rendered.opinionBottom));
  assert.ok(images.some(([asset,,,width])=>asset===provider&&width===44));
  assert.ok(text.some(({label})=>label==='Netflix'));
  assert.ok(text.some(({label})=>label.includes('Também no plano com anúncios')));
- assert.ok(text.some(({label})=>label==='22/11/2026'));
+ assert.ok(text.some(({label})=>label==='Assisti no cinema'));
  assert.ok(text.some(({label})=>label==='8,1 / 10'));
  assert.ok(text.map(({label})=>label).join(' ').includes('O Homem Imortal'));
- assert.ok(text.every(({label,y})=>y>=storyLayout.safe.top&&y<(label==='TMDB / JustWatch'?1720:storyLayout.safe.bottom)));
+ assert.ok(text.every(({label,y})=>y>=storyLayout.safe.top&&y<(label==='TMDB / JustWatch'?1800:1740)));
 });
 test('localized title comes from an exact IMDb and type match, keeping the original name and release year',async()=>{
  const item={id:'tt0405094',type:'movie',name:'The Lives of Others',originalName:'The Lives of Others'};
@@ -47,6 +47,6 @@ test('localized title comes from an exact IMDb and type match, keeping the origi
 
 test('Story availability includes rental when streaming, free and cinema offers compete',()=>{
  const groups={flatrate:['Netflix'],free:['Pluto TV'],ads:['Outro'],rent:['Apple TV']};
- assert.deepEqual(storyAvailability({groups},'2026-11-20'),['Assinatura · Netflix','Aluguel · Apple TV','Estreia prevista no cinema · 20/11/2026']);
+ assert.deepEqual(storyAvailability({groups},true),['Assinatura · Netflix','Aluguel · Apple TV','Cinema · Assisti no cinema']);
  assert.deepEqual(storyAvailability({groups:{flatrate:['Netflix'],rent:[]}}),['Assinatura · Netflix']);
 });

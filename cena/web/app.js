@@ -199,7 +199,7 @@ function paintStreaming(node,value){
  node.replaceChildren();node.classList.remove('has-stream');node.removeAttribute('title');if(!value?.logo||!/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value.logo))return;const img=document.createElement('img');img.src='https://image.tmdb.org/t/p/w92'+value.logo;img.alt='Disponível em '+String(value.name||'streaming');img.loading='lazy';node.append(img);node.title=img.alt;node.classList.add('has-stream');}
 const streamingObserver=typeof IntersectionObserver==='function'?new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting)requestStreaming(entry.target);},{rootMargin:'150px'}):null;
 function requestCinema(node,key){
- if(!streamingConfigured||typeof window.CenaAndroid?.findCinema!=='function'||!node.onCenaAvailability||!/^movie:tt\d{5,12}$/.test(key)||cinemaData.has(key)||cinemaPending.has(key))return;
+ if(!streamingConfigured||typeof window.CenaAndroid?.findCinema!=='function'||node.id==='story-availability'||!node.onCenaAvailability||!/^movie:tt\d{5,12}$/.test(key)||cinemaData.has(key)||cinemaPending.has(key))return;
  cinemaPending.add(key);window.CenaAndroid.findCinema(key.slice(6));
 }
 function wireStreaming(){for(const node of document.querySelectorAll('[data-stream-key]')){const cached=streamingData.get(node.dataset.streamKey);requestCinema(node,node.dataset.streamKey);if(cached||node.id==='detail-providers'||node.onCenaAvailability)paintStreaming(node,cached);if(streamingObserved.has(node))continue;streamingObserved.add(node);if(streamingObserver)streamingObserver.observe(node);else requestStreaming(node);}}

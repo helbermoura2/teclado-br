@@ -21,13 +21,20 @@ internal object StreamingPolicy {
         val platforms=listOf("flatrate","free","ads").mapNotNull{data?.optJSONArray(it)}.firstOrNull{it.length()>0}
         val first=platforms?.optJSONObject(0);val logo=first?.optString("logo_path").orEmpty()
         val groups=JSONObject()
+        val providerLogos=JSONObject()
         for(mode in listOf("flatrate","free","ads","rent","buy")){
             val options=data?.optJSONArray(mode)?:continue
             val names=(0 until options.length()).mapNotNull{i->options.optJSONObject(i)?.optString("provider_name")?.trim()?.take(60)?.takeIf{it.isNotEmpty()}}.distinct().take(12)
             if(names.isNotEmpty())groups.put(mode,JSONArray(names))
+            for(i in 0 until minOf(options.length(),12)){
+                val option=options.optJSONObject(i)?:continue
+                val name=option.optString("provider_name").trim().take(60)
+                val path=posterPath(option.optString("logo_path"))
+                if(name in names && path.endsWith(".png"))providerLogos.put(name,path)
+            }
         }
         return JSONObject().put("name",first?.optString("provider_name").orEmpty())
-            .put("logo",logo.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.png"))}.orEmpty()).put("groups",groups)
+            .put("logo",logo.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.png"))}.orEmpty()).put("groups",groups).put("providerLogos",providerLogos)
     }
 }
 

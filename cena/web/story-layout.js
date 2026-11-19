@@ -39,7 +39,7 @@ export function wrapStoryText(ctx,text,width,maxLines){
   return lines;
 }
 function fitText(ctx,text,width,maxLines,start,min,font="sans-serif",weight=600){let size=start,lines;for(;size>=min;size-=2){ctx.font=`${weight} ${size}px ${font}`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`${weight} ${size}px ${font}`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
-export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcon=null,mist=null,logoPosition}={}){
+export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcons=new Map(),mist=null,logoPosition}={}){
   const ctx=canvas.getContext('2d');canvas.width=1080;canvas.height=1920;
   const {left,right}=storyLayout.safe;
   const width=right-left;
@@ -161,85 +161,72 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     if(markSize>0){
       const markX=1160-markSize;
       ctx.save();
-      ctx.globalAlpha=.29;
+      ctx.globalAlpha=.46;
       ctx.drawImage(brandMark,markX,markY,markSize,markSize);
       ctx.restore();
       if(mist){
         ctx.save();ctx.beginPath();ctx.roundRect(markX,markY,markSize,markSize,0);ctx.clip();
-        ctx.drawImage(mist,0,0,1080,1920);ctx.restore();
+        ctx.globalAlpha=.62;ctx.drawImage(mist,0,0,1080,1920);ctx.restore();
       }
     }
   }
   if(sources.length){
-    const ruleY=Math.max(opinionBottom+28,image?1350:1210);
-    ctx.textAlign='left';
-    const compact=sources.length>1;
-    const contentX=left+61;
-    const planNote='Também no plano com anúncios';
     const rows=sources.map(row=>{
       const separator=row.indexOf(' · ');
       const label=separator<0?'':row.slice(0,separator);
       const providers=(separator<0?row:row.slice(separator+3)).split(', ');
-      const netflixAds=providers.findIndex(name=>/^Netflix (Standard with Ads|com anúncios)$/i.test(name));
-      const hasBoth=netflixAds>=0&&providers.some(name=>/^Netflix$/i.test(name));
-      if(hasBoth)providers.splice(netflixAds,1);
-      else if(netflixAds>=0)providers[netflixAds]='Netflix com anúncios';
+      const ads=providers.findIndex(name=>/^Netflix (Standard with Ads|com anúncios)$/i.test(name));
+      const hasBoth=ads>=0&&providers.some(name=>/^Netflix$/i.test(name));
+      if(hasBoth)providers.splice(ads,1);
+      else if(ads>=0)providers[ads]='Netflix com anúncios';
       return {label,providers,hasBoth};
     });
-    const titleFont=`700 ${compact?29:39}px ${sans}`;
-    const detailFont=`750 ${compact?17:19}px ${sans}`;
-    const noteFont=`italic 500 ${compact?18:21}px ${sans}`;
-    const textWidth=Math.max(...rows.map(({label,providers,hasBoth})=>{
-      ctx.font=titleFont;const names=ctx.measureText(providers.join(' · ')).width;
-      ctx.font=detailFont;const detail=ctx.measureText(label.toLocaleUpperCase('pt-BR')).width;
-      ctx.font=noteFont;const note=hasBoth?ctx.measureText(planNote).width:0;
-      return Math.max(names,compact&&note?detail+20+note:Math.max(detail,note));
-    }));
-    const panelRight=Math.min(676,Math.max(left+490,contentX+textWidth+22));
-    const lineHeight=compact?32:43;
-    const rowLayouts=rows.map(row=>{
-      const heading=fitText(ctx,row.providers.join(' · '),panelRight-contentX-16,2,compact?29:39,24,sans,700);
-      const detail=row.label.toLocaleUpperCase('pt-BR');
-      const height=Math.max(49,heading.lines.length*lineHeight+(detail?27:7)+(row.hasBoth&&!compact?25:0));
-      return {...row,heading,detail,height};
-    });
-    const panelHeight=70+rowLayouts.reduce((total,row)=>total+row.height,0);
-    const panel=ctx.createLinearGradient(left,ruleY,panelRight,ruleY+160);
+    const tileWidth=152;
+    const panelWidth=Math.max(406,Math.max(...rows.map(row=>row.providers.length))*tileWidth+28);
+    const panelX=left-18;
+    const panelHeight=48+rows.reduce((sum,row)=>sum+(row.label==='Cinema'?58:116+(row.hasBoth?20:0)),0)+10;
+    const ruleY=Math.max(opinionBottom+22,Math.min(image?1332:1190,1732-panelHeight));
+    const panel=ctx.createLinearGradient(panelX,ruleY,panelX+panelWidth,ruleY+panelHeight);
     panel.addColorStop(0,'#3b3647ed');panel.addColorStop(1,'#30243cdb');
-    ctx.fillStyle=panel;ctx.beginPath();ctx.roundRect(left-18,ruleY-5,panelRight-left+18,panelHeight,22);ctx.fill();
+    ctx.fillStyle=panel;ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,20);ctx.fill();
     ctx.strokeStyle='#d9c1e77a';ctx.lineWidth=2;ctx.stroke();
-    ctx.fillStyle='#ddc9ed';ctx.font=`700 27px ${sans}`;
-    ctx.beginPath();
-    ctx.moveTo(left,ruleY+20);ctx.lineTo(left+19,ruleY+31);ctx.lineTo(left,ruleY+42);ctx.closePath();ctx.fill();
-    ctx.fillText('ONDE ASSISTIR NO BRASIL',left+32,ruleY+16);
-    let y=ruleY+53;
-    for(const [index,{label,providers,hasBoth,heading,detail,height}] of rowLayouts.entries()){
-      if(index>0){ctx.fillStyle='#c8b9d333';ctx.fillRect(contentX,y-5,panelRight-contentX-16,1);}
-      const cinema=label.startsWith('Estreia');
-      const icon=cinema?'▤':label==='Aluguel'?'◷':label==='Compra'?'↓':'▶';
-      ctx.fillStyle='#392748';ctx.beginPath();ctx.roundRect(left,y+2,44,44,10);ctx.fill();
-      if(providerIcon&&providers.some(name=>name.toLowerCase()===providerIcon.name.toLowerCase())){
-        ctx.save();ctx.beginPath();ctx.roundRect(left,y+2,44,44,10);ctx.clip();
-        ctx.drawImage(providerIcon.image,left,y+2,44,44);ctx.restore();
-      }else{
-        ctx.fillStyle='#edd6ff';ctx.font=`700 24px ${sans}`;
-        ctx.textAlign='center';ctx.fillText(icon,left+22,y+9);ctx.textAlign='left';
+    ctx.fillStyle='#f2e6fc';ctx.font=`750 23px ${sans}`;
+    ctx.fillText('▶  ONDE ASSISTIR NO BRASIL',left,ruleY+11);
+    let y=ruleY+47;
+    for(const [index,{label,providers,hasBoth}] of rows.entries()){
+      if(index){ctx.fillStyle='#c8b9d333';ctx.fillRect(left,y-3,panelWidth-36,1);}
+      ctx.font=`750 17px ${sans}`;ctx.fillStyle='#d9c4ed';
+      ctx.fillText(label.toLocaleUpperCase('pt-BR'),left,y+3);
+      if(label==='Cinema'){
+        ctx.font=`700 23px ${sans}`;ctx.fillStyle='#fff';
+        ctx.fillText('Assisti no cinema',left,y+25);
+        y+=58;continue;
       }
-      ctx.font=detailFont;ctx.fillStyle='#d3bbdf';
-      if(detail)ctx.fillText(detail,contentX,y);
-      ctx.font=`700 ${heading.size}px ${sans}`;ctx.fillStyle='#fff';
-      heading.lines.forEach((line,index)=>ctx.fillText(line,contentX,y+(detail?23:0)+index*lineHeight));
+      providers.forEach((name,i)=>{
+        const center=left+tileWidth*(i+.5);
+        const image=providerIcons.get(name)||(/^Netflix com anúncios$/i.test(name)?providerIcons.get('Netflix'):null);
+        ctx.save();ctx.beginPath();ctx.roundRect(center-22,y+27,44,44,9);ctx.clip();
+        if(image)ctx.drawImage(image,center-22,y+27,44,44);
+        else{
+          ctx.fillStyle='#594268';ctx.fillRect(center-22,y+27,44,44);
+          ctx.textAlign='center';ctx.font=`800 22px ${sans}`;ctx.fillStyle='#fff';
+          ctx.fillText(name.slice(0,1).toLocaleUpperCase('pt-BR'),center,y+34);
+        }
+        ctx.restore();ctx.textAlign='center';
+        const title=fitText(ctx,name,tileWidth-10,2,21,17,sans,700);
+        ctx.fillStyle='#fff';title.lines.forEach((line,lineIndex)=>ctx.fillText(line,center,y+74+lineIndex*20));
+        ctx.textAlign='left';
+      });
       if(hasBoth){
-        ctx.font=detailFont;
-        const noteX=compact?contentX+ctx.measureText(detail).width+17:contentX;
-        ctx.font=noteFont;ctx.fillStyle='#d3bbdf';
-        ctx.fillText(planNote,noteX,compact?y:y+23+heading.lines.length*lineHeight);
+        ctx.font=`italic 500 17px ${sans}`;ctx.fillStyle='#d3bbdf';
+        ctx.fillText('Também no plano com anúncios',left,y+112);
       }
-      y+=height;
-
+      y+=116+(hasBoth?20:0);
     }
-    ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
-    ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+20,1668));
+    if(rows.some(row=>row.label!=='Cinema')){
+      ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
+      ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.max(y+19,1668));
+    }
   }
   const logo=constrainStoryLogo(logoPosition);
   ctx.textAlign='left';ctx.textBaseline='top';
@@ -251,6 +238,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='20';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='21';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }

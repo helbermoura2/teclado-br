@@ -5,7 +5,7 @@ import {loadStoryPoster,loadStoryBackdrop,loadCanvasImage} from './story-artwork
 export function createStoryEditor({$,escape,storage,getItems,native,artworkResolver,persistArtwork,toast,wireStreaming}){
 return async function story(item) {
   const items=getItems();
-  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><div class="story-preview"><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas></div><button class="secondary" id="story-logo-move" type="button" aria-expanded="false" aria-controls="story-logo-controls">Posicionar logo</button><div id="story-logo-controls" hidden><p class="muted">Toque ou arraste na prévia para mover o logo.</p><label for="story-logo-x">Horizontal</label><input id="story-logo-x" type="range" min="32" max="555"><label for="story-logo-y">Vertical</label><input id="story-logo-y" type="range" min="35" max="1790"><button class="secondary" id="story-logo-reset" type="button">Restaurar posição</button></div><p id="story-availability" data-stream-key="${escape(item.type+':'+item.id)}" class="muted" role="status"></p><label for="story-include"><input id="story-include" type="checkbox" checked> Incluir onde assistir</label><label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Ex.: 8,1 ou 8.1" maxlength="12"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="${storyCaptionLimit}">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><p id="story-caption-count" class="muted"></p><div class="story-export"><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button></div><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
+  $('#story-editor').innerHTML = `<div class="story"><h3>Seu Story</h3><p id="story-status" role="status" data-state="loading">Carregando a capa…</p><div class="story-preview"><canvas id="story-canvas" width="1080" height="1920" aria-label="Prévia do Story"></canvas></div><button class="secondary" id="story-logo-move" type="button" aria-expanded="false" aria-controls="story-logo-controls">Posicionar logo</button><div id="story-logo-controls" hidden><p class="muted">Toque ou arraste na prévia para mover o logo.</p><label for="story-logo-x">Horizontal</label><input id="story-logo-x" type="range" min="32" max="555"><label for="story-logo-y">Vertical</label><input id="story-logo-y" type="range" min="35" max="1790"><button class="secondary" id="story-logo-reset" type="button">Restaurar posição</button></div><p id="story-availability" data-stream-key="${escape(item.type+':'+item.id)}" class="muted" role="status"></p><label for="story-include"><input id="story-include" type="checkbox" checked> Incluir onde assistir</label>${item.type==='movie'?'<label><input id="story-cinema" type="checkbox"> Assisti no cinema e ainda está em cartaz</label>':''}<label for="story-title">Título do Story</label><input id="story-title" value="${escape(item.name)}" maxlength="180"><label for="story-rating">Sua nota (opcional, de 0 a 10)</label><input id="story-rating" inputmode="decimal" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Ex.: 8,1 ou 8.1" maxlength="12"><p id="story-rating-error" class="error" hidden>Use uma nota de 0 a 10, com até duas casas decimais.</p><label for="story-caption">Sua opinião</label><textarea rows="3" id="story-caption" maxlength="${storyCaptionLimit}">${items.find(saved=>saved.id===item.id)?.status === 'watched' ? 'Já assisti ✓' : 'Quero assistir 🍿'}</textarea><p id="story-caption-count" class="muted"></p><div class="story-export"><button class="primary wide" id="share-story" disabled>Compartilhar imagem</button><button class="secondary wide" id="save-story" disabled>Salvar imagem PNG</button></div><div class="actions"><button class="secondary" id="retry-story" hidden>Tentar carregar capa</button><button class="secondary" id="story-without-poster" hidden>Continuar sem capa</button></div><p class="muted">Escolha o Instagram no compartilhamento ou salve a imagem para publicar nos Stories.</p></div>`;
   const canvas=$('#story-canvas'),caption=$('#story-caption'),title=$('#story-title'),rating=$('#story-rating'),ratingError=$('#story-rating-error');
   let brandMark=null,brandWordmark=null,mist=null;
   const mistAsset=loadCanvasImage('story-mist.png').then(asset=>{mist=asset;}).catch(()=>{});
@@ -16,16 +16,19 @@ return async function story(item) {
   if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
   if(notes[noteId]){caption.value=String(notes[noteId].caption||'').slice(0,storyCaptionLimit);rating.value=String(notes[noteId].rating??'');if(notes[noteId].title)title.value=String(notes[noteId].title).slice(0,180);}
   let logoPosition=constrainStoryLogo(notes[noteId]?.logoPosition);
-  let availability=[],providerIcon=null,iconKey='';
+  let availability=[],providerData;
+  const providerIcons=new Map(),requestedLogos=new Set();
+  const cinemaCheckbox=$('#story-cinema');
+  if(cinemaCheckbox)cinemaCheckbox.checked=notes[noteId]?.watchedInCinema===true;
   let editedTitle=Boolean(notes[noteId]?.title);
   const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
-    const layout=renderStory(canvas,{image:image&&(backdrop||image),title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,providerIcon,mist,logoPosition,availability:$('#story-include').checked?availability:[]});
+    const layout=renderStory(canvas,{image:image&&(backdrop||image),title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,providerIcons,mist,logoPosition,availability:$('#story-include').checked?availability:[]});
     $('#story-caption-count').textContent=`${caption.value.length} / ${storyCaptionLimit} caracteres${layout.opinionTruncated?' · O final do texto ficou fora do PNG.':''}`;
     ratingError.hidden=validRating();
     if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
   };
-  const remember=()=>{notes[noteId]={caption:caption.value,rating:rating.value,title:editedTitle?title.value:'',logoPosition,at:Date.now()};try{storage.setItem(notesKey,JSON.stringify(Object.fromEntries(Object.entries(notes).sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,200))));}catch{}};
+  const remember=()=>{notes[noteId]={caption:caption.value,rating:rating.value,title:editedTitle?title.value:'',logoPosition,watchedInCinema:cinemaCheckbox?.checked===true,at:Date.now()};try{storage.setItem(notesKey,JSON.stringify(Object.fromEntries(Object.entries(notes).sort((a,b)=>(b[1].at||0)-(a[1].at||0)).slice(0,200))));}catch{}};
   caption.oninput=rating.oninput=()=>{draw();remember();};title.oninput=()=>{editedTitle=true;draw();remember();};
   const move=$('#story-logo-move'),controls=$('#story-logo-controls');
   const horizontal=$('#story-logo-x'),vertical=$('#story-logo-y');
@@ -58,18 +61,24 @@ return async function story(item) {
   canvas.onpointerup=event=>{if(event.pointerId===pointer){moveLogoTo(event,true);pointer=null;}};
   canvas.onlostpointercapture=()=>{pointer=null;};
   const providerNode=$('#story-availability');
-  providerNode.onCenaAvailability=(value,configured,cinemaDate)=>{
-    availability=storyAvailability(value,cinemaDate);
-    providerNode.textContent=availability.length?'Disponibilidade no Brasil · TMDB e JustWatch':!configured?'Conecte o TMDB em Perfil para consultar serviços.':value?'Disponibilidade não confirmada nesta consulta.':'Consultando serviços no Brasil…';
-    const key=/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(value?.logo||'')&&value?.name?value.logo:'';
-    if(key!==iconKey){
-      iconKey=key;providerIcon=null;
-      if(key)loadCanvasImage('https://image.tmdb.org/t/p/w92'+key).then(asset=>{
-        if(iconKey!==key||!canvas.isConnected)return;
-        providerIcon={name:String(value.name),image:asset};draw();
+  providerNode.onCenaAvailability=(value,configured)=>{
+    providerData=value;
+    availability=storyAvailability(value,cinemaCheckbox?.checked===true);
+    providerNode.textContent=value?'Disponibilidade no Brasil · TMDB e JustWatch':!configured?'Conecte o TMDB em Perfil para consultar serviços.':'Consultando serviços no Brasil…';
+    for(const [name,path] of Object.entries({...value?.providerLogos,...(value?.name&&value?.logo?{[value.name]:value.logo}:{})})){
+      if(!/^\/[A-Za-z0-9_.-]{1,120}\.png$/.test(path)||requestedLogos.has(name))continue;
+      if(!availability.some(row=>row.includes(name)))continue;
+      requestedLogos.add(name);
+      loadCanvasImage('https://image.tmdb.org/t/p/w92'+path).then(asset=>{
+        if(!canvas.isConnected)return;
+        providerIcons.set(name,asset);draw();
       }).catch(()=>{});
     }
     draw();
+  };
+  if(cinemaCheckbox)cinemaCheckbox.onchange=()=>{
+    availability=storyAvailability(providerData,cinemaCheckbox.checked);
+    draw();remember();
   };
   $('#story-include').onchange=draw;
   wireStreaming();

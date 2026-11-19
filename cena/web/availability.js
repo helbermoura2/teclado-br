@@ -17,12 +17,11 @@ export function cinemaLabel(date) {
   return match ? `Estreia prevista no cinema · ${match[3]}/${match[2]}/${match[1]}` : '';
 }
 
-export function storyAvailability(value, cinemaDate) {
+export function storyAvailability(value, watchedInCinema=false) {
   const rows=availabilityRows(value);
-  const cinema=cinemaLabel(cinemaDate);
-  const limit=cinema?2:3;
+  const limit=watchedInCinema?2:3;
   const selected=rows.slice(0,limit);
   const rental=rows.find(row=>row.label==='Aluguel');
   if(rental&&!selected.includes(rental))selected[limit-1]=rental;
-  return [...selected.map(({label,names})=>label+' · '+names.slice(0,3).join(', ')),...(cinema?[cinema]:[])];
+  return [...selected.map(({label,names})=>label+' · '+names.slice(0,3).join(', ')),...(watchedInCinema?['Cinema · Assisti no cinema']:[])];
 }
