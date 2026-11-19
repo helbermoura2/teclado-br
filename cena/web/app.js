@@ -359,7 +359,7 @@ window.CenaTraktResult = state => {
   if(libraryChanged) { items=merged; storage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
   if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
-  if(tab==='connect' && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus')) localConnection();
+  if(tab==='connect' && $('#streaming-panel') && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus, #streaming-key:focus, #local-server-url:focus')) localConnection();
   else if(!$('#detail').open) {
     if(tab==='library') { if(libraryChanged)patchLibrary();else updateArtworkProgress(); }
     else if(tab==='home'&&libraryChanged) {const position=window.scrollY;home();window.scrollTo(0,position);}
@@ -438,9 +438,9 @@ function loadRecentHistory(){if(tab!=='home')return;if(!historyState.scope||type
 function renderRecentHistory(){const target=$('#recent-history');if(!target)return;const seen=new Set();const rows=recentHistoryRows.filter(row=>{const identity=row.id||row.mediaKey;if(!identity)return true;const key=(row.kind==='movie'?'movie:':'series:')+identity;if(seen.has(key))return false;seen.add(key);return true;}).slice(0,10);recentHistoryResults=rows.map(row=>historyItem(row,items));target.innerHTML=`<div class="section-heading"><h2>Últimos vistos</h2><button id="recent-see-all">Ver histórico</button></div>${rows.length?`<div class="poster-rail">${rows.map((row,index)=>{const item=recentHistoryResults[index];return `<button class="poster-card" data-id="${escape(item.id)}">${poster(item,'',true)}<strong>${escape(item.name)}</strong><small>${row.kind==='episode'?`T${Number(row.season)} · E${Number(row.episode)} · `:''}${escape(historyDate(row))}</small></button>`;}).join('')}</div>`:'<p class="muted">Os filmes e episódios do seu histórico Trakt aparecerão aqui.</p>'}`;$('#recent-see-all').onclick=()=>{historyYear='all';historyKind='all';historyMedia='';historyMode='history';historyDedicated=true;setTab('profile');};wireImages();}
 function home() {
  const pending=items.filter(item=>item.status==='watchlist');
- main.innerHTML=`<section class="capture-hero"><h1>Qual é o play de hoje?</h1><p>Fotografe uma capa e descubra o filme.</p><button class="primary" id="hero-scan">Fotografar capa <span aria-hidden="true">→</span></button></section><section id="nuvio-home"></section><details class="home-customize"><summary>Personalizar início</summary><div class="home-customize-options"><label><input type="checkbox" data-home-section="recent" ${homeSections.recent!==false?'checked':''}> Últimos vistos</label><label><input type="checkbox" data-home-section="series" ${homeSections.series!==false?'checked':''}> Suas séries</label><label><input type="checkbox" data-home-section="recommendations" ${homeSections.recommendations!==false?'checked':''}> Para você</label></div></details><section id="series-home" ${homeSections.series===false?'hidden':''}></section><section class="calendar-preview" id="home-calendar"></section><section id="home-recommendations" ${homeSections.recommendations===false?'hidden':''}><div class="section-heading"><div><span class="eyebrow">BOAS PRÓXIMAS HISTÓRIAS</span><h2>Para você</h2></div><button id="home-discover">Explorar</button></div><div id="home-recommendation-grid"></div></section><section><div class="section-heading"><div><span class="eyebrow">SALVOS PARA DEPOIS</span><h2>Quero assistir</h2></div><button id="see-all">${pending.length?`Ver todos · ${pending.length}`:'Seu catálogo'}</button></div>${pending.length?horizontalGrid(pending.slice(0,6)):empty()}</section><button class="home-sync" id="home-sync"><span class="sync-dot ${nuvioState.error||traktState.error?'pending':''}" aria-hidden="true"></span>${nuvioState.active?'Nuvio conectado':traktState.connected?'Trakt conectado':'Lista salva neste aparelho'}<span aria-hidden="true">→</span></button>`;
+ main.innerHTML=`<section class="capture-hero"><h1>Qual é o play de hoje?</h1><p>Fotografe uma capa e descubra o filme.</p><div class="hero-actions"><button class="primary" id="hero-scan">Fotografar capa <span aria-hidden="true">→</span></button><button class="secondary" id="hero-connect">Conexões</button></div></section><section id="nuvio-home"></section><details class="home-customize"><summary>Personalizar início</summary><div class="home-customize-options"><label><input type="checkbox" data-home-section="recent" ${homeSections.recent!==false?'checked':''}> Últimos vistos</label><label><input type="checkbox" data-home-section="series" ${homeSections.series!==false?'checked':''}> Suas séries</label><label><input type="checkbox" data-home-section="recommendations" ${homeSections.recommendations!==false?'checked':''}> Para você</label></div></details><section id="series-home" ${homeSections.series===false?'hidden':''}></section><section class="calendar-preview" id="home-calendar"></section><section id="home-recommendations" ${homeSections.recommendations===false?'hidden':''}><div class="section-heading"><div><span class="eyebrow">BOAS PRÓXIMAS HISTÓRIAS</span><h2>Para você</h2></div><button id="home-discover">Explorar</button></div><div id="home-recommendation-grid"></div></section><section><div class="section-heading"><div><span class="eyebrow">SALVOS PARA DEPOIS</span><h2>Quero assistir</h2></div><button id="see-all">${pending.length?`Ver todos · ${pending.length}`:'Seu catálogo'}</button></div>${pending.length?horizontalGrid(pending.slice(0,6)):empty()}</section><button class="home-sync" id="home-sync"><span class="sync-dot ${nuvioState.error||traktState.error?'pending':''}" aria-hidden="true"></span>${nuvioState.active?'Nuvio conectado':traktState.connected?'Trakt conectado':'Lista salva neste aparelho'}<span aria-hidden="true">→</span></button>`;
  main.querySelectorAll('[data-home-section]').forEach(box=>box.onchange=()=>{homeSections[box.dataset.homeSection]=box.checked;storage.setItem('cena.home.sections.v1',JSON.stringify(homeSections));const target=$({'recent':'#recent-history','series':'#series-home','recommendations':'#home-recommendations'}[box.dataset.homeSection]);if(target)target.hidden=!box.checked;});
- $('#hero-scan').onclick=()=>{setTab('scan');if(native)$('#take-photo').click();};$('#see-all').onclick=()=>{filter='watchlist';setTab('library');};$('#home-discover').onclick=()=>{discoveryMode='recommend';setTab('discover');};$('#home-sync').onclick=()=>setTab('connect');
+ $('#hero-scan').onclick=()=>{setTab('scan');if(native)$('#take-photo').click();};$('#hero-connect').onclick=()=>setTab('connect');$('#see-all').onclick=()=>{filter='watchlist';setTab('library');};$('#home-discover').onclick=()=>{discoveryMode='recommend';setTab('discover');};$('#home-sync').onclick=()=>setTab('connect');
  if($('#empty-search'))$('#empty-search').onclick=()=>{setTab('library');$('#query').focus();};
  wireCards(pending);renderSeriesSections();renderNuvioSections();renderHomeRecommendations();
  const recent=document.createElement('section');recent.id='recent-history';recent.hidden=homeSections.recent===false;$('#nuvio-home').after(recent);renderRecentHistory();loadRecentHistory();
@@ -745,8 +745,8 @@ function validBase(value) {
   if (native && url.protocol !== 'https:') throw Error('No aplicativo Android, use um endereço HTTPS.');
   return url.origin;
 }
-function connect() {
-  if (apiBase === 'local') { localConnection(); return; }
+function connect(remoteSettings=false) {
+  if (!remoteSettings&&(native||apiBase==='local')) { localConnection(); return; }
   const connected = Boolean(connection);
   main.innerHTML = `<div class="eyebrow">SUA LISTA, EM MAIS TELAS</div><h1>Conectar ao player</h1><p class="muted">O CENA publica sua lista como um complemento de catálogo, separado da biblioteca interna do player.</p><div class="panel"><h2>Servidor do CENA</h2><p>Use o mesmo servidor no celular e no player. Para outro aparelho, o endereço precisa ser acessível pela rede.</p><form id="server-form"><label for="server-url">Endereço do servidor</label><input id="server-url" type="url" value="${escape(apiBase)}" placeholder="https://seu-servidor.exemplo" required><div class="actions"><button class="secondary" type="submit">${connected ? 'Atualizar conexão' : 'Conectar servidor'}</button></div></form></div><div class="panel"><h2>CENA · Quero assistir</h2>${connected ? '<p class="connection-status">Lista conectada ao servidor</p>' : '<p>Crie sua lista para gerar o link do complemento.</p>'}${connected ? `<label for="manifest-url">Link do complemento — acesso somente à leitura</label><textarea class="url-field" id="manifest-url" readonly>${escape(connection.manifestUrl)}</textarea><div class="actions"><button class="primary" id="copy-addon">Copiar link</button><button class="secondary" id="refresh-list">Atualizar lista</button></div>` : '<button class="primary" id="create-list">Criar minha lista</button>'}</div>${config && !config.publicConfigured ? '<div class="notice">Servidor em modo local. Configure PUBLIC_BASE_URL com um endereço HTTPS acessível para instalar o complemento em outro aparelho.</div>' : ''}<div class="step"><b>1</b><span>No Stremio, abra Complementos e instale pelo link do manifest acima.</span></div><div class="step"><b>2</b><span>No Nuvio, tente instalar o mesmo manifest na área de complementos. A compatibilidade ainda precisa ser testada no aparelho.</span></div><div class="step"><b>3</b><span>Procure “CENA · Filmes para assistir” ou “CENA · Séries para assistir”. Após uma alteração, atualize o catálogo no player.</span></div><div class="notice">Esta versão sincroniza o conteúdo do catálogo. O que você assistir no player ainda não volta automaticamente para o CENA.</div>${connected ? '<div class="panel"><h2>Guardar acesso à lista</h2><p>O código abaixo permite editar sua lista em outro dispositivo. Guarde em local privado. Não compartilhe com o player.</p><button class="secondary" id="export-connection">Copiar código de recuperação</button></div>' : ''}<div class="panel"><h2>Já tem uma lista?</h2><form id="restore-form"><label for="restore-code">Código de recuperação</label><textarea id="restore-code" class="url-field" placeholder="Cole seu código privado aqui" required></textarea><div class="actions"><button class="secondary" type="submit">Recuperar lista</button></div></form></div><p class="attribution">Metadados e imagens: TMDB. Este produto usa a API do TMDB, mas não é endossado ou certificado pelo TMDB. <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">Sobre o TMDB</a></p>`;
   $('#server-form').onsubmit = async event => {
@@ -756,13 +756,13 @@ function connect() {
       const next = validBase($('#server-url').value.trim());
       if (connection && next !== apiBase) throw Error('Para trocar de servidor, recupere uma lista criada nele usando o código privado.');
       apiBase = next; config = await api('/api/config');
-      await ensureConnection(); persist(); toast('Servidor conectado.'); connect();
+      await ensureConnection(); persist(); toast('Servidor conectado.'); connect(true);
     } catch (error) { ({ apiBase, config, connection } = previous); toast(error.message); }
   };
-  if ($('#create-list')) $('#create-list').onclick = async () => { try { await ensureConnection(); connect(); } catch (error) { toast(error.message); } };
+  if ($('#create-list')) $('#create-list').onclick = async () => { try { await ensureConnection(); connect(true); } catch (error) { toast(error.message); } };
   if ($('#copy-addon')) $('#copy-addon').onclick = () => copy(connection.manifestUrl);
   if ($('#export-connection')) $('#export-connection').onclick = () => copy(JSON.stringify({ apiBase, id: connection.id, writeToken: connection.writeToken }));
-  if ($('#refresh-list')) $('#refresh-list').onclick = async () => { try { await refresh(); connect(); toast('Lista atualizada.'); } catch (error) { toast(error.message); } };
+  if ($('#refresh-list')) $('#refresh-list').onclick = async () => { try { await refresh(); connect(true); toast('Lista atualizada.'); } catch (error) { toast(error.message); } };
   $('#restore-form').onsubmit = async event => {
     event.preventDefault();
     const previous = { apiBase, connection, config, items };
@@ -770,7 +770,7 @@ function connect() {
       const input = JSON.parse($('#restore-code').value);
       if (!/^[a-f0-9]{24}$/.test(input.id) || !/^[\w-]{32}$/.test(input.writeToken)) throw Error('Código de recuperação inválido.');
       apiBase = validBase(input.apiBase); connection = { id: input.id, writeToken: input.writeToken };
-      await refresh(); persist(); connect(); toast('Lista recuperada.');
+      await refresh(); persist(); connect(true); toast('Lista recuperada.');
     } catch (error) { ({ apiBase, connection, config, items } = previous); toast(error.message); }
   };
 }
@@ -783,7 +783,12 @@ async function refresh() {
 function localConnection() {
   const supported = native && typeof window.CenaAndroid.connectTrakt === 'function';
   const pending = traktState.pending?.length || 0;
-  main.innerHTML = `<div class="eyebrow">SUA LISTA, EM MAIS TELAS</div><h1>Conexões</h1><div class="connection-jumps" aria-label="Serviços"><a href="#nuvio-panel">Nuvio</a><a href="#trakt-panel">Trakt</a><a href="#stremio-panel">Stremio</a><a href="#streaming-panel">TMDB</a></div><div class="panel" id="update-panel"><h2>Atualizações do CENA</h2><p id="update-status">Confira novas versões do aplicativo.</p><div class="actions"><button class="secondary" id="update-check">Verificar atualização</button><button class="primary" id="update-install" hidden>Atualizar</button></div></div><div class="panel" id="streaming-panel"><h2>Onde assistir</h2><p id="streaming-status"></p><p>Para mostrar os serviços no Brasil, use uma chave de API v3 gratuita da sua conta TMDB. <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">Criar ou consultar chave no TMDB</a>. Dados de disponibilidade: JustWatch via TMDB.</p><form id="streaming-form"><label for="streaming-key">Chave de API v3 do TMDB</label><input id="streaming-key" type="password" autocomplete="off" minlength="32" maxlength="32" required><button class="secondary" type="submit">Conectar TMDB</button></form></div>
+  main.innerHTML = `<div class="connections-heading"><h1>Conexões</h1><p>Escolha um serviço para configurar ou sincronizar.</p></div><div class="connection-jumps" aria-label="Serviços">
+    <button data-service="nuvio-panel"><strong>Nuvio</strong><small>Perfil e progresso</small></button>
+    <button data-service="trakt-panel"><strong>Trakt</strong><small>Lista e histórico</small></button>
+    <button data-service="stremio-panel"><strong>Stremio</strong><small>Importar biblioteca</small></button>
+    <button data-service="streaming-panel"><strong>TMDB</strong><small>Onde assistir</small></button>
+    </div><button class="link-button" id="jump-updates">Atualizações do CENA</button> ${native&&apiBase!=='local'?'<button class="secondary" id="manage-remote-list">Gerenciar catálogo remoto</button>':''}<div class="panel" id="update-panel"><h2>Atualizações do CENA</h2><p id="update-status">Confira novas versões do aplicativo.</p><div class="actions"><button class="secondary" id="update-check">Verificar atualização</button><button class="primary" id="update-install" hidden>Atualizar</button></div></div><div class="panel" id="streaming-panel"><h2>TMDB · Onde assistir</h2><p id="streaming-status"></p><p>Para mostrar os serviços no Brasil, use uma chave de API v3 gratuita da sua conta TMDB. <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">Criar ou consultar chave no TMDB</a>. Dados de disponibilidade: JustWatch via TMDB.</p><form id="streaming-form"><label for="streaming-key">Chave de API v3 do TMDB</label><input id="streaming-key" type="password" autocomplete="off" minlength="32" maxlength="32" required><button class="secondary" type="submit">Conectar TMDB</button></form></div>
     <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
     <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
     <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
@@ -793,6 +798,22 @@ function localConnection() {
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
+  const updatePanel=$('#update-panel');
+  main.append(updatePanel);
+  $('#jump-updates').onclick=()=>{updatePanel.tabIndex=-1;updatePanel.focus({preventScroll:true});updatePanel.scrollIntoView({block:'start'});};
+  const serviceButtons=[...main.querySelectorAll('[data-service]')];
+  const anchor=serviceButtons[0].parentElement;
+  // Keep the actual integration controls immediately after their shortcuts.
+  let after=anchor;
+  for(const button of serviceButtons){
+    const panel=document.getElementById(button.dataset.service);
+    after.after(panel);after=panel;panel.tabIndex=-1;
+    button.onclick=()=>{
+      panel.focus({preventScroll:true});
+      panel.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    };
+  }
+  if($('#manage-remote-list'))$('#manage-remote-list').onclick=()=>connect(true);
   window.CenaAndroid?.visionModelState?.();stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderSync();renderVisionModel();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
   renderUpdatePanel();$('#update-check').onclick=()=>window.CenaAndroid?.checkUpdates?.();$('#update-install').onclick=()=>window.CenaAndroid?.installUpdate?.();
   $('#streaming-status').textContent=streamingMessage;$('#streaming-form').onsubmit=event=>{event.preventDefault();const field=$('#streaming-key');window.CenaAndroid?.configureStreaming?.(field.value);field.value='';$('#streaming-status').textContent='Conectando ao TMDB…';};window.CenaAndroid?.streamingStatus?.();
@@ -805,7 +826,7 @@ function localConnection() {
   if($('#trakt-disconnect')) $('#trakt-disconnect').onclick=()=>window.CenaAndroid.disconnectTrakt();
   $('#local-server-form').onsubmit = async event => {
     event.preventDefault(); const previous={apiBase,connection,config,items};
-    try { apiBase=validBase($('#local-server-url').value.trim()); connection=null; config=await api('/api/config'); await ensureConnection(); items=[]; connect(); toast('Servidor conectado. Sua lista local foi preservada.'); }
+    try { apiBase=validBase($('#local-server-url').value.trim()); connection=null; config=await api('/api/config'); await ensureConnection(); items=[]; connect(true); toast('Servidor conectado. Sua lista local foi preservada.'); }
     catch(error) { ({apiBase,connection,config,items}=previous); toast(error.message); }
   };
 }
@@ -814,9 +835,19 @@ function localConnection() {
 const story=createStoryEditor({$,escape,storage,getItems:()=>items,native,artworkResolver,persistArtwork,toast,wireStreaming});
 document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = () => setTab(button.dataset.tab));
 $('nav [data-tab=profile]').addEventListener('click',()=>{historyMode='stats';historyDedicated=false;historyMedia='';},true);
+$('#connections-shortcut').onclick=()=>setTab('connect');
 $('#profile-shortcut').onclick=()=>{historyMedia='';historyDedicated=false;historyMode='stats';historyYear='all';historyKind='all';profileStatsTab='library';setTab('profile');};
 $('#search-shortcut').onclick = () => { setTab('library'); $('#query').focus(); };
-$('.brand').onclick = event => { event.preventDefault(); setTab('home'); };
+function animateBrand(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const brand=$('.brand');
+  brand.classList.remove('brand-intro');
+  void brand.offsetWidth;
+  brand.classList.add('brand-intro');
+}
+$('.brand').onclick = event => { event.preventDefault(); setTab('home'); animateBrand(); };
+if(document.readyState==='complete')requestAnimationFrame(animateBrand);
+else window.addEventListener('load',()=>requestAnimationFrame(animateBrand),{once:true});
 $('#detail .close').onclick = () => $('#detail').close();
 $('#detail').addEventListener('close',()=>{similarTicket++;localAI.cancel();refreshCurrentView();});
 $('#detail').onclick = event => { if (event.target === $('#detail')) { const r = $('#detail').getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) $('#detail').close(); } };
