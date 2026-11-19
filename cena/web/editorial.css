@@ -278,3 +278,70 @@ nav .camera-nav svg { stroke: #261137; }
 #main[data-screen="scan"] .scan-controls button { border-radius: 12px; }
 #main[data-screen="scan"] .scan-controls button:focus-visible,
 .story button:focus-visible { outline: 2px solid #e6ccff; outline-offset: 2px; }
+
+.history-day { margin: 0 0 19px; }
+.history-day h3 {
+  margin: 0 0 7px;
+  color: var(--cena-violet);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.history-day ul { display: grid; gap: 5px; padding: 0; margin: 0; list-style: none; }
+#history-records .history-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  text-align: left;
+}
+.history-row .poster-art { width: 100%; aspect-ratio: 2/3; margin: 0; }
+.history-row .poster-art .fallback, .history-row .stream-badge { display: none; }
+.history-entry-copy { min-width: 0; overflow-wrap: anywhere; }
+.history-entry-copy strong, .history-entry-copy small { white-space: normal; }
+.history-row time { color: var(--cena-mist); font-size: 12px; font-variant-numeric: tabular-nums; }
+.series-toolbar, .library-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.series-toolbar { flex-wrap: wrap; }
+.series-toolbar summary { font-size: 13px; color: var(--cena-mist); }
+.series-toolbar button, .library-titlebar button { min-height: 42px; }
+.library-titlebar h1 { margin: 0; font-size: clamp(27px, 7vw, 48px); }
+.library-titlebar button { padding-inline: 9px; font-size: 12px; }
+.library-status-filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.library-status-filters .chip { padding-inline: 9px; min-height: 38px; }
+#main[data-screen="library"] .library-filter-panel { margin: 6px 0; padding: 7px 10px; }
+#main[data-screen="library"] .section-heading { padding-top: 5px; margin-bottom: 8px; }
+#series-discovery .series-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+#series-discovery .series-grid-card {
+  display: grid;
+  grid-template-columns: 71px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: left;
+}
+.series-grid-card .poster-art { margin: 0; }
+.series-card-copy { min-width: 0; overflow-wrap: anywhere; }
+.series-card-copy strong { display: block; font-size: 15px; white-space: normal; }
+.series-card-copy .series-status { color: var(--cena-violet); }
+@media (min-width: 680px) {
+  #series-discovery .series-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .history-row, .series-grid-card, .library-status-filters .chip {
+    transition: background-color .18s ease, opacity .18s ease;
+  }
+  .history-row:active, .series-grid-card:active { opacity: .78; }
+}
