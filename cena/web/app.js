@@ -558,7 +558,7 @@ function discover(){
 function renderHighlights(){
  const target=$('#discovery-highlights');if(!target)return;
  if(!highlightsResults.length){target.innerHTML=highlightsPending?'<p class="muted" role="status">Carregando destaques…</p>':'<p class="muted">Destaques indisponíveis agora. <button class="highlight-retry">Tentar novamente</button></p>';target.querySelector('.highlight-retry')?.addEventListener('click',()=>loadHighlights(true));return;}
- target.innerHTML=['movie','series'].map(type=>{const rows=highlightsResults.filter(item=>item.type===type);if(!rows.length)return '';return `<section class="highlights-section"><div class="section-heading"><h2>${type==='movie'?'Filmes em destaque':'Séries em destaque'}</h2><button data-highlight-type="${type}">Ver todos</button></div>${horizontalGrid(rows.slice(0,12))}</section>`;}).join('')+'<p class="highlight-source">Destaques do catálogo Cinemeta</p>';
+ target.innerHTML=['movie','series'].map(type=>{const rows=highlightsResults.filter(item=>item.type===type);if(!rows.length)return '';return `<section class="highlights-section" data-catalog-type="${type}"><div class="section-heading"><h2>${type==='movie'?'Filmes em destaque':'Séries em destaque'}</h2><button data-highlight-type="${type}">Ver todos</button></div>${horizontalGrid(rows.slice(0,12))}</section>`;}).join('')+'<p class="highlight-source">Destaques do catálogo Cinemeta</p>';
  target.querySelectorAll('[data-highlight-type]').forEach(button=>button.onclick=()=>{discoveryScroll=window.scrollY;discoveryRailOffsets=[...target.querySelectorAll(".poster-rail")].map(rail=>rail.scrollLeft);highlightView=button.dataset.highlightType;discover();window.scrollTo(0,0);});wireImages();
 }
 async function loadHighlights(force=false){
