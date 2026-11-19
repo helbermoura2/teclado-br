@@ -40,6 +40,20 @@ test('story composes the official watermark and availability inside the export a
  assert.ok(text.map(({label})=>label).join(' ').includes('O Homem Imortal'));
  assert.ok(text.every(({label,y})=>y>=storyLayout.safe.top&&y<(label==='TMDB / JustWatch'?1860:1740)));
 });
+test('reference composition exports the personal 3,6 score, text and Netflix inside a wide glass panel',()=>{
+ const labels=[],rectangles=[];
+ const ctx={...context(),fillText:(label,x,y)=>labels.push({label,x,y}),roundRect:(x,y,width,height)=>rectangles.push({x,y,width,height})};
+ const canvas={dataset:{},getContext:()=>ctx};
+ renderStory(canvas,{image:{width:1400,height:800},title:'Peaky Blinders: O Homem Imortal',year:'2026',type:'movie',caption:'Aqui escrevo minha resenha sobre o filme.',rating:'3,6',availability:['Assinatura · Netflix, Netflix Standard with Ads']});
+ assert.ok(labels.some(({label})=>label==='3,6 / 10'));
+ assert.ok(labels.some(({label})=>label.includes('Peaky Blinders')));
+ assert.ok(labels.some(({label})=>label==='ASSINATURA'));
+ assert.ok(labels.some(({label})=>label==='Netflix'));
+ assert.ok(labels.some(({label})=>label==='Também no plano com anúncios'));
+ assert.ok(rectangles.some(({x,y,width,height})=>width===900&&x>=0&&y>1000&&y+height<=1750));
+ assert.ok(labels.some(({label,y})=>label==='TMDB / JustWatch'&&y>=1800&&y<1860));
+});
+
 test('localized title comes from an exact IMDb and type match, keeping the original name and release year',async()=>{
  const item={id:'tt0405094',type:'movie',name:'The Lives of Others',originalName:'The Lives of Others'};
  const result=await storyMetadata(item,{details:async()=>({...item,year:'2006'}),search:async()=>[{...item,id:'tt9999999',name:'Wrong movie'},{...item,name:'A Vida dos Outros',localWikiTitle:'A Vida dos Outros (filme)'}]});
