@@ -1,6 +1,7 @@
 // All coordinates are export pixels. Keep important content inside Instagram's UI margins.
 const backgrounds=new WeakMap();
 export const storyLayout={width:1080,height:1920,safe:{top:220,bottom:1660,left:100,right:980}};
+export const storyCaptionLimit=240;
 export const defaultStoryLogoPosition={x:100,y:220};
 export function constrainStoryLogo(position){
   const {x,y}=position||{};
@@ -84,7 +85,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   }
   if(brandMark){
     ctx.save();ctx.globalAlpha=.29;
-    ctx.drawImage(brandMark,600,1110,560,560);ctx.restore();
+    ctx.drawImage(brandMark,600,caption.length>110?1225:1110,560,560);ctx.restore();
   }
   if(mist)ctx.drawImage(mist,0,0,1080,1920);
   ctx.textAlign='left';ctx.textBaseline='top';
@@ -137,7 +138,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const sources=availability.slice(0,3);
   const hasScore=review.score!==null;
   const opinionX=hasScore&&review.opinion?left+225:left;
-  const opinion=fitText(ctx,review.opinion,right-opinionX,3,36,27,sans,400);
+  const opinion=fitText(ctx,review.opinion,right-opinionX,review.opinion.length>110?6:3,36,24,sans,400);
   if(hasScore){
     ctx.font=`800 48px ${sans}`;ctx.fillStyle='#f5edf8';
     ctx.fillText(`${String(review.score).replace('.',',')} / 10`,left,cursor);
@@ -175,10 +176,10 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
       return {label,providers,hasBoth};
     });
     const titleFont=`700 ${compact?29:39}px ${sans}`;
-    const detailFont=`500 ${compact?18:23}px ${sans}`;
+    const detailFont=`750 ${compact?17:19}px ${sans}`;
     const noteFont=`italic 500 ${compact?18:21}px ${sans}`;
     const textWidth=Math.max(...rows.map(({label,providers,hasBoth})=>{
-      ctx.font=titleFont;const names=ctx.measureText(providers.join(', ')).width;
+      ctx.font=titleFont;const names=ctx.measureText(providers.join(' · ')).width;
       ctx.font=detailFont;const detail=ctx.measureText(label.toLocaleUpperCase('pt-BR')).width;
       ctx.font=noteFont;const note=hasBoth?ctx.measureText(planNote).width:0;
       return Math.max(names,compact&&note?detail+20+note:Math.max(detail,note));
@@ -186,7 +187,7 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     const panelRight=Math.min(676,Math.max(left+490,contentX+textWidth+22));
     const lineHeight=compact?32:43;
     const rowLayouts=rows.map(row=>{
-      const heading=fitText(ctx,row.providers.join(', '),panelRight-contentX-16,2,compact?29:39,24,sans,700);
+      const heading=fitText(ctx,row.providers.join(' · '),panelRight-contentX-16,2,compact?29:39,24,sans,700);
       const detail=row.label.toLocaleUpperCase('pt-BR');
       const height=Math.max(49,heading.lines.length*lineHeight+(detail?27:7)+(row.hasBoth&&!compact?25:0));
       return {...row,heading,detail,height};
@@ -201,7 +202,8 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.moveTo(left,ruleY+20);ctx.lineTo(left+19,ruleY+31);ctx.lineTo(left,ruleY+42);ctx.closePath();ctx.fill();
     ctx.fillText('ONDE ASSISTIR NO BRASIL',left+32,ruleY+16);
     let y=ruleY+53;
-    for(const {label,providers,hasBoth,heading,detail,height} of rowLayouts){
+    for(const [index,{label,providers,hasBoth,heading,detail,height}] of rowLayouts.entries()){
+      if(index>0){ctx.fillStyle='#c8b9d333';ctx.fillRect(contentX,y-5,panelRight-contentX-16,1);}
       const cinema=label.startsWith('Estreia');
       const icon=cinema?'▤':label==='Aluguel'?'◷':label==='Compra'?'↓':'▶';
       ctx.fillStyle='#392748';ctx.beginPath();ctx.roundRect(left,y+2,44,44,10);ctx.fill();
@@ -212,15 +214,15 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
         ctx.fillStyle='#edd6ff';ctx.font=`700 24px ${sans}`;
         ctx.textAlign='center';ctx.fillText(icon,left+22,y+9);ctx.textAlign='left';
       }
-      ctx.font=`700 ${heading.size}px ${sans}`;ctx.fillStyle='#fff';
-      heading.lines.forEach((line,index)=>ctx.fillText(line,contentX,y+index*lineHeight));
       ctx.font=detailFont;ctx.fillStyle='#d3bbdf';
-      const detailY=y+heading.lines.length*lineHeight;
-      if(detail)ctx.fillText(detail,contentX,detailY);
+      if(detail)ctx.fillText(detail,contentX,y);
+      ctx.font=`700 ${heading.size}px ${sans}`;ctx.fillStyle='#fff';
+      heading.lines.forEach((line,index)=>ctx.fillText(line,contentX,y+(detail?23:0)+index*lineHeight));
       if(hasBoth){
-        const noteX=compact?contentX+ctx.measureText(detail).width+20:contentX;
-        ctx.font=noteFont;
-        ctx.fillText(planNote,noteX,detailY+(compact?0:25));
+        ctx.font=detailFont;
+        const noteX=compact?contentX+ctx.measureText(detail).width+17:contentX;
+        ctx.font=noteFont;ctx.fillStyle='#d3bbdf';
+        ctx.fillText(planNote,noteX,compact?y:y+23+heading.lines.length*lineHeight);
       }
       y+=height;
 
@@ -238,6 +240,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='18';
-  return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='19';
+  return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }
