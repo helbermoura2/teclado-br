@@ -1,6 +1,6 @@
 // All coordinates are export pixels. Keep important content inside Instagram's UI margins.
 const backgrounds=new WeakMap();
-export const storyLayout={width:1080,height:1920,poster:{x:100,y:320,width:464,height:696},safe:{top:220,bottom:1660,left:100,right:980}};
+export const storyLayout={width:1080,height:1920,poster:{x:100,y:342,width:446,height:669},safe:{top:220,bottom:1660,left:100,right:980}};
 export function parseStoryRating(value){
   const raw=String(value??'').trim().replace(/\s*([.,])\s*/g,'$1');
   if(!/^\d{1,2}([.,]\d{1,2})?$/.test(raw))return null;
@@ -30,7 +30,7 @@ export function wrapStoryText(ctx,text,width,maxLines){
   return lines;
 }
 function cover(ctx,image,x,y,width,height){const scale=Math.max(width/image.width,height/image.height),w=image.width*scale,h=image.height*scale;ctx.drawImage(image,x+(width-w)/2,y+(height-h)/2,w,h);}
-function fitText(ctx,text,width,maxLines,start,min,font="sans-serif"){let size=start,lines;for(;size>=min;size-=2){ctx.font=`600 ${size}px ${font}`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`600 ${size}px ${font}`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
+function fitText(ctx,text,width,maxLines,start,min,font="sans-serif",weight=600){let size=start,lines;for(;size>=min;size-=2){ctx.font=`${weight} ${size}px ${font}`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`${weight} ${size}px ${font}`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
 export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,template='editorial',availability=[]}={}){
   const ctx=canvas.getContext('2d');canvas.width=1080;canvas.height=1920;
   const guide=template==='guide';
@@ -45,22 +45,21 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   }
   const {left,right,top}=storyLayout.safe;
   const width=right-left,center=540;
-  const p=guide?{x:336,y:324,width:408,height:612}:storyLayout.poster;
+  const p=guide?{x:330,y:342,width:420,height:630}:storyLayout.poster;
   const sans='Manrope, sans-serif';
-  const serif='"Playfair Display", Georgia, serif';
   if(brandMark){
     ctx.save();
-    ctx.globalAlpha=guide?.09:.12;
+    ctx.globalAlpha=guide?.11:.08;
     ctx.drawImage(brandMark,guide?216:236,230,guide?648:820,guide?648:820);
     ctx.restore();
   }
-  const brandX=guide?404:left;
+  const brandX=guide?350:left;
   if(brandMark&&brandWordmark){
-    ctx.drawImage(brandMark,brandX,top,64,64);
-    ctx.drawImage(brandWordmark,brandX+75,top+17,195,33);
+    ctx.drawImage(brandMark,brandX,top,94,94);
+    ctx.drawImage(brandWordmark,brandX+104,top+22,276,47);
   }else{
     ctx.textAlign=guide?'center':'left';ctx.textBaseline='top';
-    ctx.fillStyle='#eee9f6';ctx.font='600 30px sans-serif';
+    ctx.fillStyle='#eee9f6';ctx.font=`800 42px ${sans}`;
     ctx.fillText('CENA IA',guide?center:left,top+16);
   }
   if(image){
@@ -77,28 +76,38 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   const anchor=guide?center:left;
   ctx.textAlign=guide?'center':'left';ctx.textBaseline='top';
   ctx.fillStyle='#f7f0ff';
-  const titleTop=image?p.y+p.height+32:guide?690:840;
+  const sidebar=!guide&&Boolean(image);
+  const titleX=sidebar?p.x+p.width+38:anchor;
+  const titleWidth=sidebar?right-titleX:width;
   const colon=title.indexOf(': ');
-  const heading=fitText(ctx,title,width,2,guide?69:64,39,serif);
+  const heading=fitText(ctx,title,titleWidth,sidebar?4:2,sidebar?60:62,sidebar?36:38,sans,800);
   const mainTitle=colon>0?title.slice(0,colon):'';
   const subtitle=colon>0?title.slice(colon+2):'';
-  const splitTitle=mainTitle&&subtitle
-    &&ctx.measureText(mainTitle).width<=width&&ctx.measureText(subtitle).width<=width;
-  const titleLines=splitTitle?[mainTitle,subtitle]:heading.lines;
+  const subtitleSize=Math.round(heading.size*.79);
+  const mainLines=wrapStoryText(ctx,mainTitle,titleWidth,10);
+  ctx.font=`650 ${subtitleSize}px ${sans}`;
+  const subLines=wrapStoryText(ctx,subtitle,titleWidth,10);
+  const splitTitle=mainTitle&&subtitle&&mainLines.length+subLines.length<=(sidebar?4:2);
+  const titleLines=splitTitle?[...mainLines,...subLines]:heading.lines;
+  const titleTop=sidebar?p.y+Math.max(38,(p.height-titleLines.length*(heading.size+8)-50)/2):
+    image?p.y+p.height+32:guide?650:720;
+  let cursor=titleTop;
   titleLines.forEach((line,i)=>{
-    const subtitleLine=splitTitle&&i===1;
-    ctx.font=`600 ${subtitleLine?Math.round(heading.size*.79):heading.size}px ${serif}`;
+    const subtitleLine=splitTitle&&i>=mainLines.length;
+    const size=subtitleLine?subtitleSize:heading.size;
+    ctx.font=`${subtitleLine?650:800} ${size}px ${sans}`;
     ctx.fillStyle=subtitleLine?'#e7d8ed':'#f7f0ff';
-    ctx.fillText(line,anchor,titleTop+i*(heading.size+5));
+    ctx.fillText(line,titleX,cursor);
+    cursor+=size+8;
   });
-  let cursor=titleTop+(titleLines.length-1)*(heading.size+5)+(splitTitle?Math.round(heading.size*.79):heading.size)+18;
-  ctx.font=`600 24px ${sans}`;ctx.fillStyle='#d6c8ea';
+  cursor+=13;
+  ctx.font=`600 25px ${sans}`;ctx.fillStyle='#d6c8ea';
   const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'].filter(Boolean).join(' · ');
   const review=storyOpinion(caption,rating);
-  ctx.fillText(details,anchor,cursor);
-  cursor+=37;
+  ctx.fillText(details,titleX,cursor);
+  cursor=sidebar?p.y+p.height+40:cursor+38;
   if(!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase()&&cursor<1250){
-    ctx.font='24px sans-serif';ctx.fillStyle='#d6c8ea';
+    ctx.font=`500 24px ${sans}`;ctx.fillStyle='#d6c8ea';
     ctx.fillText(wrapStoryText(ctx,originalTitle,width,1)[0]||'',anchor,cursor);cursor+=34;
   }
   const sources=availability.slice(0,3);
@@ -107,13 +116,13 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText(`${String(review.score).replace('.',',')} / 10`,anchor,cursor+5);
     cursor+=39;
   }
-  const opinion=fitText(ctx,review.opinion,width,3,31,26,sans);
+  const opinion=fitText(ctx,review.opinion,width,3,sidebar?38:33,26,sans,400);
   ctx.font=`400 ${opinion.size}px ${sans}`;
   ctx.fillStyle='#f6edf9';const opinionTop=cursor+11;
   opinion.lines.forEach((line,i)=>ctx.fillText(line,anchor,opinionTop+i*(opinion.size+9)));
   const opinionBottom=opinionTop+opinion.lines.length*(opinion.size+9);
   if(sources.length){
-    const ruleY=opinionBottom+(guide?30:24);
+    const ruleY=Math.max(opinionBottom+25,guide?1350:1285);
     ctx.textAlign='left';
     ctx.fillStyle='#ab91c2';ctx.fillRect(left,ruleY,width,1);
     ctx.fillStyle='#ddc9ed';ctx.font=`700 ${guide?24:19}px ${sans}`;
@@ -145,6 +154,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.font=`500 18px ${sans}`;ctx.fillStyle='#c9b6d8';
     ctx.fillText('TMDB / JustWatch',left,y+6);
   }
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='7';canvas.dataset.storyTemplate=template;
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='8';canvas.dataset.storyTemplate=template;
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score};
 }
