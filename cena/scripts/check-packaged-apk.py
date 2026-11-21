@@ -10,8 +10,9 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.27.4' in index
+    assert 'v0.27.5' in index
     assert 'assets/brand-mark.png' in archive.namelist()
+    assert 'assets/online-ai.js' in archive.namelist()
     assert 'assets/brand-wordmark.svg' in archive.namelist()
     assert 'CENA IA, início' in index
     assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
@@ -65,6 +66,7 @@ tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.27.4'" in badging and "versionCode='61'" in badging
+assert "versionName='0.27.5'" in badging and "versionCode='62'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
+
