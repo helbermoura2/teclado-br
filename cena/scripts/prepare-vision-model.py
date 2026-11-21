@@ -31,8 +31,8 @@ assert target.stat().st_size == size and digest.hexdigest() == expected, 'Model 
 info = {'source': 'Xenova/clip-vit-base-patch32', 'revision': revision, 'sha256': expected, 'size': size, 'license': 'MIT'}
 (destination / 'model-info.json').write_text(json.dumps(info, indent=2))
 for filename, url in [
-    ('CLIP-LICENSE.txt', 'https://raw.githubusercontent.com/openai/CLIP/main/LICENSE'),
-    ('ONNXRUNTIME-LICENSE.txt', 'https://raw.githubusercontent.com/microsoft/onnxruntime/main/LICENSE')
+    ('CLIP-LICENSE.txt', 'https://raw.githubusercontent.com/openai/CLIP/main/LICENSE')
 ]:
     (destination / filename).write_bytes(read(url))
+(destination / 'ONNXRUNTIME-LICENSE.txt').write_bytes((root / 'scripts/ONNXRUNTIME-LICENSE.txt').read_bytes())
 print('Bundled local visual AI:', json.dumps(info))
