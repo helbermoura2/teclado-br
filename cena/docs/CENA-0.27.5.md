@@ -1,6 +1,6 @@
 ## IA online com Gemini
 
-Conecte seu Worker em Conectar → IA online · Gemini. O endereço padrão é https://cena-ia.terrestre.workers.dev. Informe somente CENA_AI_ACCESS_TOKEN, o token que você criou na Cloudflare. A chave Gemini continua no Worker.
+Conecte seu Worker em Perfil → IA online · Gemini. O endereço padrão é https://cena-ia.terrestre.workers.dev. Informe somente CENA_AI_ACCESS_TOKEN, o token que você criou na Cloudflare. A chave Gemini continua no Worker.
 
 O botão Testar Gemini faz uma consulta autenticada. Nos detalhes de um título, use Refinar com Gemini online. As respostas são conferidas contra os candidatos do catálogo. Uma falha preserva as recomendações anteriores.
 
