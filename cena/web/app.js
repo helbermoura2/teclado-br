@@ -1,3 +1,4 @@
+import {createOnlineAI} from './online-ai.js';
 import {availabilityRows} from './availability.js';
 import {profileCollection,yearlyHistory,personalRatings} from './profile-stats.js';
 import {NuvioSeriesEngine} from './nuvio-series.js';
@@ -31,6 +32,7 @@ import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
 const storage=createAppStorage(localStorage,window.CenaAndroid);
+const onlineAI=createOnlineAI(storage);
 window.CenaStoryArtworkResult=receiveStoryArtwork;
 const storageKey = 'cena.connection.v1';
 let connection = null;
@@ -251,7 +253,7 @@ function paintSimilar(panel,result,local=false){
 }
 async function findSimilar(seed,includeSaved=true,query=''){
  localAI.cancel();const ticket=++similarTicket,panel=$('#similar-panel');
- panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
+ panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><button class="secondary wide" id="online-similar">✧ Refinar com Gemini online</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
  const search=panel.querySelector('#search-similar'),ai=panel.querySelector('#refine-similar'),status=panel.querySelector('#similar-status');
  search.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;
  const run=async useLocal=>{
@@ -263,11 +265,12 @@ async function findSimilar(seed,includeSaved=true,query=''){
    const result=await similarEngine.find(seed,{existing:items,includeSaved:include,query:preference});
    if(ticket!==similarTicket||!panel.isConnected||cancelled)return;
    paintSimilar(panel,result);
-   if(useLocal&&result.candidates.length){status.textContent='Executando o GGUF no celular entre candidatos que atendem aos critérios…';const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,preference));if(ticket!==similarTicket||!panel.isConnected||cancelled)return;const selected=validateLocalSelection(answer,result.candidates,{seed:result.seed,query:preference});if(!selected)throw Error('A IA não retornou uma seleção válida para os critérios. Mantive as opções do catálogo.');paintSimilar(panel,{...result,items:selected},true);}
+   if(useLocal==='online'){status.textContent='Consultando Gemini online…';const selected=await onlineAI.select(result,preference);if(ticket!==similarTicket||!panel.isConnected)return;paintSimilar(panel,{...result,items:selected});status.textContent=selected.length+' opções selecionadas pelo Gemini entre candidatos do catálogo.';}
+   if(useLocal===true&&result.candidates.length){status.textContent='Executando o GGUF no celular entre candidatos que atendem aos critérios…';const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,preference));if(ticket!==similarTicket||!panel.isConnected||cancelled)return;const selected=validateLocalSelection(answer,result.candidates,{seed:result.seed,query:preference});if(!selected)throw Error('A IA não retornou uma seleção válida para os critérios. Mantive as opções do catálogo.');paintSimilar(panel,{...result,items:selected},true);}
   }catch(error){if(ticket===similarTicket&&status.isConnected&&!cancelled)status.textContent=error.message;}
   finally{if(search.isConnected){search.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;if(cancel?.isConnected)cancel.hidden=true;}
  };
- search.onclick=()=>run(false);if(ai)ai.onclick=()=>run(true);
+ search.onclick=()=>run(false);panel.querySelector('#online-similar').onclick=()=>{if(!onlineAI.configured()){$('#detail').close();setTab('connect');$('#online-ai-panel')?.scrollIntoView({block:'center'});return;}run('online');};if(ai)ai.onclick=()=>run(true);
  panel.querySelector('#similar-preference').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();run(false);}};
  panel.querySelector('#similar-saved').onchange=()=>run(false);
  if($('#similar-ai-settings'))$('#similar-ai-settings').onclick=()=>{$('#detail').close();setTab('connect');$('#local-ai-panel')?.scrollIntoView({block:'center'});};
@@ -369,7 +372,7 @@ window.CenaTraktResult = state => {
   if(libraryChanged) { items=merged; storage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
   if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
-  if(tab==='connect' && $('#streaming-panel') && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus, #streaming-key:focus, #local-server-url:focus')) localConnection();
+  if(tab==='connect' && $('#streaming-panel') && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus, #online-ai-panel input:focus, #streaming-key:focus, #local-server-url:focus')) localConnection();
   else if(!$('#detail').open) {
     if(tab==='library') { if(libraryChanged)patchLibrary();else updateArtworkProgress(); }
     else if(tab==='home'&&libraryChanged) {const position=window.scrollY;home();window.scrollTo(0,position);}
@@ -849,7 +852,7 @@ function localConnection() {
     <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
     ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
     ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
-    <div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div>
+    <div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div><div class="panel" id="online-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
@@ -875,6 +878,7 @@ function localConnection() {
   }
   if($('#manage-remote-list'))$('#manage-remote-list').onclick=()=>connect(true);
   window.CenaAndroid?.visionModelState?.();stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderSync();renderVisionModel();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
+  onlineAI.mount($('#online-ai-panel'));
   renderUpdatePanel();$('#update-check').onclick=()=>window.CenaAndroid?.checkUpdates?.();$('#update-install').onclick=()=>window.CenaAndroid?.installUpdate?.();
   $('#streaming-status').textContent=streamingMessage;$('#streaming-form').onsubmit=event=>{event.preventDefault();const field=$('#streaming-key');window.CenaAndroid?.configureStreaming?.(field.value);field.value='';$('#streaming-status').textContent='Conectando ao TMDB…';};window.CenaAndroid?.streamingStatus?.();
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
@@ -920,3 +924,4 @@ if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-v
 window.addEventListener('online',()=>{artworkResolver.retry();for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')){if(!element.querySelector(':scope > img')){const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);}}});
 
 window.addEventListener('online',()=>{ratingsResolver.retry();for(const node of document.querySelectorAll('[data-rating-state=error]'))hydrateScore(node);});
+
