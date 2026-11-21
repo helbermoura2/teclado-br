@@ -1,0 +1,39 @@
+name: CENA Stremio link contract
+on:
+  push:
+    branches: ['cena/**']
+    paths: ['.github/workflows/cena-stremio-contract.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-public-link:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Inspect anonymous Stremio Link v2 shape without printing grants or codes
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse, urllib.error
+          def request(url):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'CENA/0.6.0','Accept':'application/json'}),timeout=20) as response:
+                      return response.status,json.load(response)
+              except urllib.error.HTTPError as error:
+                  try: body=json.loads(error.read())
+                  except Exception: body={}
+                  return error.code,body
+          try:
+              status,body=request('https://link.stremio.com/api/v2/create?type=Create')
+              result=body.get('result') or {}
+              print('Create:',json.dumps({'status':status,'topKeys':list(body),'resultKeys':list(result) if isinstance(result,dict) else [],'codeLength':len(result.get('code','')),'linkHost':urllib.parse.urlparse(result.get('link','')).hostname}))
+              if result.get('code'):
+                  query=urllib.parse.urlencode({'type':'Read','code':result['code']})
+                  status,pending=request('https://link.stremio.com/api/v2/read?'+query)
+                  value=pending.get('result')
+                  error=pending.get('error')
+                  print('Read before authorization:',json.dumps({'status':status,'topKeys':list(pending),'resultType':type(value).__name__,'resultKeys':list(value) if isinstance(value,dict) else [],'errorCode':error.get('code') if isinstance(error,dict) else None,'errorMessage':error.get('message') if isinstance(error,dict) else None}))
+          except Exception as error:
+              print('Probe unavailable:',type(error).__name__)
+              raise SystemExit(1)
+          PY

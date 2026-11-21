@@ -1,0 +1,5 @@
+export const normalizeTaste=value=>String(value||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
+const themes=[['samurai',/\b(samurais?|ronins?|shoguns?)\b/],['zombie',/\b(zombie|zumbi|undead)\b/],['heist',/\b(heist|bank robbery|assalto a banco)\b/],['vampire',/\b(vampire|vampiro)\b/],['time travel',/\b(time travel|viagem no tempo)\b/],['martial arts',/\b(martial arts|kung fu|artes marciais)\b/],['space',/\b(outer space|spaceship|astronaut|espaconave)\b/],['gangster',/\b(gangster|mafia|mobster)\b/],['revenge',/\b(revenge|vinganca)\b/],['investigation',/\b(detective|investigation|investigacao|detetive)\b/]];
+const labels={samurai:'samurais',zombie:'zumbis',heist:'assaltos',vampire:'vampiros','time travel':'viagem no tempo','martial arts':'artes marciais',space:'aventuras espaciais',gangster:'máfia',revenge:'vingança',investigation:'investigação'};
+export function titleThemes(item){const text=normalizeTaste(`${item.name} ${item.originalName||''} ${item.description||''}`);return themes.filter(([,regex])=>regex.test(text)).map(([name])=>name);}
+export const themeLabel=value=>labels[value]||value;

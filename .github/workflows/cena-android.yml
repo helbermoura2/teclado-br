@@ -1,0 +1,153 @@
+name: CENA Android APK
+# Validar o histórico recente e a atualização da versão 0.16.0.
+# Local similarity prompts use at most eight candidates and avoid duplicated plot/evidence text.
+# SQLite regression checks pin the write connection when counting changed rows.
+# Catalog updates write only changed SQLite rows; unchanged artwork keeps its saved records.
+# Visual download requests are deduplicated and restored archives can generate an offline recap.
+# Late WebView readiness callbacks are ignored after the Activity has closed.
+# Home QA scrolls horizontal shelves before validating lazily loaded artwork and scores.
+# Static module traffic has its own budget; authenticated API limits remain intact.
+# Browser QA waits on rendered UI while retaining the strict app CSP.
+# Direct Nuvio playback imports are read-only and isolated by account/profile.
+# The protected-file fixture runs in an independent platform-only provider.
+# Release only after the same source passes browser and actual Android GGUF tests.
+
+on:
+  push:
+    branches: [main, 'cena/**']
+    paths: ['cena/**', 'android/**', 'web/**', 'server/**', 'tests/**', 'package.json', '.github/workflows/cena-android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: cena-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Find CENA source
+        id: source
+        shell: bash
+        run: |
+          if [ -f cena/android/settings.gradle.kts ]; then
+            echo 'directory=cena' >> "$GITHUB_OUTPUT"
+          elif [ -f android/settings.gradle.kts ]; then
+            echo 'directory=.' >> "$GITHUB_OUTPUT"
+          else
+            echo 'CENA source directory is missing.' >&2
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify server and local storage
+        working-directory: ${{ steps.source.outputs.directory }}
+        run: |
+          npm run check
+          npm test
+          node scripts/check-cover-identification.mjs
+      - name: Verify public catalogs, regional covers and local discovery
+        working-directory: ${{ steps.source.outputs.directory }}
+        run: |
+          node scripts/check-public-search.mjs
+          for attempt in 1 2 3; do
+            if node scripts/check-regional-artwork.mjs; then break; fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep 3
+          done
+          node scripts/check-discovery.mjs
+          node scripts/check-similar.mjs
+          node scripts/check-ratings.mjs
+          node scripts/check-nuvio-api.mjs
+      - name: Bundle and validate free on-device visual model
+        working-directory: ${{ steps.source.outputs.directory }}
+        run: |
+          python3 scripts/prepare-vision-model.py
+          python3 -m venv /tmp/cena-vision
+          /tmp/cena-vision/bin/pip install --quiet onnxruntime==1.22.0 pillow numpy
+          /tmp/cena-vision/bin/python scripts/check-vision-model.py
+      - name: Keep visual weights out of the mobile APK
+        run: rm -f cena/android/app/src/main/assets/models/clip-vision.onnx
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Prepare pinned local GGUF runtime
+        run: |
+          sdkmanager 'ndk;28.0.13004108'
+          git clone --filter=blob:none --no-checkout https://github.com/ggml-org/llama.cpp.git /tmp/cena-llama
+          git -C /tmp/cena-llama fetch --depth 1 origin 0ec4027a2a0183de87c007069adddc06e665f7de
+          git -C /tmp/cena-llama checkout --detach FETCH_HEAD
+          mkdir -p cena/android/app/src/main/assets/licenses
+          cp /tmp/cena-llama/LICENSE cena/android/app/src/main/assets/licenses/llama.cpp.txt
+      - uses: actions/cache@v4
+        id: local-runtime
+        with:
+          path: cena/android/app/src/main/jniLibs
+          key: cena-llama-b12020-ndk28-${{ hashFiles('cena/android/app/src/main/cpp/**', 'cena/scripts/build-local-ai.sh') }}
+      - name: Compile local CPU engine for Android
+        if: steps.local-runtime.outputs.cache-hit != 'true'
+        run: bash cena/scripts/build-local-ai.sh cena /tmp/cena-llama
+      - name: Remove unused native debug symbols
+        run: bash cena/scripts/trim-native.sh cena
+      - name: Restore persistent private preview signing identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
+        run: bash "${{ steps.source.outputs.directory }}/scripts/prepare-signing.sh" initialize
+      - name: Build verified discovery and series APK
+        working-directory: ${{ steps.source.outputs.directory }}/android
+        env:
+          CENA_KEYSTORE_PATH: ${{ runner.temp }}/cena-signing/cena-preview.keystore
+        run: gradle --no-daemon assembleDebug
+      - name: Validate the packaged discovery UI and update version
+        working-directory: ${{ steps.source.outputs.directory }}
+        run: python3 scripts/check-packaged-apk.py android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Name APK and checksum
+        env:
+          SOURCE_DIRECTORY: ${{ steps.source.outputs.directory }}
+        run: |
+          mkdir -p entrega
+          cp "$SOURCE_DIRECTORY/android/app/build/outputs/apk/debug/app-debug.apk" entrega/CENA-0.16.0.apk
+          cd entrega
+          sha256sum CENA-0.16.0.apk > CENA-0.16.0.apk.sha256
+      - name: Require Android integration and browser validation before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 90); do
+            result=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&per_page=30" --jq '.workflow_runs[] | select(.name == "CENA local visual AI on Android" or .name == "CENA live mobile browser QA") | [.status, (.conclusion // "pending")] | join(" ")')
+            if [ "$(printf '%s\n' "$result" | grep -c '^completed success$')" = 2 ]; then exit 0; fi
+            if printf '%s\n' "$result" | grep -Eq '^completed (failure|cancelled|timed_out|action_required)$'; then echo "Validation: $result"; exit 1; fi
+            sleep 15
+          done
+          echo 'Android validation did not finish in time.'
+          exit 1
+      - name: Publish direct APK download in the private repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(gh repo view "$GITHUB_REPOSITORY" --json isPrivate --jq .isPrivate)" = true
+          if ! gh release view cena-v0.16.0 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create cena-v0.16.0 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title 'CENA 0.16.0 — atualização de teste' --notes-file cena/docs/CENA-0.16.0.md
+          fi
+          gh release upload cena-v0.16.0 entrega/CENA-0.16.0.apk entrega/CENA-0.16.0.apk.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+
+
+
