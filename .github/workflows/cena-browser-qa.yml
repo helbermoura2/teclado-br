@@ -539,7 +539,7 @@ jobs:
                   expect(nuvio_page.locator('#main .hero')).to_have_count(0)
                   expect(nuvio_page.locator('#main .notice')).to_have_count(0)
                   order=nuvio_page.evaluate("Array.from(document.querySelectorAll('#main section')).map(e=>e.id).filter(Boolean)")
-                  assert [x for x in order if x!='home-calendar'][:4]==['nuvio-home','recent-history','series-home','home-recommendations']
+                  assert [x for x in order if x!='home-calendar'][:4]==['nuvio-home','series-home','home-recommendations','recent-history']
                   triangle=nuvio_page.locator('.brand-triangle').bounding_box()
                   assert triangle['height']>=25 and triangle['width']>=23
                   assert nuvio_page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'No horizontal page overflow'
@@ -554,7 +554,7 @@ jobs:
                   expect(nuvio_page.locator('#nuvio-home [data-nuvio-title="tt0903747"]')).to_have_count(1)
                   nuvio_page.locator('#home-recommendations').scroll_into_view_if_needed()
                   expect(nuvio_page.locator('#home-recommendation-grid .poster-card')).to_have_count(5,timeout=30000)
-                  expect(nuvio_page.locator('#main section').last.locator('.poster-card')).to_have_count(6)
+                  expect(nuvio_page.locator('.home-watchlist .poster-card')).to_have_count(6)
                   nuvio_page.evaluate('window.scrollTo(0,0)')
                   nuvio_page.wait_for_timeout(2000)
                   nuvio_page.screenshot(path='qa/home-redesign.png',full_page=True)
