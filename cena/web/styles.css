@@ -142,3 +142,7 @@ nav .camera-nav small{font-size:10px}
 }
 @keyframes cena-brand-light{0%{opacity:.35;transform:scale(.68);filter:drop-shadow(0 0 1px #bd7eff)}47%{opacity:1;transform:scale(1.21);filter:drop-shadow(0 0 13px #c98aff)}to{opacity:1;transform:none;filter:drop-shadow(0 0 5px #b073ed88)}}
 @keyframes cena-brand-reveal{from{opacity:.1;clip-path:inset(0 100% 0 0);transform:translateX(-8px)}to{opacity:1;clip-path:inset(0);transform:none}}
+
+/* Keep the cover-recognition hero's artwork inside its card on small phones. */
+.capture-hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(70px,32%);align-items:center;gap:10px;overflow:hidden}.capture-editorial{min-width:0}.capture-hero h1{font-size:clamp(26px,7vw,40px)}.capture-hero button{max-width:100%;padding:12px;font-size:12px}.capture-hero button svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7}.capture-emblem,.capture-emblem>div{min-width:0;width:100%}.capture-emblem img{display:block;width:100%;max-width:100%;height:auto;object-fit:contain}
+#online-ai-panel input{width:100%;min-width:0;box-sizing:border-box}#online-ai-panel label{display:block;margin:12px 0}
