@@ -1,3 +1,4 @@
+import {createOnlineAI} from './online-ai.js';
 import {profileCollection,yearlyHistory,personalRatings} from './profile-stats.js';
 import {NuvioSeriesEngine} from './nuvio-series.js';
 import {seriesUniverse,seriesCards,nextEpisodeEntries,combineContinuity,traktPausedEntries} from './series-continuity.js';
@@ -30,6 +31,7 @@ import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
 const storage=createAppStorage(localStorage,window.CenaAndroid);
+const onlineAI=createOnlineAI(storage);
 window.CenaStoryArtworkResult=receiveStoryArtwork;
 const storageKey = 'cena.connection.v1';
 let connection = null;
@@ -196,7 +198,7 @@ function paintSimilar(panel,result,local=false){
 }
 async function findSimilar(seed,includeSaved=true,query=''){
  localAI.cancel();const ticket=++similarTicket,panel=$('#similar-panel');
- panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
+ panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><button class="secondary wide" id="online-similar">✧ Refinar com Gemini online</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
  const search=panel.querySelector('#search-similar'),ai=panel.querySelector('#refine-similar'),status=panel.querySelector('#similar-status');
  search.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;
  const run=async useLocal=>{
@@ -208,11 +210,12 @@ async function findSimilar(seed,includeSaved=true,query=''){
    const result=await similarEngine.find(seed,{existing:items,includeSaved:include,query:preference});
    if(ticket!==similarTicket||!panel.isConnected||cancelled)return;
    paintSimilar(panel,result);
-   if(useLocal&&result.candidates.length){status.textContent='Executando o GGUF no celular entre candidatos que atendem aos critérios…';const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,preference));if(ticket!==similarTicket||!panel.isConnected||cancelled)return;const selected=validateLocalSelection(answer,result.candidates,{seed:result.seed,query:preference});if(!selected)throw Error('A IA não retornou uma seleção válida para os critérios. Mantive as opções do catálogo.');paintSimilar(panel,{...result,items:selected},true);}
+   if(useLocal==='online'){if(!result.candidates.length)throw Error('Não há candidatos verificados para enviar à IA.');status.textContent='Consultando Gemini online…';const selected=await onlineAI.select(result,preference);if(ticket!==similarTicket||!panel.isConnected)return;paintSimilar(panel,{...result,items:selected});status.textContent=selected.length+' opções selecionadas pelo Gemini entre candidatos do catálogo.';}
+   if(useLocal===true&&result.candidates.length){status.textContent='Executando o GGUF no celular entre candidatos que atendem aos critérios…';const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,preference));if(ticket!==similarTicket||!panel.isConnected||cancelled)return;const selected=validateLocalSelection(answer,result.candidates,{seed:result.seed,query:preference});if(!selected)throw Error('A IA não retornou uma seleção válida para os critérios. Mantive as opções do catálogo.');paintSimilar(panel,{...result,items:selected},true);}
   }catch(error){if(ticket===similarTicket&&status.isConnected&&!cancelled)status.textContent=error.message;}
   finally{if(search.isConnected){search.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;if(cancel?.isConnected)cancel.hidden=true;}
  };
- search.onclick=()=>run(false);if(ai)ai.onclick=()=>run(true);
+ search.onclick=()=>run(false);panel.querySelector('#online-similar').onclick=()=>run('online');if(ai)ai.onclick=()=>run(true);
  panel.querySelector('#similar-preference').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();run(false);}};
  panel.querySelector('#similar-saved').onchange=()=>run(false);
  if($('#similar-ai-settings'))$('#similar-ai-settings').onclick=()=>{$('#detail').close();setTab('connect');$('#local-ai-panel')?.scrollIntoView({block:'center'});};
@@ -743,6 +746,7 @@ function localConnection() {
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
   window.CenaAndroid?.visionModelState?.();stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderSync();renderVisionModel();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
+  const onlinePanel=document.createElement('section');onlinePanel.className='panel';onlinePanel.id='online-ai-panel';main.append(onlinePanel);onlineAI.mount(onlinePanel);
   renderUpdatePanel();$('#update-check').onclick=()=>window.CenaAndroid?.checkUpdates?.();$('#update-install').onclick=()=>window.CenaAndroid?.installUpdate?.();
   $('#streaming-status').textContent=streamingMessage;$('#streaming-form').onsubmit=event=>{event.preventDefault();const field=$('#streaming-key');window.CenaAndroid?.configureStreaming?.(field.value);field.value='';$('#streaming-status').textContent='Conectando ao TMDB…';};window.CenaAndroid?.streamingStatus?.();
   if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
@@ -778,3 +782,4 @@ if (native) { if (typeof window.CenaAndroid.appVersion === 'function') $('#app-v
 window.addEventListener('online',()=>{artworkResolver.retry();for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')){if(!element.querySelector(':scope > img')){const rect=element.getBoundingClientRect();if(rect.bottom>=0 && rect.top<=innerHeight+200)hydrateArtwork(element);}}});
 
 window.addEventListener('online',()=>{ratingsResolver.retry();for(const node of document.querySelectorAll('[data-rating-state=error]'))hydrateScore(node);});
+
