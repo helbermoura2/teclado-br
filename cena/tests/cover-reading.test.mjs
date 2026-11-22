@@ -43,3 +43,9 @@ test('an OCR title is not replaced by a synthetic mixture of cast names and phon
 test('complete short titles remain intact while an unfinished preposition waits for its next line',()=>{
  assert.equal(coverTitlePhrase(['O Vencedor']),'O Vencedor');assert.equal(coverTitlePhrase(['11:14']),'11:14');assert.equal(coverTitlePhrase(['O PROTOCOLO DE','AUSCHWITZ']),'O PROTOCOLO DE AUSCHWITZ');
 });
+
+test('a large-font fragment cannot veto a fuller stylized title supported by the same OCR',async()=>{
+ const {identifyCover}=await import('../web/identify-cover.js');const lines=['AeloGod Margaiet.','Margaiet.','AeloGod','M','Tts Me,','Jhere','figura-','scobrlr','lloteca','bcurar','níclo','ddons','AeloGod Jhere Tts Me, Margaiet.','Jhere Tts Me,'];
+ const fetcher=async raw=>({ok:true,json:async()=>String(raw).includes('v3-cinemeta.strem.io')?{metas:String(raw).includes('/movie/')?[{id:'tt9185206',type:'movie',name:"Are You There God? It's Me, Margaret.",releaseInfo:'2023'},{id:'tt0466893',type:'movie',name:'Margaret',releaseInfo:'2011'},{id:'tt0038727',type:'movie',name:'Margie',releaseInfo:'1946'}]:[]}:{search:[],query:{pages:{}}}});
+ const rows=await identifyCover(lines,fetcher);assert.equal(rows[0]?.id,'tt9185206');
+});
