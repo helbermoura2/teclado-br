@@ -718,31 +718,34 @@ async function runSearch(query, coverLines = null) {
 }
 function scan() {
   main.innerHTML = `
-    <section class="scan-intro">
-      <h1>Capturar título</h1>
-      <p>Fotografe a capa de um filme ou série para descobrir o título.</p>
+    <section class="scan-intro scan-studio">
+      <div class="scan-studio-kicker"><span class="scan-studio-dot" aria-hidden="true"></span>CENA VISION <span class="scan-kicker-divider">/</span> CAPTURA INTELIGENTE</div>
+      <h1>Descubra pelo <span>olhar.</span></h1>
+      <p>Aponte para uma capa de filme ou série. O CENA reconhece e encontra o título para você.</p>
       ${scanPhoto?`<div class="scan-frame"><img src="${escape(scanPhoto)}" alt="Foto da capa escolhida"></div>`:`<div class="scan-viewfinder" aria-hidden="true">
         <svg viewBox="0 0 112 84"><path d="M27 10H12v15m73-15h15v15M12 59v15h15m73-15v15H85"/><rect x="39" y="18" width="34" height="48" rx="4"/><path d="m43 52 7-8 7 6 6-10 6 8M47 57h18"/><circle cx="50" cy="33" r="3"/></svg>
         <span class="scan-sweep"></span>
       </div>`}
-      <div class="scan-controls">
-        <button class="primary wide" id="take-photo">${scanPhoto?'Fotografar novamente':'Abrir câmera'}</button>
-        <button class="secondary wide" id="pick-image">Escolher imagem</button>
+      <div class="scan-controls scan-studio-actions">
+        <button class="primary wide scan-camera-primary" id="take-photo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h4l2-3h4l2 3h4v13H4z"/><circle cx="12" cy="13" r="3"/></svg><span>${scanPhoto?'Fotografar novamente':'Abrir câmera'}</span></button>
+        <button class="secondary wide scan-gallery-secondary" id="pick-image"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 18 6-6 3 3 3-4 4 5"/></svg><span>Galeria</span></button>
       </div>
-      <p class="scan-tip">Enquadre a capa inteira, incluindo o título e o subtítulo.</p>
-      <button class="secondary wide" id="camera-ai-action">${onlineAI.configured()?'✧ Analisar esta capa com Gemini':'✧ Conectar Gemini para analisar capas'}</button>
+      <p class="scan-tip">Dica: enquadre o título e evite reflexos para uma identificação mais precisa.</p>
+      <div class="scan-ai-module"><div class="scan-ai-topline"><span class="scan-ai-icon" aria-hidden="true">✦</span><div><strong>Inteligência extra</strong><small>Uma segunda análise quando precisar</small></div><span class="scan-ai-online">ONLINE</span></div>
+      <button class="secondary wide scan-ai-trigger" id="camera-ai-action">${onlineAI.configured()?'✧ Analisar esta capa com Gemini':'✧ Conectar Gemini para analisar capas'}</button>
+      <details class="scan-ai-preferences"><summary>Opções da análise e privacidade</summary>
       <label class="camera-ai-opt"><input id="camera-ai-auto" type="checkbox" ${cameraAuto()?'checked':''}> Usar Gemini automaticamente quando a leitura local estiver incompleta</label>
-      <p class="muted">Ao usar o Gemini, o recorte desta imagem é enviado à Cloudflare e ao Google. Usa internet e a cota da sua API.</p><p class="muted" id="camera-ai-status" role="status"></p><div class="notice" id="camera-reading" hidden></div>
+      <p class="muted scan-ai-privacy">Ao usar o Gemini, o recorte desta imagem é enviado à Cloudflare e ao Google. Usa internet e a cota da sua API.</p></details><p class="muted" id="camera-ai-status" role="status"></p><div class="notice" id="camera-reading" hidden></div></div>
     </section>
-    <section class="scan-manual">
+    <section class="scan-manual scan-search-panel"><div class="scan-search-heading"><span class="scan-search-symbol" aria-hidden="true">⌕</span><div><strong>Já sabe o nome?</strong><p>Encontre o título direto no catálogo.</p></div></div>
       <form id="scan-search">
-        <label for="scan-query">Buscar pelo nome</label>
+        <label for="scan-query">Filme ou série</label>
         <div class="search-row"><textarea id="scan-query" rows="1" placeholder="Nome do filme ou série" minlength="2" maxlength="150" required></textarea><button class="primary">Buscar</button></div>
       </form>
       <div id="detected-lines"></div>
       <div id="search-results"></div>
     </section>
-    <details class="scan-help"><summary>Como o reconhecimento funciona</summary><p>${native?'Você pode fotografar, escolher um print ou usar Compartilhar → CENA. A leitura inicial e a comparação local acontecem no aparelho. O Gemini online pode analisar o recorte quando você pedir ou ativar a opção automática.':'Na prévia web, escolha ou fotografe a capa e digite o título. O reconhecimento automático está no aplicativo Android.'}</p></details>`;
+    <details class="scan-help scan-info"><summary>Como o reconhecimento funciona</summary><p>${native?'Você pode fotografar, escolher um print ou usar Compartilhar → CENA. A leitura inicial e a comparação local acontecem no aparelho. O Gemini online pode analisar o recorte quando você pedir ou ativar a opção automática.':'Na prévia web, escolha ou fotografe a capa e digite o título. O reconhecimento automático está no aplicativo Android.'}</p></details>`;
   $('#camera-ai-action').onclick=analyzeCameraOnline;$('#camera-ai-auto').onchange=e=>storage.setItem('cena.camera.online.v1',JSON.stringify(e.target.checked));
   $('#take-photo').onclick = () => { cameraSequence++;if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
   $('#pick-image').onclick = () => { cameraSequence++;if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
