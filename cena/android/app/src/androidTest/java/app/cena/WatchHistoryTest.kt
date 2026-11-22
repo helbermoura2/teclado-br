@@ -11,12 +11,20 @@ class WatchHistoryTest {
  private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
  private fun raw(event:String,time:String="2026-06-01T12:00:00Z",movie:Boolean=true)=JSONObject().put("id",event).put("watched_at",time).put("type",if(movie)"movie"else"episode").put(if(movie)"movie"else"show",JSONObject().put("title",if(movie)"47 Ronin"else"Breaking Bad").put("year",if(movie)2013 else 2008).put("runtime",if(movie)119 else 45).put("ids",JSONObject().put("imdb",if(movie)"tt1335975"else"tt0903747").put("trakt",123))).apply{if(!movie)put("episode",JSONObject().put("season",1).put("number",2).put("title","Episódio").put("ids",JSONObject().put("trakt",456)))}
  private class Fake:WatchHistorySource {
-  var account="account-a";var connected=true;var failSecond=false;var fingerprint="stable";var reads=0;var now=1700000000000L
-  val pages=mutableListOf<JSONArray>();override fun snapshot()=JSONObject().put("connected",connected).put("account",account).put("username",account)
+  var failSnapshot=false;var account="account-a";var connected=true;var failSecond=false;var fingerprint="stable";var reads=0;var now=1700000000000L
+  val pages=mutableListOf<JSONArray>();override fun snapshot():JSONObject {check(!failSnapshot){"Network snapshot unavailable"};return JSONObject().put("connected",connected).put("account",account).put("username",account)}
   override fun owner()=account
   override fun page(owner:String,page:Int):TraktResponse {check(owner==account);reads++;if(page==2&&failSecond)throw IllegalStateException("O Trakt pediu uma pausa.");return TraktResponse(200,pages[page-1].toString(),pages.size,30,pages.sumOf{it.length()}.toLong())}
   override fun activities(owner:String)=fingerprint
   override fun expectedPlays(owner:String)=pages.sumOf{it.length()}.toLong()
+ }
+ @Test fun localBackupDoesNotReadTheNetworkAccountSnapshot(){
+  val source=Fake();source.account="backup-local";source.pages.add(JSONArray().put(raw("991")))
+  WatchHistoryRepository(context,source,{source.now}).use{repo->
+   assertEquals(HistoryPass.COMPLETE,repo.importBatch(true))
+   source.failSnapshot=true
+   assertEquals(1,repo.exportLocal().getJSONArray("events").length())
+  }
  }
  @Test fun individualEventsPreserveRewatchesLargeIdsAndUnknownDates(){
   val first=WatchHistoryCodec.parse(raw("9007199254740992","2023-01-01T12:00:00Z"))!!;val repeated=WatchHistoryCodec.parse(raw("9007199254740993"))!!;val unknown=WatchHistoryCodec.parse(raw("3","invalid"))!!
