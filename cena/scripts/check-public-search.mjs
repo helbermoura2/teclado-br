@@ -8,7 +8,7 @@ console.log('Live online search OK:', results.map(item => `${item.name} (${item.
 
 const birds = await searchPublicTitles('AVES DE RAPINA', publicFetch);
 console.log('Portuguese regional title lookup:', JSON.stringify(birds.map(item => ({id:item.id,name:item.name,year:item.year}))));
-assert.ok(birds[0]?.id === 'tt7713068' && birds[0]?.year === '2020', 'Portuguese title must include Birds of Prey 2020.');
+assert.ok(birds.some(item => item.id === 'tt7713068' && item.year === '2020'), 'Portuguese title must include Birds of Prey 2020, regardless of remote ranking.');
 const details = await getTitleDetails(birds.find(item => item.id === 'tt7713068'), publicFetch);
 assert.ok(details.description.length > 100, 'A real synopsis must be available.');
 assert.ok(details.cast.length > 0 && details.runtime, 'Cast and runtime must load from the metadata provider.');
