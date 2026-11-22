@@ -298,6 +298,7 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun streamingStatus(){streaming.status()}
         @JavascriptInterface fun configureStreaming(key:String){streaming.configure(key)}
         @JavascriptInterface fun findStreaming(id:String,type:String){streaming.find(id,type)}
+        @JavascriptInterface fun findTitleAliases(id:String,type:String){streaming.findTitleAliases(id,type)}
         @JavascriptInterface fun findCinema(id:String){streaming.findCinema(id)}
         @JavascriptInterface fun visionModelState(){emitVisualModel()}
         @JavascriptInterface fun downloadVisualModel(){if(!visualDownloadQueued.compareAndSet(false,true))return;emitVisualModel();try{visionExecutor.execute{try{if(!isDestroyed)VisualModelStore.download(applicationContext){emitVisualModel()}}finally{visualDownloadQueued.set(false);emitVisualModel()}}}catch(_:java.util.concurrent.RejectedExecutionException){visualDownloadQueued.set(false)}}
