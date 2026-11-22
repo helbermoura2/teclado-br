@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.28.7' in index
+    assert 'v0.28.8' in index
     assert 'assets/brand-mark.png' in archive.namelist()
     assert 'assets/online-ai.js' in archive.namelist()
     assert 'assets/title-aliases.js' in archive.namelist()
@@ -22,7 +22,10 @@ with ZipFile(apk) as archive:
     assert 'assets/recent-watches.js' in archive.namelist()
     assert 'assets/brand-wordmark.svg' in archive.namelist()
     assert 'CENA IA, início' in index
-    assert '<h1>Capturar título</h1>' in app and 'id="pick-image"' in app
+    assert '<h1>Descubra pelo <span>olhar.</span></h1>' in app and 'id="pick-image"' in app
+    assert 'scan-ai-preferences' in app and 'camera-ai-auto' in app, 'Gemini settings must be available in CENA Vision'
+    assert 'assets/editorial.css' in archive.namelist()
+    assert 'CENA Vision' in archive.read('assets/editorial.css').decode(), 'The new design must be included in the signed APK'
     identification = archive.read('assets/identify-cover.js').decode()
     assert 'compareCovers' in app and 'coverInput(result)' in app
     assert 'result.title' in identification and 'result.phrases' in identification
@@ -75,7 +78,7 @@ badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)],
 expected_package = sys.argv[2] if len(sys.argv)>2 else "app.cena.mobile"
 assert expected_package in {"app.cena.mobile","app.cena.mobile.next"}
 assert f"name='{expected_package}'" in badging
-assert "versionName='0.28.7'" in badging and "versionCode='74'" in badging
+assert "versionName='0.28.8'" in badging and "versionCode='75'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
 
