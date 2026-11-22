@@ -11,6 +11,6 @@ Correção do reconhecimento de capas e da validação das sugestões do Gemini.
 
 Caso verificado no catálogo real: O Protocolo de Auschwitz → The Auschwitz Report (2021), IMDb tt9415108. The Angel of Auschwitz e The Guard of Auschwitz foram rejeitados no teste com sugestões Gemini simuladas. Não foi feita chamada à API Gemini do usuário.
 
-Validação: 139 testes JavaScript, teste de câmera no navegador e consulta ao catálogo real. A publicação repete os testes de navegador, valida os APKs e a assinatura. Os componentes nativos são os mesmos da 0.28.4: o processo confirma que não houve alteração no código nativo e verifica a identidade dos binários reaproveitados.
+Validação: 141 testes JavaScript, teste de câmera no navegador e consulta ao catálogo real. A publicação repete os testes de navegador, valida os APKs e a assinatura. Os componentes nativos são os mesmos da 0.28.4: o processo confirma que não houve alteração no código nativo e verifica a identidade dos binários reaproveitados.
 
 Atualize pelo próprio CENA. Nenhuma alteração no Worker da Cloudflare é necessária.
