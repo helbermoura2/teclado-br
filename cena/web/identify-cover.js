@@ -3,6 +3,7 @@ import {trustedArtwork} from './artwork.js';
 
 export const normalizeTitle = text => String(text || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const cache = new Map();
+const noEnrichment=async item=>item;
 
 const titleStops=new Set(['a','o','as','os','um','uma','de','da','do','das','dos','e','em','no','na','the','of','and','a','an','in','to','it','is']);
 const titleWords=text=>String(text||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().match(/[a-z0-9]+/g)||[];
@@ -45,6 +46,16 @@ export async function localizedCoverEvidence(phrase,fetcher=fetch){
  }catch{return [];}
 }
 
+
+async function enrichCoverPool(rows,constraint,enrich,rank=item=>scoreCover(item,[constraint])){
+ const unique=new Map();for(const item of rows){const key=`${item.type}:${item.id}`,old=unique.get(key);unique.set(key,{...old,...item,aliases:[...new Set([...(old?.aliases||[]),...(item.aliases||[])])]});}
+ const candidates=[...unique.values()].sort((a,b)=>rank(b)-rank(a));
+ if(!constraint)return candidates;
+ const selected=candidates.filter(item=>phraseAgreement(item,constraint)<.72).slice(0,6);
+ const results=await Promise.allSettled(selected.map(item=>enrich(item)));
+ for(let i=0;i<selected.length;i++){const value=results[i].status==='fulfilled'?results[i].value:null,item=selected[i];if(value?.id===item.id&&value?.type===item.type)unique.set(`${item.type}:${item.id}`,value);}
+ return [...unique.values()];
+}
 
 export function similarity(left, right) {
   left = normalizeTitle(left); right = normalizeTitle(right);
@@ -153,16 +164,18 @@ export function scoreCover(item, lines, extract = '') {
   return Math.min(1, Math.max(titleScore * .85, secondaryTitle * .85, fragment) + Math.min(hits, 3) * .12 + labelBonus + (anchorMatch ? .12 : 0));
 }
 
-export async function identifyCover(lines, fetcher = fetch) {
+export async function identifyCover(lines, fetcher = fetch,{enrich=noEnrichment}={}) {
   lines = [...new Set(lines.filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean))].slice(0, 24);
   const primary = (lines[0] || '').slice(0, 150);
   if (primary.length < 2) return [];
   const key = lines.join('\n').toLowerCase();
-  if (fetcher === fetch && cache.get(key)?.until > Date.now()) return structuredClone(cache.get(key).items);
+  if (fetcher === fetch && enrich===noEnrichment && cache.get(key)?.until > Date.now()) return structuredClone(cache.get(key).items);
   let exact = [];
   try { exact = await searchPublicTitles(primary, fetcher); } catch { /* The independent wiki search can still succeed. */ }
   if (lines.length === 1 && primary.trim().split(/\s+/).length > 1 && exact.some(item => Math.max(similarity(primary, item.name), similarity(primary, item.originalName)) > .93)) return exact.map(item=>({...item,matchScore:scoreCover(item,lines)})).filter(item=>item.matchScore>=.72&&!contradictsCover(item,lines));
   const variants=coverSearchPhrases(lines);
+  const anchor=lines.find(line=>meaningful(line).length===1&&titleWords(line).length===1)||meaningful(primary)[0];
+  if(meaningful(primary).length>=2&&anchor&&anchor.length>=5&&!variants.includes(anchor))variants.push(anchor);
   if(variants.length&&!exact.some(item=>scoreCover(item,lines)>.82)){
     const replies=await Promise.allSettled(variants.flatMap(query=>['movie','series'].map(async type=>{
       const response=await fetcher(`https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(query)}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});
@@ -205,13 +218,14 @@ export async function identifyCover(lines, fetcher = fetch) {
     }
   }
   const merged = new Map();
-  for (const item of [...exact.map(item => ({ ...item, matchScore: scoreCover(item, lines) })), ...suggestions]) {
+  const enriched=await enrichCoverPool([...exact,...suggestions],coverTitlePhrase(lines),enrich,item=>scoreCover(item,lines));
+  for (const item of enriched.map(item=>({...item,matchScore:scoreCover(item,lines)}))) {
     if (!merged.has(item.id) || merged.get(item.id).matchScore < item.matchScore) merged.set(item.id, item);
   }
   const items = [...merged.values()].filter(item=>item.matchScore>=.4&&!contradictsCover(item,lines)).sort((a, b) => b.matchScore - a.matchScore).slice(0, 8);
   if (items.some(item => item.partialTitle)) for (const item of items) item.ambiguousTitle = true;
   if (cache.size > 80) cache.clear();
-  if (fetcher === fetch) cache.set(key, { items: structuredClone(items), until: Date.now() + 300000 });
+  if (fetcher === fetch && enrich===noEnrichment) cache.set(key, { items: structuredClone(items), until: Date.now() + 300000 });
   return items;
 }
 
@@ -223,12 +237,14 @@ export async function searchTolerantTitles(query,{search=searchPublicTitles,iden
 }
 
 
-export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitles,localized=search===searchPublicTitles?localizedCoverEvidence:async()=>[]}={}){
+export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitles,localized=search===searchPublicTitles?localizedCoverEvidence:async()=>[],enrich=noEnrichment}={}){
  const suggestions=Array.isArray(hints?.titles)?hints.titles.filter(x=>x&&typeof x.title==='string').slice(0,3):[];
  const evidence=[...(Array.isArray(hints?.visibleText)?hints.visibleText:[]),...lines].filter(x=>typeof x==='string'&&x.trim());
  const constraint=coverTitlePhrase(evidence),queries=[...new Set([constraint,...suggestions.flatMap(hint=>[hint.title,hint.originalTitle])].filter(x=>typeof x==='string'&&x.trim().length>=2&&x.length<=150))].slice(0,6);
  const replies=await Promise.allSettled(queries.map(query=>search(query)));
- const pool=replies.flatMap(reply=>reply.status==='fulfilled'?reply.value:[]);
+ const rawPool=replies.flatMap(reply=>reply.status==='fulfilled'?reply.value:[]);
+ const hintRank=item=>Math.max(0,...suggestions.flatMap(hint=>[hint.title,hint.originalTitle].filter(Boolean).map(phrase=>phraseAgreement(item,phrase))));
+ const pool=await enrichCoverPool(rawPool,constraint,enrich,hintRank);
  const verified=[];
  for(const item of pool){
   if(!/^tt\d{5,12}$/.test(item?.id||'')||!['movie','series'].includes(item.type)||constraint&&phraseAgreement(item,constraint)<.72)continue;
