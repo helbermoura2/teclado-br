@@ -25,5 +25,9 @@ class StreamingPolicyTest {
         val method=MainActivity.Bridge::class.java.getMethod("findTitleAliases",String::class.java,String::class.java)
         assertNotNull(method.getAnnotation(android.webkit.JavascriptInterface::class.java));assertEquals(Void.TYPE,method.returnType)
     }
+    @Test fun coverOcrPreservesTextAndLayoutWithoutGuessingSemanticRoles(){
+        val region=CoverOcr.region("1917",android.graphics.Rect(100,200,500,550))
+        assertEquals("1917",region.getString("text"));assertEquals(100,region.getInt("x"));assertEquals(200,region.getInt("y"));assertEquals(400,region.getInt("width"));assertEquals(350,region.getInt("height"))
+    }
 }
 
