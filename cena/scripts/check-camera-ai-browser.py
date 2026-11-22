@@ -1,15 +1,24 @@
 import os,subprocess,tempfile,time,shutil,json
+from urllib.parse import unquote
 from playwright.sync_api import sync_playwright,expect
 p=subprocess.Popen(['node','server/index.mjs'],env=dict(os.environ,DATA_DIR=tempfile.mkdtemp()),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 try:
  time.sleep(1)
  with sync_playwright() as q:
   b=q.chromium.launch(executable_path=shutil.which('google-chrome') or shutil.which('chromium'),args=['--no-sandbox']);page=b.new_page(viewport={'width':412,'height':915});errors=[];calls=[];page.on('pageerror',lambda e:errors.append(str(e)))
+  scenario='hiroshima'
   def route(r):
    url=r.request.url
    if url.endswith('/api/ai/identify-cover'):
     body=r.request.post_data_json;assert body['image']['mimeType']=='image/jpeg';assert 'history' not in body;calls.append(body)
+    if scenario!='hiroshima':return r.fulfill(status=200,content_type='application/json',body=json.dumps({'titles':[{'title':'The Angel of Auschwitz','year':'2019','type':'movie'}],'visibleText':['O PROTOCOLO DE','AUSCHWITZ'] if scenario=='auschwitz' else ['AUSCHWITZ'],'uncertain':False}))
     return r.fulfill(status=200,content_type='application/json',body=json.dumps({'titles':[{'title':'Hiroshima: Out of the Ashes','year':'1990','type':'movie'}],'visibleText':['HIROSHIMA','OUT OF THE ASHES'],'uncertain':False}))
+   if scenario!='hiroshima':
+    query=unquote(url).lower();metas=[]
+    if 'search=protocolo' in query:metas=[{'id':'tt9415108','type':'movie','name':'The Auschwitz Report','releaseInfo':'2021'}]
+    elif 'search=the angel' in query:metas=[{'id':'tt8774388','type':'movie','name':'The Angel of Auschwitz','releaseInfo':'2019'}]
+    elif 'search=auschwitz' in query:metas=[{'id':'tt1684714','type':'movie','name':'Auschwitz','releaseInfo':'2011'}]
+    return r.fulfill(status=200,content_type='application/json',body=json.dumps({'metas':metas}))
    metas=[]
    if 'catalog/movie/top/search=Hiroshima' in url:metas=[{'id':'tt0099772','type':'movie','name':'Hiroshima: Out of the Ashes','releaseInfo':'1990','description':'A film about Hiroshima.'}]
    r.fulfill(status=200,content_type='application/json',body=json.dumps({'metas':metas}))
@@ -20,5 +29,11 @@ try:
   capture('HROSHIN 0 UT OF THE A SHES');expect(page.locator('.scan-frame img')).to_be_visible();assert not calls
   page.locator('#camera-ai-action').click();expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000);expect(page.locator('#result-grid')).to_contain_text('Hiroshima: Out of the Ashes');assert len(calls)==1
   page.locator('#camera-ai-auto').check();capture('ZZZXQWERTY');expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000);assert len(calls)==2
+  page.locator('#camera-ai-auto').uncheck();scenario='auschwitz';capture('AUSCHWITZ')
+  page.locator('#camera-ai-action').click();expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000)
+  expect(page.locator('#result-grid')).to_contain_text('The Auschwitz Report');assert page.locator('#result-grid .poster-card').count()==1
+  assert 'PROTOCOLO' in page.locator('#scan-query').input_value()
+  scenario='uncertain';page.locator('#camera-ai-action').click();expect(page.locator('#camera-ai-status')).to_contain_text('descartadas',timeout=15000)
+  assert page.locator('#search-results .poster-card').count()==0, 'Old incorrect matches must be cleared'
   assert not errors,errors;b.close();print('Camera: preview, explicit JPEG upload, catalog verification and opt-in automatic fallback passed; Gemini response simulated.')
 finally:p.terminate();p.wait()
