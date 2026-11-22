@@ -176,8 +176,8 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   opinion.lines.forEach((line,i)=>ctx.fillText(line,opinionX,cursor+i*(opinion.size+10)));
   const reviewHeight=Math.max(hasScore?89:0,opinion.lines.length*(opinion.size+10));
   const opinionBottom=cursor+reviewHeight;
-  const markY=Math.max(1460,opinionBottom+18);
-  const markSize=Math.min(410,1880-markY);
+  const markY=Math.max(1440,opinionBottom-28);
+  const markSize=Math.min(475,1900-markY);
   const mark=brandMark&&markSize>0?{x:1050-markSize,y:markY,size:markSize}:null;
   const particlesTop=Math.max(1440,opinionBottom+24);
   if(particlesTop<1880)drawFogParticles(ctx,particlesTop,mark);
@@ -221,6 +221,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='30';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='31';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }
