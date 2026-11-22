@@ -71,3 +71,9 @@ test('Cinemeta remains an independent catalog when Wikimedia is unavailable', as
   assert.equal(items[0].id,'tt1234567');
   assert.equal(items[0].source,'Cinemeta');
 });
+
+
+test('a name mentioned in an article synopsis never becomes a title alias',async()=>{
+ const fetcher=async raw=>{const url=new URL(raw);let data={};if(url.host==='pt.wikipedia.org')data={query:{pages:{1:{title:'Sisu (filme)',pageprops:{wikibase_item:film.id},extract:'Um filme com David Morse no elenco.'}}}};else if(url.searchParams.get('action')==='wbsearchentities')data={search:[]};else if(url.searchParams.get('action')==='wbgetentities')data={entities:{[film.id]:film}};return {ok:true,json:async()=>data};};
+ const rows=await searchPublicTitles('David Morse',fetcher);assert.equal(rows[0].id,'tt14846026');assert.ok(!rows[0].aliases.includes('David Morse'));
+});
