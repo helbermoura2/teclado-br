@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
     }
     private fun emitTrakt() {
         val state=trakt.status()
-        if(state.optBoolean("connected")&&!historyScheduled){historyScheduled=true;WatchHistoryWorker.schedule(applicationContext)}else if(!state.optBoolean("connected"))historyScheduled=false
+        if(state.optBoolean("connected")&&(!historyScheduled||state.optLong("lastSync")>lastHistorySync)){historyScheduled=true;lastHistorySync=state.optLong("lastSync");WatchHistoryWorker.schedule(applicationContext,true)}else if(!state.optBoolean("connected")){historyScheduled=false;lastHistorySync=0L}
         traktWaitingAuth=state.optString("userCode").isNotBlank()
         val fingerprint=state.optBoolean("connected").toString()+state.optString("username")+state.optJSONArray("progress").toString()
         if(fingerprint!=seriesFingerprint||state.optLong("lastSync")>lastSeriesSync){seriesFingerprint=fingerprint;lastSeriesSync=state.optLong("lastSync");if(state.optBoolean("connected"))seriesTask()else{series.clear();emitSeries()}}
@@ -87,15 +87,18 @@ class MainActivity : ComponentActivity() {
     private val visualDownloadQueued=java.util.concurrent.atomic.AtomicBoolean(false)
     private fun emitVisualModel(){try{val value=VisualModelStore.status(applicationContext);value.put("downloading",value.optBoolean("downloading")||visualDownloadQueued.get());runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaVisionModelState && window.CenaVisionModelState($value)",null)}}catch(_:Exception){}}
     private val appData by lazy {AppDataStore(applicationContext)}
+    private val backupExecutor=Executors.newSingleThreadExecutor()
+    private fun backupTask(task:()->Unit){try{backupExecutor.execute{try{task()}catch(_:Exception){runOnUiThread{if(!isDestroyed)Toast.makeText(this,"Não consegui abrir ou salvar o backup. Tente novamente.",Toast.LENGTH_LONG).show()}}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
     private var pendingBackup:ByteArray?=null
-    private val saveBackupFile=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->val value=pendingBackup;pendingBackup=null;if(uri!=null&&value!=null)historyTask{contentResolver.openOutputStream(uri)?.use{it.write(value)}?:error("Arquivo indisponível");runOnUiThread{if(!isDestroyed)Toast.makeText(this,"Backup salvo.",Toast.LENGTH_SHORT).show()}}}
-    private val openBackupFile=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)historyTask{
+    private val saveBackupFile=registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->val value=pendingBackup;pendingBackup=null;if(uri!=null&&value!=null)backupTask{contentResolver.openOutputStream(uri)?.use{it.write(value)}?:error("Arquivo indisponível");runOnUiThread{if(!isDestroyed)Toast.makeText(this,"Backup salvo.",Toast.LENGTH_SHORT).show()}}}
+    private val openBackupFile=registerForActivityResult(ActivityResultContracts.OpenDocument()){uri->if(uri!=null)backupTask{
         val raw=contentResolver.openInputStream(uri)?.use{input->val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192);var count=input.read(buffer);while(count>=0){require(output.size()+count<=24*1024*1024);output.write(buffer,0,count);count=input.read(buffer)};output.toString("UTF-8")}?:error("Arquivo indisponível")
         val value=JSONObject(raw);runOnUiThread{if(!isDestroyed)web.evaluateJavascript("window.CenaBackupFile && window.CenaBackupFile($value)",null)}
     }}
     private val historyExecutor=Executors.newSingleThreadScheduledExecutor()
     private val history by lazy {WatchHistoryRepository(applicationContext)}
     @Volatile private var historyScheduled=false
+    private var lastHistorySync=0L
     private var historyLoop=false
     private fun emitHistory(){val value=history.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryResult && window.CenaHistoryResult($value)",null)}}
     private fun historyTask(task:()->Unit={}){try{historyExecutor.execute{try{task();emitHistory()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui ler o histórico local. Tente novamente.")}}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
@@ -297,9 +300,9 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun dataGet(key:String):String=try{appData.get(key)}catch(_:Exception){"__ERROR__"}
         @JavascriptInterface fun dataPut(key:String,value:String):String=try{appData.put(key,value);"{\"ok\":true}"}catch(_:Exception){"{\"ok\":false}"}
         @JavascriptInterface fun dataBatch(value:String):String=try{appData.batch(JSONObject(value));"{\"ok\":true}"}catch(_:Exception){"{\"ok\":false}"}
-        @JavascriptInterface fun exportBackup(){historyTask{
+        @JavascriptInterface fun exportBackup(){backupTask{
             val value=JSONObject().put("format","cena-backup").put("version",1).put("createdAt",java.time.Instant.now().toString()).put("data",appData.dump())
-            try{value.put("history",history.export())}catch(_:Exception){}
+            try{value.put("history",history.exportLocal())}catch(_:Exception){}
             val bytes=value.toString().toByteArray(Charsets.UTF_8);require(bytes.size<=24*1024*1024)
             runOnUiThread{if(!isDestroyed){pendingBackup=bytes;saveBackupFile.launch("CENA-Backup-${java.time.LocalDate.now()}.json")}}
         }}
@@ -477,7 +480,7 @@ class MainActivity : ComponentActivity() {
         visionInput = null
         stremio.cancelReading()
         stremioExecutor.shutdownNow()
-        localAiClient.cancel();localModelExecutor.shutdownNow();nuvioVisible=false;nuvioExecutor.shutdownNow();historyExecutor.shutdownNow()
+        localAiClient.cancel();localModelExecutor.shutdownNow();nuvioVisible=false;nuvioExecutor.shutdownNow();historyExecutor.shutdownNow();backupExecutor.shutdownNow()
         seriesExecutor.shutdownNow()
         storyExecutor.shutdownNow()
         traktExecutor.shutdownNow()
@@ -488,3 +491,4 @@ class MainActivity : ComponentActivity() {
         web.destroy()
     }
 }
+
