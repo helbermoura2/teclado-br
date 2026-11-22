@@ -8,6 +8,23 @@ import java.net.URL
 import java.util.concurrent.Executors
 
 internal object StreamingPolicy {
+    fun titleAliases(data:JSONObject,id:String,type:String):JSONObject {
+        require(id.matches(Regex("tt\\d{5,12}")) && type in setOf("movie","series"))
+        val external=data.optJSONObject("external_ids")?.optString("imdb_id").orEmpty().ifBlank{data.optString("imdb_id")}
+        require(external==id){"IMDb identity mismatch"}
+        val title=data.optString(if(type=="movie")"title" else "name")
+        val original=data.optString(if(type=="movie")"original_title" else "original_name")
+        val aliases=mutableListOf(title,original)
+        val alternatives=data.optJSONObject("alternative_titles")
+        val rows=alternatives?.optJSONArray(if(type=="movie")"titles" else "results")?:JSONArray()
+        for(i in 0 until minOf(rows.length(),200)){
+            val row=rows.optJSONObject(i)?:continue
+            if(row.optString("iso_3166_1") in setOf("BR","PT","US","GB"))aliases.add(row.optString("title"))
+        }
+        val clean=aliases.map{it.trim()}.filter{it.length in 1..160}.distinct().take(40)
+        val year=data.optString(if(type=="movie")"release_date" else "first_air_date").take(4).takeIf{it.matches(Regex("(18|19|20|21)\\d{2}"))}.orEmpty()
+        return JSONObject().put("kind","titleAliases").put("id",id).put("type",type).put("name",title.take(160)).put("originalName",original.take(160)).put("year",year).put("aliases",JSONArray(clean))
+    }
     fun posterPath(value:String)=value.takeIf{it.matches(Regex("/[A-Za-z0-9_.-]{1,120}\\.(jpg|png)"))}.orEmpty()
     fun nextBrazilianCinemaDate(data:JSONObject,today:java.time.LocalDate):String {
         val countries=data.optJSONArray("results")?:return ""
@@ -42,6 +59,8 @@ internal object StreamingPolicy {
 class StreamingProviders(private val activity:Activity,private val notify:(JSONObject)->Unit){
     private val vault=TraktVault(activity.applicationContext,"cena.tmdb.v1","TMDB")
     private val executor=Executors.newSingleThreadExecutor()
+    private val titleExecutor=Executors.newFixedThreadPool(2)
+    private val titleCache=java.util.concurrent.ConcurrentHashMap<String,Pair<Long,JSONObject>>()
     private val cache=mutableMapOf<String,Pair<Long,JSONObject>>()
     private fun emit(value:JSONObject)=activity.runOnUiThread{if(!activity.isFinishing&&!activity.isDestroyed)notify(value)}
     private fun key()=vault.read().optString("key")
@@ -52,7 +71,7 @@ class StreamingProviders(private val activity:Activity,private val notify:(JSONO
         val c=(URL("https://api.themoviedb.org/3/$path${join}api_key=$apiKey").openConnection() as HttpURLConnection).apply{connectTimeout=10000;readTimeout=15000;instanceFollowRedirects=false;setRequestProperty("Accept","application/json")}
         try{check(c.responseCode==200);val out=java.io.ByteArrayOutputStream();c.inputStream.use{input->val buffer=ByteArray(8192);while(true){val n=input.read(buffer);if(n<0)break;require(out.size()+n<=2_000_000);out.write(buffer,0,n)}};return JSONObject(out.toString("UTF-8"))}finally{c.disconnect()}
     }
-    fun configure(value:String){executor.execute{try{val clean=value.trim();require(clean.matches(Regex("[A-Fa-f0-9]{32}")));get("configuration",clean);vault.write(JSONObject().put("key",clean));cache.clear();emit(JSONObject().put("kind","status").put("configured",true).put("message","TMDB conectado."))}catch(_:Exception){emit(JSONObject().put("kind","status").put("configured",key().isNotBlank()).put("message","Não consegui validar a chave TMDB. Confira a chave e a internet."))}}}
+    fun configure(value:String){executor.execute{try{val clean=value.trim();require(clean.matches(Regex("[A-Fa-f0-9]{32}")));get("configuration",clean);vault.write(JSONObject().put("key",clean));cache.clear();titleCache.clear();emit(JSONObject().put("kind","status").put("configured",true).put("message","TMDB conectado."))}catch(_:Exception){emit(JSONObject().put("kind","status").put("configured",key().isNotBlank()).put("message","Não consegui validar a chave TMDB. Confira a chave e a internet."))}}}
     fun find(id:String,type:String){
         if(!id.matches(Regex("tt\\d{5,12}"))||type !in setOf("movie","series"))return
         executor.execute{val apiKey=key();if(apiKey.isBlank())return@execute
@@ -66,6 +85,23 @@ class StreamingProviders(private val activity:Activity,private val notify:(JSONO
                 val response=StreamingPolicy.select(data).put("kind","provider").put("id",id).put("type",type).put("poster",StreamingPolicy.posterPath(match?.optString("poster_path").orEmpty()))
                 cache[cacheKey]=System.currentTimeMillis() to response;emit(response)
             }catch(_:Exception){emit(JSONObject().put("kind","provider").put("id",id).put("type",type).put("error",true))}
+        }
+    }
+    fun findTitleAliases(id:String,type:String){
+        if(!id.matches(Regex("tt\\d{5,12}"))||type !in setOf("movie","series"))return
+        titleExecutor.execute{
+            val response=JSONObject().put("kind","titleAliases").put("id",id).put("type",type)
+            val apiKey=key();if(apiKey.isBlank()){emit(response.put("error",true));return@execute}
+            val cacheKey="$type:$id";val old=titleCache[cacheKey]
+            if(old!=null&&System.currentTimeMillis()-old.first<24*3600000L){emit(old.second);return@execute}
+            try{
+                val list=get("find/$id?external_source=imdb_id",apiKey).optJSONArray(if(type=="movie")"movie_results" else "tv_results")
+                val tmdb=list?.optJSONObject(0)?.optLong("id")?:0L;require(tmdb>0)
+                val kind=if(type=="movie")"movie" else "tv"
+                val value=StreamingPolicy.titleAliases(get("$kind/$tmdb?language=pt-BR&append_to_response=alternative_titles,external_ids",apiKey),id,type)
+                if(titleCache.size>160)titleCache.clear()
+                titleCache[cacheKey]=System.currentTimeMillis() to value;emit(value)
+            }catch(_:Exception){emit(response.put("error",true))}
         }
     }
     fun findCinema(id:String){
@@ -84,5 +120,5 @@ class StreamingProviders(private val activity:Activity,private val notify:(JSONO
             emit(result)
         }
     }
-    fun close(){executor.shutdownNow()}
+    fun close(){executor.shutdownNow();titleExecutor.shutdownNow()}
 }
