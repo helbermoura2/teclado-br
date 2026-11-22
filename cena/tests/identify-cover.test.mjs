@@ -117,3 +117,8 @@ test('split OCR title is assembled in a usable order and excludes the standalone
  const fetcher=async raw=>{const url=new URL(raw);let metas=[];if(url.host==='v3-cinemeta.strem.io'){const path=decodeURIComponent(url.pathname).toLowerCase();metas=path.includes('search=protocolo')?[{id:'tt9415108',name:'The Auschwitz Report',releaseInfo:'2021'}]:path.includes('search=auschwitz')?[{id:'tt1684714',name:'Auschwitz',releaseInfo:'2011'}]:[];}return {ok:true,json:async()=>({metas,search:[],query:{pages:{}}})};};
  const rows=await identifyCover(['AUSCHWITZ','O PROTOCOLO DE'],fetcher);assert.equal(rows.length,1);assert.equal(rows[0].id,'tt9415108');
 });
+
+test('garbled multi-line OCR retains a full-title match supported by multiple distinct words',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');const correct={id:'tt9185206',type:'movie',name:"Are You There God? It's Me, Margaret.",year:'2023'};
+ const rows=await verifyCameraTitles({titles:[{title:correct.name,type:'movie',year:'2023'}],visibleText:[],uncertain:false},['Jheye God9 ItsMe, Margatet.','Margatet.','Jheye God9','ItsMe,'],{search:async()=>[correct,{id:'tt0466893',type:'movie',name:'Margaret'}]});assert.equal(rows.length,1);assert.equal(rows[0].id,correct.id);
+});
