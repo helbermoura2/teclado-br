@@ -6,7 +6,7 @@ const key=item=>`${item.type}:${item.id}`;
 const valid=item=>/^tt\d{5,12}$/.test(item?.id||'')&&['movie','series'].includes(item.type);
 const norm=value=>String(value||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
 export const similarThemes=narrativeTopics;
-const core=['president','samurai','zombie','vampire','time travel','martial arts','heist','space','gangster','hijack'];
+const core=['greek epic','president','samurai','zombie','vampire','time travel','martial arts','heist','space','gangster','hijack'];
 export function rankSimilar(seed,candidates,{existing=[],includeSaved=true,limit=5,now=Date.now(),query=''}={}){
  if(!valid(seed))return [];
  const criteria=parseSimilarityRequest(query),seedThemes=narrativeTopics(seed),primary=core.find(topic=>seedThemes.includes(topic)&&!criteria.excluded.includes(topic));
@@ -22,7 +22,7 @@ export function rankSimilar(seed,candidates,{existing=[],includeSaved=true,limit
   const proofs=[...new Set([...explicit,...shared])].map(topic=>({topic,label:topicLabel(topic),quote:evidenceFor(row,topic)})).filter(row=>row.quote);
   if(!storyText(row).trim())return [];
   const reason=proofs.length?`Enredo: ${proofs.slice(0,3).map(proof=>proof.label).join(', ')}.`:'Elementos da sinopse em comum: '+overlap.slice(0,3).join(', ')+'.';
-  return [{...row,similarEvidence:proofs,recommendationReason:reason,affinity:(explicit.length*2)+(shared.includes('president')?4:0)+shared.length*.8+Math.min(overlap.length,5)*.1+row.affinity*.25}];
+  return [{...row,similarEvidence:proofs,recommendationReason:reason,affinity:(explicit.length*2)+(shared.includes('president')?4:0)+shared.length*.8+Math.min(overlap.length,5)*.1+row.affinity*.25+(/^\d{4}$/.test(String(row.year))?.5:0)}];
  }).sort((a,b)=>b.affinity-a.affinity||a.providerOrder-b.providerOrder).slice(0,limit);
 }
 function catalogItem(meta,type){return {id:meta.imdb_id||meta.id,type:meta.type||type,name:meta.name,originalName:meta.name,year:String(meta.releaseInfo||meta.year||'').slice(0,4),released:meta.released||'',poster:trustedArtwork(meta.poster),genres:Array.isArray(meta.genres)?meta.genres:[],plot:meta.description||'',description:meta.description||'',imdbRating:meta.imdbRating??null,imdbRatingAt:Date.now(),cast:meta.cast||[],directors:Array.isArray(meta.director)?meta.director:meta.director?[meta.director]:[],source:'Cinemeta',sourceUrl:`https://www.imdb.com/title/${meta.imdb_id||meta.id}/`};}
@@ -45,7 +45,8 @@ export class SimilarEngine {
   if(!force&&cached&&Date.now()-cached.at<15*60000)return finishResult(rich,[...existing,...cached.pool],{existing,includeSaved,query,criteria,thematic,partial:cached.partial});
   const requests=[this.engine.catalog(force,preferred),...queries.map(query=>this.fetcher(`https://v3-cinemeta.strem.io/catalog/${seed.type}/top/search=${encodeURIComponent(query)}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}}).then(async response=>{if(!response.ok)throw Error('Busca indisponível');return (await response.json()).metas||[];})),...crossQueries.map(query=>this.search(query))];
   const replies=await Promise.allSettled(requests);
-  let focused=[];for(let i=1;i<replies.length;i++){const result=replies[i];if(result.status==='fulfilled')focused.push(...(i<=queries.length?result.value.map(meta=>catalogItem(meta,seed.type)):result.value));}
+  let focused=[],focusedRemainder=[];for(let i=1;i<replies.length;i++){const result=replies[i];if(result.status==='fulfilled'){const query=i<=queries.length?queries[i-1]:crossQueries[i-queries.length-1];const rows=[...(i<=queries.length?result.value.map(meta=>catalogItem(meta,seed.type)):result.value)];rows.sort((a,b)=>Number(norm(b.name)===norm(query))-Number(norm(a.name)===norm(query)));focused.push(...rows.slice(0,4));focusedRemainder.push(...rows.slice(4));}}
+  focused.push(...focusedRemainder);
   let pool=[...focused,...(replies[0].status==='fulfilled'?replies[0].value.items:[]),...existing];
   const unique=new Map();for(const item of pool)if(valid(item)&&item.type===seed.type){const id=key(item),previous=unique.get(id);if(!previous||storyText(item).length>storyText(previous).length)unique.set(id,{...previous,...item});}
   pool=[...unique.values()].filter(item=>key(item)!==key(seed));
@@ -67,3 +68,4 @@ export function validateLocalSelection(text,candidates,{seed,query=''}={}){
  if(!Array.isArray(ids)||!ids.length||ids.length>Math.min(5,candidates.length)||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!/^tt\d{5,12}$/.test(id)))return null;
  const approved=seed?rankSimilar(seed,candidates,{query,limit:8}):candidates,allowed=new Map(approved.map(item=>[item.id,item]));if(ids.some(id=>!allowed.has(id)))return null;return ids.map(id=>allowed.get(id));
 }
+
