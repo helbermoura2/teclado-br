@@ -34,3 +34,12 @@ test('a short AO connector read as A0 remains between the dominant title lines',
 test('ordinary film titles are not discarded merely for containing a word used in award copy',()=>{
  assert.equal(promotionalCoverText('O Vencedor'),false);assert.equal(prepareCoverReading({reading:{title:'O Vencedor'},titles:[{title:'O Vencedor'}]},[]).title,'O Vencedor');assert.equal(promotionalCoverText('VENCEDOR DO OSCAR DE MELHOR FILME'),true);
 });
+
+test('an OCR title is not replaced by a synthetic mixture of cast names and phone interface text',async()=>{
+ const {identifyCover}=await import('../web/identify-cover.js');const lines=['SMARSHALS','Dqm,.9','00:04','VESLEY SIIPES','FOTO','.6','VESLEY SIIPES SMARSHALS 00:04 Dqm,.9'];
+ const fetcher=async raw=>({ok:true,json:async()=>String(raw).includes('v3-cinemeta.strem.io')?{metas:String(raw).includes('/movie/')?[{id:'tt0120873',type:'movie',name:'U.S. Marshals',releaseInfo:'1998'},{id:'tt5301662',type:'movie',name:'Marshall',releaseInfo:'2017'}]:[]}:{search:[],query:{pages:{}}}});
+ const rows=await identifyCover(lines,fetcher);assert.equal(rows[0]?.id,'tt0120873');
+});
+test('complete short titles remain intact while an unfinished preposition waits for its next line',()=>{
+ assert.equal(coverTitlePhrase(['O Vencedor']),'O Vencedor');assert.equal(coverTitlePhrase(['11:14']),'11:14');assert.equal(coverTitlePhrase(['O PROTOCOLO DE','AUSCHWITZ']),'O PROTOCOLO DE AUSCHWITZ');
+});
