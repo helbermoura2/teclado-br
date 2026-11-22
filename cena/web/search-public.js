@@ -92,7 +92,7 @@ export async function searchPublicTitles(query, fetcher = fetch) {
           if (page.language === 'pt') item.localWikiTitle = page.title;
           if (page.extract) {
             item.description = page.extract;
-            if (normalized(page.extract).includes(normalized(query))) item.aliases = [...(item.aliases || []), query];
+            // A cast name or award mentioned in the synopsis is not a title alias.
           }
           if (page.thumbnail?.source?.startsWith('https://upload.wikimedia.org/')) item.poster = page.thumbnail.source;
         }
@@ -134,3 +134,4 @@ export async function getTitleDetails(item, fetcher = fetch) {
   if (fetcher === fetch && result.detailsAvailable) { if(detailCache.size>100) detailCache.clear(); detailCache.set(item.id,structuredClone(result)); }
   return result;
 }
+
