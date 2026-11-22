@@ -34,7 +34,16 @@ try:
   def capture(title):page.evaluate('''title=>{const canvas=document.createElement('canvas');canvas.width=8;canvas.height=8;window.CenaNativeResult({title,lines:[title],image:canvas.toDataURL('image/jpeg')})}''',title)
   capture('HROSHIN 0 UT OF THE A SHES');expect(page.locator('.scan-frame img')).to_be_visible();assert not calls
   page.locator('#camera-ai-action').click();expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000);expect(page.locator('#result-grid')).to_contain_text('Hiroshima: Out of the Ashes');assert len(calls)==1
+  # As preferências de IA ficam recolhidas no visual CENA Vision. O teste deve
+  # abri-las como uma pessoa faria, em vez de tentar clicar num input invisível.
+  def show_ai_preferences():
+   panel=page.locator('.scan-ai-preferences')
+   if panel.get_attribute('open') is None:
+    panel.locator('summary').click()
+   expect(page.locator('#camera-ai-auto')).to_be_visible()
+  show_ai_preferences()
   page.locator('#camera-ai-auto').check();capture('ZZZXQWERTY');expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000);assert len(calls)==2
+  show_ai_preferences()
   page.locator('#camera-ai-auto').uncheck();scenario='auschwitz';capture('AUSCHWITZ')
   page.locator('#camera-ai-action').click();expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000)
   expect(page.locator('#result-grid')).to_contain_text('O Protocolo de Auschwitz');assert page.locator('#result-grid .poster-card').count()==1
