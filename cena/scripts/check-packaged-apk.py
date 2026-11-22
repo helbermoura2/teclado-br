@@ -10,7 +10,7 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.27.5' in index
+    assert 'v0.28.0' in index
     assert 'assets/brand-mark.png' in archive.namelist()
     assert 'assets/online-ai.js' in archive.namelist()
     assert 'assets/brand-wordmark.svg' in archive.namelist()
@@ -47,7 +47,7 @@ with ZipFile(apk) as archive:
     assert 'assets/home-feed.js' in archive.namelist()
     assert 'brand-triangle' in index and 'resume-dismiss' in app
     assert 'assets/watch-history.js' in archive.namelist()
-    assert 'profile-shortcut' in index and 'id="history-year"' in app
+    assert 'profile-shortcut' in index and 'Ano em que assistiu' in app
     assert 'assets/nuvio-state.js' in archive.namelist() and 'assets/nuvio-panel.js' in archive.namelist()
     assert 'CenaNuvioResult' in app and 'Continuar assistindo' in app
     assert 'assets/ratings.js' in archive.namelist()
@@ -66,7 +66,7 @@ tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
 assert "name='app.cena.mobile'" in badging
-assert "versionName='0.27.5'" in badging and "versionCode='62'" in badging
+assert "versionName='0.28.0'" in badging and "versionCode='67'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
 
