@@ -28,7 +28,7 @@ import { ArtworkResolver, trustedArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
 import { getTitleDetails } from './search-public.js';
 import { createLocalApi } from './local-api.js';
-import { coverInput, identifyCover, searchTolerantTitles } from './identify-cover.js';
+import { coverInput, identifyCover, searchTolerantTitles, verifyCameraTitles } from './identify-cover.js';
 import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
@@ -68,6 +68,9 @@ let traktState = { connected:false, configured:false, pending:[] };
 let traktWasConnected = false;
 let traktInitialUploadRequested = false;
 let libraryReady=false, deferredTraktState=null;
+let cameraSequence=0,cameraAttempt=-1;
+let cameraLines=[];
+const cameraAuto=()=>{try{return JSON.parse(storage.getItem('cena.camera.online.v1')||'false')===true;}catch{return false;}};
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
 const stremioPanel=createStremioPanel({
@@ -639,6 +642,39 @@ async function loadRecommendations(force=false){
  }catch(error){if(status.isConnected)status.textContent='Não consegui atualizar agora. Suas sugestões foram mantidas. '+error.message;}
  finally{discoveryRefreshing=false;const active=$('#refresh-recommendations');if(active){active.disabled=false;active.textContent='Mostrar outras sugestões';}}
 }
+function renderCaptureMatches(target,response,coverLines){
+    searchResults = response.items;
+    if (coverLines && searchResults[0]?.matchScore >= .65 && (!searchResults[1] || searchResults[0].matchScore - searchResults[1].matchScore >= .04)) {
+      const field = $('#scan-query');
+      if (field) field.value = searchResults[0].originalName || searchResults[0].name;
+    }
+    const assisted = searchResults.some(item => item.suggested) || ['assisted','vision'].includes(response.mode);
+    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} títulos</span></div>${assisted && searchResults.length ? `<p class="muted">${response.mode==='vision'?'O Gemini analisou a imagem e conferi os nomes no catálogo.':'Conferi variações do texto e pistas da capa.'} Confira a imagem e o ano antes de adicionar.</p>` : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
+
+    wireImages();
+}
+async function cameraJpeg(){
+ if(scanPhoto.startsWith('data:image/jpeg;base64,'))return scanPhoto;
+ if(!scanPhoto.startsWith('blob:'))throw Error('Escolha a capa novamente para preparar a imagem.');
+ const image=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('Não consegui preparar esta imagem.'));image.src=scanPhoto;});
+ const scale=Math.min(1,1024/Math.max(image.width,image.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.82);
+}
+async function analyzeCameraOnline(){
+ if(!onlineAI.configured()){toast('Conecte o Gemini no Perfil para analisar a capa.');setTab('connect');$('#online-ai-panel')?.scrollIntoView({block:'center'});return;}
+ if(!scanPhoto){toast('Escolha ou fotografe uma capa primeiro.');return;}
+ const sequence=cameraSequence,generation=++searchGeneration,status=$('#camera-ai-status'),button=$('#camera-ai-action');cameraAttempt=sequence;
+ if(button)button.disabled=true;if(status)status.textContent='Enviando o recorte ao Gemini e conferindo os nomes no catálogo…';
+ try{
+  const image=await cameraJpeg();if(sequence!==cameraSequence)return;
+  const hints=await onlineAI.identifyCover(image,cameraLines);
+  if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
+  const rows=await verifyCameraTitles(hints,cameraLines);
+  if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
+  if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
+  else if(status?.isConnected)status.textContent='Não consegui confirmar um título no catálogo. Tente outro recorte ou ajuste o texto; não adicionei nenhum filme automaticamente.';
+ }catch(error){if(sequence===cameraSequence&&status?.isConnected)status.textContent=error.message;}
+ finally{if(button?.isConnected)button.disabled=false;}
+}
 async function runSearch(query, coverLines = null) {
   const target = $('#search-results');
   if (!target) return;
@@ -649,15 +685,9 @@ async function runSearch(query, coverLines = null) {
   try {
     const response = coverLines && apiBase === 'local' ? { items: await identifyCover(coverLines), mode: 'assisted' } : await api(`/api/search?q=${encodeURIComponent(query)}`);
     if (generation !== searchGeneration || !target.isConnected) return;
-    searchResults = response.items;
-    if (coverLines && searchResults[0]?.matchScore >= .65 && (!searchResults[1] || searchResults[0].matchScore - searchResults[1].matchScore >= .04)) {
-      const field = $('#scan-query');
-      if (field) field.value = searchResults[0].originalName || searchResults[0].name;
-    }
-    const assisted = searchResults.some(item => item.suggested) || response.mode === 'assisted';
-    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} títulos</span></div>${assisted && searchResults.length ? '<p class="muted">Conferi variações do texto e pistas da capa. Confira a imagem e o ano antes de adicionar.</p>' : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
+    renderCaptureMatches(target,response,coverLines);
+    if(coverLines&&!searchResults.length&&cameraAuto()&&onlineAI.configured()&&scanPhoto&&cameraAttempt!==cameraSequence){analyzeCameraOnline();return;}
 
-    wireImages();
     if (native && coverLines && searchResults.some(item => item.poster) && typeof window.CenaAndroid.compareCovers === 'function') {
       target.insertAdjacentHTML('beforeend', '<div id="vision-status" class="notice" role="status">Comparando as capas com IA no aparelho…</div>');
       window.CenaAndroid.compareCovers(String(generation), JSON.stringify(searchResults.filter(item => item.poster).slice(0,4).map(item => ({ id: item.id, poster: item.poster }))));
@@ -677,7 +707,10 @@ function scan() {
         <button class="primary wide" id="take-photo">${scanPhoto?'Fotografar novamente':'Abrir câmera'}</button>
         <button class="secondary wide" id="pick-image">Escolher imagem</button>
       </div>
-      <p class="scan-tip">Enquadre a capa inteira e evite reflexos.</p>
+      <p class="scan-tip">Enquadre a capa inteira, incluindo o título e o subtítulo.</p>
+      <button class="secondary wide" id="camera-ai-action">${onlineAI.configured()?'✧ Analisar esta capa com Gemini':'✧ Conectar Gemini para analisar capas'}</button>
+      <label class="camera-ai-opt"><input id="camera-ai-auto" type="checkbox" ${cameraAuto()?'checked':''}> Usar Gemini automaticamente quando a leitura local não encontrar títulos</label>
+      <p class="muted">Ao usar o Gemini, o recorte desta imagem é enviado à Cloudflare e ao Google. Usa internet e a cota da sua API.</p><p class="muted" id="camera-ai-status" role="status"></p>
     </section>
     <section class="scan-manual">
       <form id="scan-search">
@@ -687,9 +720,10 @@ function scan() {
       <div id="detected-lines"></div>
       <div id="search-results"></div>
     </section>
-    <details class="scan-help"><summary>Como o reconhecimento funciona</summary><p>${native?'Você pode fotografar, escolher um print ou usar Compartilhar → CENA. A leitura e a comparação visual com IA acontecem no aparelho.':'Na prévia web, escolha ou fotografe a capa e digite o título. O reconhecimento automático está no aplicativo Android.'}</p></details>`;
-  $('#take-photo').onclick = () => { if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
-  $('#pick-image').onclick = () => { if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
+    <details class="scan-help"><summary>Como o reconhecimento funciona</summary><p>${native?'Você pode fotografar, escolher um print ou usar Compartilhar → CENA. A leitura inicial e a comparação local acontecem no aparelho. O Gemini online pode analisar o recorte quando você pedir ou ativar a opção automática.':'Na prévia web, escolha ou fotografe a capa e digite o título. O reconhecimento automático está no aplicativo Android.'}</p></details>`;
+  $('#camera-ai-action').onclick=analyzeCameraOnline;$('#camera-ai-auto').onchange=e=>storage.setItem('cena.camera.online.v1',JSON.stringify(e.target.checked));
+  $('#take-photo').onclick = () => { cameraSequence++;if (native) window.CenaAndroid.scanCover(); else { $('#photo-input').setAttribute('capture', 'environment'); $('#photo-input').click(); } };
+  $('#pick-image').onclick = () => { cameraSequence++;if (native) window.CenaAndroid.pickImage(); else { $('#photo-input').removeAttribute('capture'); $('#photo-input').click(); } };
   $('#scan-search').onsubmit = event => { event.preventDefault(); runSearch($('#scan-query').value); };
 }
 $('#photo-input').onchange = event => {
@@ -697,15 +731,16 @@ $('#photo-input').onchange = event => {
   if (!file) return;
   if (!file.type.startsWith('image/') || file.size > 15 * 1024 * 1024) { toast('Escolha uma imagem de até 15 MB.'); return; }
   if (scanPhoto) URL.revokeObjectURL(scanPhoto);
-  scanPhoto = URL.createObjectURL(file);
+  cameraSequence++;cameraLines=[];scanPhoto = URL.createObjectURL(file);
   setTab('scan'); $('#scan-query').focus();
   event.target.value = '';
 };
 window.CenaNativeResult = result => {
   if (result.error) { toast(result.error); return; }
   if ($('#detail').open) $('#detail').close();
+  cameraSequence++;if(scanPhoto.startsWith('blob:'))URL.revokeObjectURL(scanPhoto);scanPhoto=typeof result.image==='string'&&result.image.startsWith('data:image/jpeg;base64,')?result.image:'';
+  const input = coverInput(result);cameraLines=input.lines;
   setTab('scan');
-  const input = coverInput(result);
   const lines = (result.lines || []).filter(line => typeof line === 'string' && line.trim().length > 2);
   detectedLines = [...new Set(lines)].slice(0, 6);
   if (detectedLines.length > 1 && input.query === lines[0]) {
@@ -714,7 +749,7 @@ window.CenaNativeResult = result => {
   }
   $('#scan-query').value = input.query;
   if (input.query) { toast('Buscando o título completo e as pistas da capa…'); runSearch(input.query, input.lines); }
-  else toast('Não encontrei texto. Digite o título para buscar.');
+  else {toast('Não encontrei texto. Use Analisar esta capa com Gemini ou digite o título.');if(cameraAuto()&&onlineAI.configured()&&scanPhoto)analyzeCameraOnline();}
 };
 window.CenaVisualResult = result => {
   if (String(result.requestId) !== String(searchGeneration)) return;
