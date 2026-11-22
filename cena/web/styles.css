@@ -149,3 +149,5 @@ nav .camera-nav small{font-size:10px}
 /* Keep scrolled settings controls in the main hit-testing layer. */
 .app>main{position:relative;z-index:0}
 #main[data-screen=connect]{z-index:1}#main[data-screen=connect] .panel{position:relative;z-index:1}
+
+.online-ai-status{padding:12px;border:1px solid var(--line);border-radius:12px}.panel .online-ai-status[data-state=error]{color:#ffb3c5;background:#3b202c}.panel .online-ai-status[data-state=ok]{color:#a9e6c7;background:#122d25}
