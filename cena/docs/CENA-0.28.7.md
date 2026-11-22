@@ -8,7 +8,7 @@ Reconhecimento pelo título da capa, separando elenco, prêmios e publicidade.
 - A tela mostra o título lido e, quando disponível, os demais textos por categoria.
 - A validação por títulos oficiais, identidade IMDb/TMDB e nomes brasileiros permanece ativa.
 
-Validação: 160 testes JavaScript, navegador com respostas privadas simuladas, nove testes Android com OCR real de layouts de título/elenco e título numérico/premiação e regressões das fotos de reconhecimento anteriores. A publicação também verifica o conteúdo e a assinatura dos APKs.
+Validação: 161 testes JavaScript, navegador com respostas privadas simuladas, nove testes Android com OCR real de layouts de título/elenco e título numérico/premiação e regressões das fotos de reconhecimento anteriores. A publicação também verifica o conteúdo e a assinatura dos APKs.
 
 IMPORTANTE: para ativar a classificação semântica completa do Gemini, atualize o Worker existente cena-ia na Cloudflare com o código em https://github.com/helbermoura2/cena-downloads/blob/main/cloudflare/cena-ia-worker.js . Substitua todo o código e publique com Deploy. Mantenha GEMINI_API_KEY, CENA_AI_ACCESS_TOKEN e GEMINI_MODEL como estão. Não é necessária outra chave de IA.
 
