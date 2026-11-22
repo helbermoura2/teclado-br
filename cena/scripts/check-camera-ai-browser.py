@@ -11,11 +11,13 @@ try:
    url=r.request.url
    if url.endswith('/api/ai/identify-cover'):
     body=r.request.post_data_json;assert body['image']['mimeType']=='image/jpeg';assert 'history' not in body;calls.append(body)
+    if scenario=='regional':return r.fulfill(status=200,content_type='application/json',body=json.dumps({'titles':[{'title':'Hiroshima - A Guerra da Sobrevivência','originalTitle':'Hiroshima: Out of the Ashes','year':'1990','type':'movie'}],'visibleText':['HIROSHIMA','A GUERRA DA SOBREVIVENCIA'],'uncertain':False}))
     if scenario!='hiroshima':return r.fulfill(status=200,content_type='application/json',body=json.dumps({'titles':[{'title':'The Angel of Auschwitz','year':'2019','type':'movie'}],'visibleText':['O PROTOCOLO DE','AUSCHWITZ'] if scenario=='auschwitz' else ['AUSCHWITZ'],'uncertain':False}))
     return r.fulfill(status=200,content_type='application/json',body=json.dumps({'titles':[{'title':'Hiroshima: Out of the Ashes','year':'1990','type':'movie'}],'visibleText':['HIROSHIMA','OUT OF THE ASHES'],'uncertain':False}))
    if scenario!='hiroshima':
     query=unquote(url).lower();metas=[]
-    if 'search=protocolo' in query:metas=[{'id':'tt9415108','type':'movie','name':'The Auschwitz Report','releaseInfo':'2021'}]
+    if scenario=='regional' and 'search=hiroshima' in query:metas=[{'id':'tt0099772','type':'movie','name':'Hiroshima: Out of the Ashes','releaseInfo':'1990'},{'id':'tt0475296','type':'movie','name':'Hiroshima','releaseInfo':'2005'}]
+    elif 'search=protocolo' in query:metas=[{'id':'tt9415108','type':'movie','name':'The Auschwitz Report','releaseInfo':'2021'}]
     elif 'search=the angel' in query:metas=[{'id':'tt8774388','type':'movie','name':'The Angel of Auschwitz','releaseInfo':'2019'}]
     elif 'search=auschwitz' in query:metas=[{'id':'tt1684714','type':'movie','name':'Auschwitz','releaseInfo':'2011'}]
     return r.fulfill(status=200,content_type='application/json',body=json.dumps({'metas':metas}))
@@ -35,5 +37,14 @@ try:
   assert 'PROTOCOLO' in page.locator('#scan-query').input_value()
   scenario='uncertain';page.locator('#camera-ai-action').click();expect(page.locator('#camera-ai-status')).to_contain_text('descartadas',timeout=15000)
   assert page.locator('#search-results .poster-card').count()==0, 'Old incorrect matches must be cleared'
-  assert not errors,errors;b.close();print('Camera: preview, explicit JPEG upload, catalog verification and opt-in automatic fallback passed; Gemini response simulated.')
+  assert not errors,errors;page.close();scenario='regional'
+  page=b.new_page(viewport={'width':412,'height':915});page.on('pageerror',lambda e:errors.append(str(e)));page.route('https://**/*',route)
+  page.add_init_script('''localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));localStorage.setItem('cena.online-ai.v1',JSON.stringify({url:'https://cena-ia.terrestre.workers.dev',token:'fixture-token'}));window.aliasRequests=[];window.CenaAndroid={ready:()=>{},appVersion:()=> '0.28.6',traktInventory:()=>{},streamingStatus:()=>queueMicrotask(()=>window.CenaStreamingResult({kind:'status',configured:true})),findTitleAliases:(id,type)=>{aliasRequests.push({id,type});queueMicrotask(()=>window.CenaStreamingResult({kind:'titleAliases',id,type,name:id==='tt0099772'?'Hiroshima - A Guerra da Sobrevivência':'Hiroshima',originalName:id==='tt0099772'?'Hiroshima: Out of the Ashes':'Hiroshima',year:id==='tt0099772'?'1990':'2005',aliases:id==='tt0099772'?['Hiroshima - A Guerra da Sobrevivência','Hiroshima: Out of the Ashes']:['Hiroshima']}));}};''')
+  page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded');page.wait_for_timeout(250)
+  capture('HIROSHIMA A GUERRA DA SOBREVIVENCIA');page.locator('#camera-ai-action').click()
+  expect(page.locator('#camera-ai-status')).to_contain_text('Análise concluída',timeout=15000);expect(page.locator('#result-grid')).to_contain_text('Hiroshima - A Guerra da Sobrevivência')
+  assert page.locator('#result-grid .poster-card').count()==1
+  assert page.locator('#result-grid .poster-card').get_attribute('data-id')=='tt0099772'
+  assert page.evaluate("aliasRequests.some(x=>x.id==='tt0099772')")
+  assert not errors,errors;b.close();print('Camera: OCR/Gemini, unrelated-title rejection and native regional-title lookup passed; private services simulated.')
 finally:p.terminate();p.wait()
