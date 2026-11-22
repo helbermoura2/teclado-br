@@ -18,10 +18,10 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=6);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'29');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=6);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'30');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
-test('0.27.9 Story preserves the gold title, fog particles, watermark and deduplicated providers',()=>{
+test('Story reveals more of the artwork and preserves the gold title, fog particles, watermark and deduplicated providers',()=>{
  const text=[],images=[],particles=[];
  const ctx={...context(),fillText:(label,x,y)=>text.push({label,x,y}),drawImage:(...args)=>images.push(args),ellipse:(...args)=>particles.push(args)};
  const canvas={dataset:{},getContext:()=>ctx};
@@ -29,7 +29,7 @@ test('0.27.9 Story preserves the gold title, fog particles, watermark and dedupl
  renderStory(canvas,{image:{width:1400,height:800},brandMark:mark,
   providerIcons:new Map([['Netflix',provider]]),title:'Peaky Blinders: O Homem Imortal',year:'2026',caption:'Aqui escrevo minha resenha.',rating:'3,6',
   availability:['Assinatura · Netflix, Netflix Standard with Ads','Aluguel · Netflix, Apple TV']});
- assert.equal(canvas.dataset.layoutVersion,'29');
+ assert.equal(canvas.dataset.layoutVersion,'30');
  assert.ok(text.some(({label})=>label==='3,6 / 10'));
  assert.equal(text.filter(({label})=>label==='Netflix').length,1);
  assert.ok(text.some(({label})=>label==='Apple TV'));
@@ -54,3 +54,13 @@ test('Story availability includes rental when streaming, free and cinema offers 
  assert.deepEqual(storyAvailability({groups:{flatrate:['Netflix'],rent:[]}}),['Assinatura · Netflix']);
 });
 
+test('lowered composition reserves readable services and score for long reviews and titles',()=>{
+ const labels=[],icons=[],ctx={...context(),fillText:(label,x,y)=>labels.push({label,x,y}),drawImage:(...args)=>icons.push(args)};
+ const canvas={dataset:{},getContext:()=>ctx};
+ const result=renderStory(canvas,{image:{width:1400,height:800},title:'Uma jornada épica: a longa volta para casa',caption:'Uma aventura repleta de imagens marcantes e surpresas pelo caminho. '.repeat(4),rating:'8,35',brandMark:{width:432,height:432},availability:['Assinatura · Netflix, Prime Video, Disney+, Max, Globoplay, Claro tv+']});
+ assert.ok(labels.some(row=>row.label==='8,35 / 10'&&row.y>=1350));
+ assert.ok(labels.some(row=>row.label.includes('JORNADA')&&row.y>=1150));
+ assert.ok(labels.every(row=>row.y>=storyLayout.safe.top&&row.y<1820));
+ assert.ok(result.opinionBottom<1650);
+ assert.ok(labels.some(row=>row.label.startsWith('+ ')));
+});
