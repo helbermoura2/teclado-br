@@ -1,5 +1,6 @@
 const norm=value=>String(value||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
 export const topics=[
+ ['greek epic','mitologia e aventuras da Grécia antiga',/\b(trojan war|trojan|guerra de troia|helen of troy|odysseus|odisseu|ulisses|achilles|aquiles|ancient greece|ancient greek|greek forces|greek warriors?|greek heroes?|greek kings?|grecia antiga|greek mytholog\w*|mitologia grega|greek gods|deuses gregos|argonaut\w*|perseus|perseu|theseus|teseu|heracles|hercules|mount olympus|monte olimpo)\b/],
  ['president','presidente dos EUA',/\b(president|presidente|presidential|presidencial)\b/],
  ['samurai','samurais',/\b(samurais?|ronins?|shoguns?)\b/],['zombie','zumbis',/\b(zombies?|zumbis?|undead)\b/],
  ['heist','assaltos',/\b(heist|bank robb\w*|assalto[s]? a banco)\b/],['vampire','vampiros',/\b(vampir\w*)\b/],
@@ -46,4 +47,5 @@ export function fitsSimilarityRequest(item,criteria){
  return criteria.terms.every(term=>text.includes(term));
 }
 export function requestLabels(criteria){return [...criteria.required.map(topicLabel),...criteria.genres.map(value=>({Action:'ação',Horror:'terror',Comedy:'comédia',Drama:'drama',Romance:'romance',Animation:'animação',Fantasy:'fantasia'}[value])),...criteria.excluded.map(value=>'sem '+topicLabel(value)),...criteria.excludedGenres.map(value=>'sem '+value),...(criteria.years?[`${criteria.years[0]}–${criteria.years[1]}`]:[]),...criteria.terms];}
-export const themeQueries={president:['White House Down','Has Fallen','Big Game','president','presidente'],samurai:['samurai','ronin','shogun','sword of','rurouni kenshin'],zombie:['zombie','undead'],heist:['heist','bank robbery'],vampire:['vampire'], 'time travel':['time travel'], 'martial arts':['martial arts','kung fu'],space:['space','astronaut'],gangster:['gangster','mafia'],hijack:['hijack','Non-Stop','Executive Decision'],hostage:['hostage','Die Hard'],terrorism:['terrorist','Under Siege'],siege:['siege','White House'],investigation:['detective','investigation']};
+export const themeQueries={'greek epic':['Troy','Clash of the Titans','Wrath of the Titans','Immortals','Jason and the Argonauts','The Return'],president:['White House Down','Has Fallen','Big Game','president','presidente'],samurai:['samurai','ronin','shogun','sword of','rurouni kenshin'],zombie:['zombie','undead'],heist:['heist','bank robbery'],vampire:['vampire'], 'time travel':['time travel'], 'martial arts':['martial arts','kung fu'],space:['space','astronaut'],gangster:['gangster','mafia'],hijack:['hijack','Non-Stop','Executive Decision'],hostage:['hostage','Die Hard'],terrorism:['terrorist','Under Siege'],siege:['siege','White House'],investigation:['detective','investigation']};
+
