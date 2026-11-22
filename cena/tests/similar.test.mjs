@@ -61,3 +61,17 @@ test('a mismatched metadata ID cannot lend its presidential plot to another titl
 test('local prompts stay compact and validation rejects a candidate omitted from the model context',()=>{
  const many=Array.from({length:10},(_,i)=>({...presidential[0],id:'tt'+(9000000+i),name:'Presidential action '.repeat(15),description:presidential[0].description+'More details. '.repeat(100)}));const prompt=buildLocalSelectionPrompt(airForce,many,'mais ação com presidente dos EUA');const shown=JSON.parse(prompt.split('Candidatos: ')[1]);assert.equal(shown.length,8);assert.ok(prompt.length<4200);assert.ok(shown.every(row=>!row.summary||!row.evidence));const outside=many.find(row=>!shown.some(candidate=>candidate.id===row.id));assert.equal(validateLocalSelection(JSON.stringify([outside.id]),many,{seed:airForce,query:'mais ação com presidente dos EUA'}),null);
 });
+
+
+test('Greek epics match The Odyssey while a contemporary character named Troy is not thematic evidence',()=>{
+ const seed={id:'tt33764258',type:'movie',name:'The Odyssey',genres:['Action','Adventure'],description:'After the Trojan War, Odysseus faces a dangerous voyage back to Ithaca.'};
+ const matches=[{id:'tt0332452',name:'Troy',description:'The assault on Troy by the united Greek forces.'},{id:'tt1253864',name:'Immortals',description:'Theseus leads the ancient Greek warriors against a ruthless king.'},{id:'tt0800320',name:'Clash of the Titans',description:'Perseus battles monsters to save Andromeda.'},{id:'tt1646987',name:'Wrath of the Titans',description:'Perseus journeys to rescue the gods.'},{id:'tt0082186',name:'Clash of the Titans',description:'Greek mythology and the quest of Perseus.'}].map(row=>({...row,type:'movie',genres:['Action','Adventure'],year:'2010'}));
+ const unrelated={id:'tt28014327',type:'movie',name:'Mayday',genres:['Action'],description:'Lieutenant Troy travels to a modern city to investigate spies.'};
+ const rows=rankSimilar(seed,[...matches,unrelated]);assert.equal(rows.length,5);assert.ok(rows.every(row=>row.id!==unrelated.id));
+});
+test('metadata enrichment reaches later thematic searches even when the first query floods the result pool',async()=>{
+ const seed={id:'tt33764258',type:'movie',name:'The Odyssey',genres:['Action'],description:'Odysseus returns from the Trojan War.'};
+ const flood=Array.from({length:35},(_,i)=>({id:'tt'+String(7000000+i),name:'Unrelated '+i,genres:['Action']}));
+ const engine=new SimilarEngine({storage:{getItem:()=>null,setItem:()=>{}},engine:{catalog:async()=>({items:[]})},search:async()=>[],fetcher:async url=>({ok:true,json:async()=>({metas:url.includes('search=Troy')?flood:url.includes('search=Clash%20of%20the%20Titans')?[{id:'tt0800320',name:'Clash of the Titans',genres:['Action']}]:[]})}),details:async item=>item.id==='tt0800320'?{...item,description:'Perseus battles monsters in Greek mythology.'}:item});
+ const result=await engine.find(seed);assert.ok(result.items.some(item=>item.id==='tt0800320'));
+});
