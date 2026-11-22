@@ -26,3 +26,11 @@ test('even a unique filmography search result cannot manufacture an actor-name t
  const fetcher=async()=>({ok:true,json:async()=>({metas:[movie]})});
  const rows=await verifyCameraTitles({titles:[{title:'David Morse',type:'movie'}],visibleText:['DAVID MORSE'],uncertain:false},[],{search:async()=>[{...movie,year:'1980'}],localized:query=>localizedCoverEvidence(query,fetcher)});assert.deepEqual(rows,[]);
 });
+
+test('a short AO connector read as A0 remains between the dominant title lines',async()=>{
+ const {coverSearchPhrases}=await import('../web/identify-cover.js');const boxes=regions.map(x=>x.text==='AO'?{...x,text:'A0',height:22}:x);
+ assert.equal(geometricCoverReading(boxes).title,'GUERRA A0 TERROR');assert.ok(coverSearchPhrases(['GUERRA A0 TERROR']).includes('GUERRA AO TERROR'));
+});
+test('ordinary film titles are not discarded merely for containing a word used in award copy',()=>{
+ assert.equal(promotionalCoverText('O Vencedor'),false);assert.equal(prepareCoverReading({reading:{title:'O Vencedor'},titles:[{title:'O Vencedor'}]},[]).title,'O Vencedor');assert.equal(promotionalCoverText('VENCEDOR DO OSCAR DE MELHOR FILME'),true);
+});
