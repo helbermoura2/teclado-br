@@ -3,7 +3,7 @@ const norm=x=>clean(x).normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCas
 const list=x=>Array.isArray(x)?[...new Set(x.map(clean).filter(Boolean))].slice(0,24):[];
 export function promotionalCoverText(text){
  const value=norm(text);
- return /\b(nomeac\w*|indicac\w*|premiad\w*|vencedor\w*|nominations?|awards?|starring|apresenta|distribui\w*|copyright)\b/.test(value)||/\b(globos? de ouro|golden globes?|academy awards|melhor (filme|ator|atriz)|nos cinemas|em (dvd|blu ray)|um filme (de|que)|do realizador|do diretor|from the director|produced by|directed by)\b/.test(value);
+ return /\b(nomeac\w*|indicac\w*|nominations?|awards?|starring|apresenta|distribui\w*|copyright)\b/.test(value)||/\b(globos? de ouro|golden globes?|academy awards|melhor (filme|ator|atriz)|nos cinemas|em (dvd|blu ray)|um filme (de|que)|do realizador|do diretor|from the director|produced by|directed by)\b/.test(value);
 }
 export function parseCoverReading(value){
  if(!value||typeof value!=='object'||Array.isArray(value))return null;
@@ -15,7 +15,7 @@ export function geometricCoverReading(regions){
  const anchor=boxes.slice().sort((a,b)=>b.height-a.height)[0];if(!anchor)return null;
  const group=boxes.filter(box=>{
   const overlap=Math.max(0,Math.min(box.x+box.width,anchor.x+anchor.width)-Math.max(box.x,anchor.x))/Math.min(box.width,anchor.width);
-  const connector=/^(a|o|ao|de|da|do|as|os|the|of|and)$/i.test(clean(box.text));
+  const connector=/^(a|o|ao|a0|de|da|do|as|os|the|of|and)$/i.test(clean(box.text));
   return overlap>.35&&Math.abs(box.y+box.height/2-anchor.y-anchor.height/2)<=anchor.height*3&&box.height>=anchor.height*(connector ? .22 : .5);
  }).sort((a,b)=>a.y-b.y||a.x-b.x);
  const title=group.map(x=>clean(x.text)).join(' ').trim();
