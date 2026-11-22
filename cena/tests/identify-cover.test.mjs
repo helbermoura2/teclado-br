@@ -122,3 +122,12 @@ test('garbled multi-line OCR retains a full-title match supported by multiple di
  const {verifyCameraTitles}=await import('../web/identify-cover.js');const correct={id:'tt9185206',type:'movie',name:"Are You There God? It's Me, Margaret.",year:'2023'};
  const rows=await verifyCameraTitles({titles:[{title:correct.name,type:'movie',year:'2023'}],visibleText:[],uncertain:false},['Jheye God9 ItsMe, Margatet.','Margatet.','Jheye God9','ItsMe,'],{search:async()=>[correct,{id:'tt0466893',type:'movie',name:'Margaret'}]});assert.equal(rows.length,1);assert.equal(rows[0].id,correct.id);
 });
+
+test('cast names are supporting clues and cannot become a conflicting synthetic title',async()=>{
+ const fetcher=async raw=>{const url=new URL(raw);let data={};if(url.host==='v3-cinemeta.strem.io')data={metas:[]};else if(url.searchParams.get('action')==='wbsearchentities')data={search:[]};else if(url.searchParams.get('action')==='wbgetentities')data={entities:{Q123:film}};else data={query:{pages:{1:{title:'U.S. Marshals (film)',pageprops:{wikibase_item:'Q123'},extract:'Starring Tommy Lee Jones and Wesley Snipes.'}}}};return {ok:true,json:async()=>data};};
+ const rows=await identifyCover(['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.'],fetcher);assert.equal(rows[0]?.id,'tt0120873');
+});
+
+test('AI cannot override readable cover text with a completely unrelated exact catalog title',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');assert.deepEqual(await verifyCameraTitles({titles:[{title:'Top Gun',type:'movie'}],visibleText:['O PROTOCOLO DE AUSCHWITZ'],uncertain:false},[],{search:async()=>[{id:'tt0092099',type:'movie',name:'Top Gun'}]}),[]);
+});
