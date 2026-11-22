@@ -52,7 +52,8 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
   val a=auth.read();val d=data.read();val connected=a.optString("access").isNotBlank();val selected=a.optInt("profile",0);val active=connected&&a.optBoolean("active")&&selected>0
   val known=mutableSetOf<String>();try{val list=JSONArray(inventory.getString("items","[]"));for(i in 0 until list.length()){val row=list.optJSONObject(i)?:continue;known.add(row.optString("type")+":"+row.optString("id"))}}catch(_:Exception){}
   val watched=d.optJSONArray("watched")?:JSONArray();val filtered=JSONArray();val recent=JSONArray();var unsupported=0
-  for(i in 0 until watched.length()){val row=watched.optJSONObject(i)?:continue;if(row.optString("id").isBlank()){unsupported++;continue};if(known.contains(row.optString("type")+":"+row.optString("id")))filtered.put(row);if(recent.length()<50)recent.put(row)}
+  for(i in 0 until watched.length()){val row=watched.optJSONObject(i)?:continue;if(row.optString("id").isBlank()){unsupported++;continue};if(known.contains(row.optString("type")+":"+row.optString("id")))filtered.put(row);}
+  (0 until watched.length()).mapNotNull{watched.optJSONObject(it)}.filter{it.optString("id").isNotBlank()}.sortedByDescending{it.optLong("watchedAt")}.take(50).forEach{recent.put(it)}
   val shows=linkedMapOf<String,JSONObject>();val episodeKeys=mutableMapOf<String,MutableSet<String>>();val finished=mutableSetOf<String>()
   for(i in 0 until watched.length()){val row=watched.optJSONObject(i)?:continue;val id=row.optString("id");if(id.isBlank())continue;finished.add(row.optString("type")+":"+id+":"+row.optInt("season")+":"+row.optInt("episode"));if(row.optString("type")=="series"&&row.optInt("season")>0&&row.optInt("episode")>0){val keys=episodeKeys.getOrPut(id){linkedSetOf()};keys.add("${row.optInt("season")}:${row.optInt("episode")}");val show=shows.getOrPut(id){JSONObject().put("id",id).put("type","series").put("name",row.optString("name",id)).put("watchedAt",0)};show.put("watchedAt",maxOf(show.optLong("watchedAt"),row.optLong("watchedAt")))}}
   for((id,show)in shows){show.put("episodes",episodeKeys[id]?.size?:0).put("seen",JSONArray(episodeKeys[id]?.toList()?:emptyList<String>()))}
@@ -130,6 +131,7 @@ internal object NuvioCodec {
   if(type=="movie"&&(season>0||episode>0))return null
   return JSONObject().put("sourceId",source.take(120)).put("id",match?.groupValues?.get(1)?:"").put("type",type).put("name",row.optString("title",source).take(200)).put("season",season).put("episode",episode)
  }
- fun watched(row:JSONObject):JSONObject? {val item=base(row)?:return null;if(item.optString("type")=="series"&&(item.optInt("season")<1||item.optInt("episode")<1))return null;var at=row.optLong("watched_at");if(at in 1..9999999999L)at*=1000;return item.put("watchedAt",at)}
+ fun watched(row:JSONObject):JSONObject? {val item=base(row)?:return null;if(item.optString("type")=="series"&&(item.optInt("season")<1||item.optInt("episode")<1))return null;var at=row.optLong("watched_at");if(at in 1..9999999999L)at*=1000;if(at<=0)at=try{java.time.Instant.parse(row.optString("watched_at")).toEpochMilli()}catch(_:Exception){0L};return item.put("watchedAt",at)}
  fun progress(row:JSONObject):JSONObject? {val item=base(row)?:return null;val position=row.optLong("position");val duration=row.optLong("duration");if(position<=0||duration<0)return null;return item.put("position",if(duration>0)position.coerceAtMost(duration)else position).put("duration",duration).put("lastWatched",row.optLong("last_watched").let{if(it in 1..9999999999L)it*1000 else it})}
 }
+
