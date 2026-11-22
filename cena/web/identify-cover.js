@@ -30,7 +30,7 @@ export function coverTitlePhrase(lines){
  // Prefer the original full phrase. Assemble adjacent short OCR lines only when necessary.
  return phrases.find(phrase=>lines.includes(phrase)&&meaningful(phrase).length>=2)||phrases.sort((a,b)=>Number(titleStops.has(titleWords(a).at(-1)))-Number(titleStops.has(titleWords(b).at(-1))))[0]||'';
 }
-function contradictsCover(item,lines){const phrase=coverTitlePhrase(lines);return Boolean(phrase&&phraseAgreement(item,phrase)<.72);}
+function contradictsCover(item,lines){const phrase=coverTitlePhrase(lines),words=coverLabels(item).flatMap(meaningful);const anchored=meaningful(phrase).some(word=>words.some(other=>word===other||word.length>=5&&other.length>=5&&similarity(word,other)>=.78));return Boolean(phrase&&anchored&&phraseAgreement(item,phrase)<.72);}
 
 // Cinemeta indexes regional titles even when its returned display name is English.
 // A unique full-phrase result must also occur in a separate distinctive-word query.
@@ -231,7 +231,7 @@ export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitl
  const pool=replies.flatMap(reply=>reply.status==='fulfilled'?reply.value:[]);
  const verified=[];
  for(const item of pool){
-  if(!/^tt\d{5,12}$/.test(item?.id||'')||!['movie','series'].includes(item.type)||contradictsCover(item,evidence))continue;
+  if(!/^tt\d{5,12}$/.test(item?.id||'')||!['movie','series'].includes(item.type)||constraint&&phraseAgreement(item,constraint)<.72)continue;
   if(!constraint&&evidence.length&&!evidence.some(phrase=>phraseAgreement(item,phrase)>=.72))continue;
   const matching=suggestions.filter(hint=>(!['movie','series'].includes(hint.type)||hint.type===item.type)&&(!hint.year||!item.year||String(item.year)===String(hint.year)));
   const agreement=Math.max(constraint?phraseAgreement(item,constraint):0,...matching.flatMap(hint=>[hint.title,hint.originalTitle].filter(Boolean).map(phrase=>phraseAgreement(item,phrase))));
