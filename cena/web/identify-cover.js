@@ -1,3 +1,4 @@
+import {promotionalCoverText,geometricCoverReading,prepareCoverReading} from './cover-reading.js';
 import { searchPublicTitles, titleFromEntity } from './search-public.js';
 import {trustedArtwork} from './artwork.js';
 
@@ -26,6 +27,8 @@ function phraseAgreement(item,phrase){
  }));
 }
 export function coverTitlePhrase(lines){
+ lines=lines.filter(line=>!promotionalCoverText(line));
+ if(/^\d{1,4}$/.test(String(lines[0]||'').trim()))return String(lines[0]).trim();
  const primary=lines.find(x=>typeof x==='string'&&meaningful(x).length)||'',anchor=meaningful(primary);
  const phrases=completeCoverPhrases(lines).filter(phrase=>anchor.some(word=>meaningful(phrase).some(other=>similarity(word,other)>=.78)));
  // Prefer the original full phrase. Assemble adjacent short OCR lines only when necessary.
@@ -42,7 +45,7 @@ export async function localizedCoverEvidence(phrase,fetcher=fetch){
  const read=async text=>{const response=await fetcher(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${encodeURIComponent(text)}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});if(!response.ok)throw Error('Catálogo indisponível');return ((await response.json()).metas||[]).filter(x=>/^tt\d{5,12}$/.test(x.imdb_id||x.id||''));};
  try{const rows=await read(query);if(rows.length!==1)return [];const id=rows[0].imdb_id||rows[0].id;
   const supporting=await read(tokens[0]);if(!supporting.some(row=>(row.imdb_id||row.id)===id))return [];
-  const meta=rows[0];return [{id,type:'movie',name:meta.name||'',originalName:meta.name||'',year:String(meta.releaseInfo||'').slice(0,4),poster:trustedArtwork(meta.poster),description:meta.description||'',aliases:[phrase],source:'Cinemeta',localizedCoverClue:true}];
+  const meta=rows[0];return [{id,type:'movie',name:meta.name||'',originalName:meta.name||'',year:String(meta.releaseInfo||'').slice(0,4),poster:trustedArtwork(meta.poster),description:meta.description||'',aliases:[],source:'Cinemeta',localizedCoverClue:true}];
  }catch{return [];}
 }
 
@@ -77,7 +80,8 @@ export function coverInput(result) {
   const phrases = (result.phrases || []).filter(value => typeof value === 'string' && value.trim().length <= 150);
   let query = [result.title, ...phrases, lines[0]].find(value => typeof value === 'string' && value.trim().length >= 2 && value.trim().length <= 150)?.trim() || '';
   if(meaningful(query).length<2){const complete=phrases.find(phrase=>meaningful(phrase).length>=2&&normalizeTitle(phrase).includes(normalizeTitle(query)));if(complete)query=complete.trim();}
-  return { query, lines: [...new Set([query, ...lines, ...phrases, ...String(result.fullText || '').split('\n')])].filter(Boolean).slice(0, 24) };
+  const reading=geometricCoverReading(result.regions);if(reading?.title)query=reading.title;
+  return { query, reading, lines: [...new Set([query, ...lines, ...phrases, ...String(result.fullText || '').split('\n')])].filter(Boolean).slice(0, 24) };
 }
 
 export function coverSearchPhrases(lines){
@@ -237,9 +241,10 @@ export async function searchTolerantTitles(query,{search=searchPublicTitles,iden
 }
 
 
-export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitles,localized=search===searchPublicTitles?localizedCoverEvidence:async()=>[],enrich=noEnrichment}={}){
- const suggestions=Array.isArray(hints?.titles)?hints.titles.filter(x=>x&&typeof x.title==='string').slice(0,3):[];
- const evidence=[...(Array.isArray(hints?.visibleText)?hints.visibleText:[]),...lines].filter(x=>typeof x==='string'&&x.trim());
+export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitles,localized=search===searchPublicTitles?localizedCoverEvidence:async()=>[],enrich=noEnrichment,reading=null}={}){
+ const selected=prepareCoverReading(hints,lines,reading);
+ const suggestions=selected.titles.filter(x=>typeof x.title==='string').slice(0,3);
+ const evidence=selected.evidence.filter(x=>typeof x==='string'&&x.trim());
  const constraint=coverTitlePhrase(evidence),queries=[...new Set([constraint,meaningful(constraint)[0],...suggestions.flatMap(hint=>[hint.title,hint.originalTitle])].filter(x=>typeof x==='string'&&x.trim().length>=2&&x.length<=150))].slice(0,6);
  const replies=await Promise.allSettled(queries.map(query=>search(query)));
  const rawPool=replies.flatMap(reply=>reply.status==='fulfilled'?reply.value:[]);
@@ -248,13 +253,14 @@ export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitl
  const verified=[];
  for(const item of pool){
   if(!/^tt\d{5,12}$/.test(item?.id||'')||!['movie','series'].includes(item.type)||constraint&&phraseAgreement(item,constraint)<.72)continue;
+  if(/^\d{1,4}$/.test(constraint)&&suggestions.some(hint=>/^\d{4}$/.test(hint.year||''))&&!suggestions.some(hint=>String(hint.year)===String(item.year)))continue;
   if(!constraint&&evidence.length&&!evidence.some(phrase=>phraseAgreement(item,phrase)>=.72))continue;
   const matching=suggestions.filter(hint=>(!['movie','series'].includes(hint.type)||hint.type===item.type)&&(!hint.year||!item.year||String(item.year)===String(hint.year)));
   const agreement=Math.max(constraint?phraseAgreement(item,constraint):0,...matching.flatMap(hint=>[hint.title,hint.originalTitle].filter(Boolean).map(phrase=>phraseAgreement(item,phrase))));
   if(agreement<.72||hints?.uncertain===true&&!constraint)continue;
   verified.push({...item,matchScore:agreement,suggested:true,aiAssisted:true});
  }
- if(constraint&&!verified.length)for(const item of (await localized(constraint)).filter(item=>suggestions.some(hint=>!['movie','series'].includes(hint.type))||!suggestions.length||suggestions.some(hint=>hint.type===item.type)))verified.push({...item,matchScore:.86,suggested:true,aiAssisted:true});
+ if(constraint&&!verified.length){const recovered=await enrichCoverPool(await localized(constraint),constraint,enrich,hintRank);for(const item of recovered.filter(item=>phraseAgreement(item,constraint)>=.72&&(suggestions.some(hint=>!['movie','series'].includes(hint.type))||!suggestions.length||suggestions.some(hint=>hint.type===item.type))))verified.push({...item,matchScore:phraseAgreement(item,constraint),suggested:true,aiAssisted:true});}
  const unique=new Map();for(const item of verified)if(!unique.has(item.id)||unique.get(item.id).matchScore<item.matchScore)unique.set(item.id,item);
  return [...unique.values()].sort((a,b)=>b.matchScore-a.matchScore).slice(0,8);
 }
