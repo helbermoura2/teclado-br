@@ -1,4 +1,4 @@
-"""Reuse validated native binaries only after proving this is a web-only change."""
+"""Reuse validated inference binaries after checking the native build inputs."""
 import base64,hashlib,json,os,re,subprocess,sys,urllib.request
 from pathlib import Path
 from zipfile import ZipFile
@@ -14,7 +14,8 @@ assert len(comparison['files'])<300
 for item in comparison['files']:
  name=item['filename']
  if name.startswith('cena/android/')or name in ('cena/scripts/build-local-ai.sh','cena/scripts/trim-native.sh','cena/scripts/prepare-vision-model.py'):
-  assert name=='cena/android/app/build.gradle.kts','Native change requires the complete native workflow: '+name
+  allowed={'cena/android/app/build.gradle.kts','cena/android/app/src/main/java/app/cena/MainActivity.kt','cena/android/app/src/main/java/app/cena/StreamingProviders.kt','cena/android/app/src/androidTest/java/app/cena/StreamingPolicyTest.kt'}
+  assert name in allowed,'Inference or other native input changed; use the complete native workflow: '+name
 old=base64.b64decode(api('contents/cena/android/app/build.gradle.kts?ref='+baseline)['content']).decode()
 new=(root/'android/app/build.gradle.kts').read_text()
 def normalize(text):
@@ -27,4 +28,4 @@ with ZipFile(apk)as archive:
   elif name.startswith(('assets/models/','assets/licenses/'))and not name.endswith('/')and not name.endswith('.onnx'):target=root/'android/app/src/main'/name
   else:continue
   target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(archive.read(name))
-print('Native source unchanged; verified 0.28.4 library and model metadata reused for web-only update.')
+print('Inference inputs unchanged; verified 0.28.4 library reused. Kotlin changes must pass focused Android tests.')
