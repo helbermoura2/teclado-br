@@ -41,6 +41,11 @@ class NuvioRepositoryTest {
   val f=Fixture();f.paged=true;val repo=loggedIn(f)
   try{repo.selectProfile(1);assertEquals(listOf(1,2),f.pages);assertEquals(501,repo.status().optInt("watchedCount"));assertTrue(repo.status().optLong("lastSync")>0)}finally{repo.disconnect()}
  }
+ @Test fun ISOViewingDatesArePreservedWithoutInventingUnknownDates(){
+  val movie=JSONObject().put("content_id","tt1335975").put("content_type","movie")
+  assertEquals(java.time.Instant.parse("2026-11-22T00:00:00Z").toEpochMilli(),NuvioCodec.watched(JSONObject(movie.toString()).put("watched_at","2026-11-22T00:00:00Z"))!!.optLong("watchedAt"))
+  assertEquals(0L,NuvioCodec.watched(movie)!!.optLong("watchedAt"))
+ }
  @Test fun identifiersAndEpisodesAreValidatedWithoutTitleGuessing(){
   val unresolved=NuvioCodec.watched(JSONObject("{\"content_id\":\"tmdb:550\",\"content_type\":\"movie\",\"title\":\"47 Ronin\"}"))!!;assertEquals("",unresolved.optString("id"))
   val episode=NuvioCodec.watched(JSONObject("{\"content_id\":\"tt0903747:2:3\",\"content_type\":\"series\"}"))!!;assertEquals(2,episode.optInt("season"));assertEquals(3,episode.optInt("episode"))
