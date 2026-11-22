@@ -4,7 +4,11 @@
 - Use Testar Gemini para conferir a conexão e Refinar com Gemini online nos títulos para selecionar sugestões entre candidatos verificados do catálogo.
 - Preserva os Stories da 0.27.9: título dourado abaixo da capa, serviços sem repetição e partículas na névoa.
 - Preserva a atualização isolada do painel Trakt, sem apagar o que você está digitando nas outras conexões.
-- Número interno 67, superior ao 66 da 0.27.9. Instale pelo atualizador, sem desinstalar.
+- CENA IA Novo instala ao lado da 0.27.9, com dados separados, pois a chave da versão de teste não está disponível. Não é uma atualização sobre a 0.27.9.
+- No CENA antigo, abra Perfil → Histórico e backup → Seu backup → Salvar backup. No CENA IA Novo, vá ao mesmo local → Restaurar arquivo → Mesclar este backup. Confira seus títulos e histórico antes de remover qualquer instalação. Logins, chaves e o arquivo GGUF precisam ser configurados novamente.
+- Baixe CENA-0.28.0-novo.apk para a instalação paralela. CENA-0.28.0.apk é reservado às instalações com a assinatura permanente anterior.
+- As duas edições têm atualizador próprio, que seleciona apenas o APK da sua edição. Ambas usam a chave permanente guardada na release privada.
+- Número interno 67, versão 0.28.0.
 
 ## Origem e validação
 
