@@ -240,7 +240,7 @@ export async function searchTolerantTitles(query,{search=searchPublicTitles,iden
 export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitles,localized=search===searchPublicTitles?localizedCoverEvidence:async()=>[],enrich=noEnrichment}={}){
  const suggestions=Array.isArray(hints?.titles)?hints.titles.filter(x=>x&&typeof x.title==='string').slice(0,3):[];
  const evidence=[...(Array.isArray(hints?.visibleText)?hints.visibleText:[]),...lines].filter(x=>typeof x==='string'&&x.trim());
- const constraint=coverTitlePhrase(evidence),queries=[...new Set([constraint,...suggestions.flatMap(hint=>[hint.title,hint.originalTitle])].filter(x=>typeof x==='string'&&x.trim().length>=2&&x.length<=150))].slice(0,6);
+ const constraint=coverTitlePhrase(evidence),queries=[...new Set([constraint,meaningful(constraint)[0],...suggestions.flatMap(hint=>[hint.title,hint.originalTitle])].filter(x=>typeof x==='string'&&x.trim().length>=2&&x.length<=150))].slice(0,6);
  const replies=await Promise.allSettled(queries.map(query=>search(query)));
  const rawPool=replies.flatMap(reply=>reply.status==='fulfilled'?reply.value:[]);
  const hintRank=item=>Math.max(0,...suggestions.flatMap(hint=>[hint.title,hint.originalTitle].filter(Boolean).map(phrase=>phraseAgreement(item,phrase))));
