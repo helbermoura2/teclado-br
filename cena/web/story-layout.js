@@ -2,8 +2,6 @@
 const backgrounds=new WeakMap();
 export const storyLayout={width:1080,height:1920,safe:{top:220,bottom:1660,left:100,right:980}};
 export const storyCaptionLimit=240;
-// Modelo cinematográfico CENA IA: exportação vertical, com áreas de resenha e streaming legíveis.
-export const cinematicStoryStyle={streamingPanelWidth:900,streamingPanelMaxBottom:1750,creditsY:1820};
 export const defaultStoryLogoPosition={x:100,y:220};
 export function constrainStoryLogo(position){
   const {x,y}=position||{};
@@ -41,6 +39,32 @@ export function wrapStoryText(ctx,text,width,maxLines){
   return lines;
 }
 function fitText(ctx,text,width,maxLines,start,min,font="sans-serif",weight=600){let size=start,lines;for(;size>=min;size-=2){ctx.font=`${weight} ${size}px ${font}`;lines=wrapStoryText(ctx,text,width,100);if(lines.length<=maxLines)break;}size=Math.max(min,size);ctx.font=`${weight} ${size}px ${font}`;return {size,lines:wrapStoryText(ctx,text,width,maxLines)};}
+function drawFogParticles(ctx,top,mark){
+  let seed=2387;
+  const next=()=>{
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    return seed/4294967296;
+  };
+  const {width,height}=storyLayout;
+  ctx.save();
+  for(let i=0;i<132;i++){
+    const x=12+next()*(width-24);
+    const depth=next()**.72;
+    const y=top+depth*(height-16-top);
+    const size=.8+next()**3*5.2;
+    const angle=next()*Math.PI;
+    const alpha=(.13+next()*.38)*depth;
+    if(mark&&x>mark.x-18&&x<mark.x+mark.size+18&&y>mark.y-18&&y<mark.y+mark.size+18)continue;
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle=i%4===0?'#d2a1f6':'#9e66d1';
+    ctx.shadowColor='#9b61d1';ctx.shadowBlur=size>4?9:0;
+    ctx.beginPath();
+    ctx.ellipse(x,y,size,size*(i%3===0?.48:.74),angle,0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 export function renderStory(canvas,{image=null,title='',originalTitle='',year='',type='movie',caption='',rating='',brandMark=null,brandWordmark=null,availability=[],providerIcons=new Map(),mist=null,logoPosition}={}){
   const ctx=canvas.getContext('2d');canvas.width=1080;canvas.height=1920;
   const {left,right}=storyLayout.safe;
@@ -76,60 +100,50 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
         mist.addColorStop(0,color);mist.addColorStop(1,'#45256100');
         ctx.fillStyle=mist;ctx.fillRect(x-r,y-r,r*2,r*2);
       }
-      for(let i=1;i<=115;i++){
-        const x=(i*197.37)%1080,y=1440+(i*139.17)%480;
-        const size=1+i%5;
-        ctx.fillStyle=i%3===0?'#ba87d855':'#9a59cb49';
-        ctx.fillRect(x,y,size,size);
-      }
     }
     if(typeof ctx.getImageData==='function')backgrounds.set(canvas,{image,pixels:ctx.getImageData(0,0,1080,1920)});
   }
   if(mist)ctx.drawImage(mist,0,0,1080,1920);
   ctx.textAlign='left';ctx.textBaseline='top';
   const titleWidth=width-24;
-  const colon=title.indexOf(': ');
-  const heading=fitText(ctx,title,titleWidth,2,88,40,sans,800);
-  const mainTitle=colon>0?title.slice(0,colon):'';
-  const subtitle=colon>0?title.slice(colon+2):'';
-  const subtitleSize=Math.round(heading.size*.79);
-  const mainLines=wrapStoryText(ctx,mainTitle,titleWidth,10);
-  ctx.font=`650 ${subtitleSize}px ${sans}`;
-  const subLines=wrapStoryText(ctx,subtitle,titleWidth,10);
-  const splitTitle=mainTitle&&subtitle&&mainLines.length+subLines.length<=2;
-  const titleLines=splitTitle?[...mainLines,...subLines]:heading.lines;
-  let cursor=image?803:701;
+  const displayTitle=title.trim().toLocaleUpperCase('pt-BR');
+  const colon=displayTitle.indexOf(': ');
+  let heading=fitText(ctx,displayTitle,titleWidth,2,88,40,serif,800);
+  if(colon>0){
+    const main=fitText(ctx,displayTitle.slice(0,colon),titleWidth,1,88,40,serif,800);
+    const subtitle=fitText(ctx,displayTitle.slice(colon+2),titleWidth,1,88,40,serif,800);
+    if(![...main.lines,...subtitle.lines].some(line=>line.endsWith('…'))){
+      heading={size:Math.min(main.size,subtitle.size),lines:[...main.lines,...subtitle.lines]};
+    }
+  }
+  const titleLines=heading.lines;
+  const originalTitleY=image?803:701;
+  const titleOffset=image?storyLayout.height/2+38-originalTitleY:0;
+  let cursor=originalTitleY+titleOffset;
   const details=[String(year).match(/\d{4}/)?.[0],type==='series'?'Série':'Filme'].filter(Boolean).join(' · ');
   ctx.font=`800 25px ${sans}`;ctx.fillStyle='#e9dfe8';
   ctx.fillText(details.toLocaleUpperCase('pt-BR'),left,cursor-38);
-  const titleInk=ctx.createLinearGradient(0,cursor,0,cursor+95);
-  titleInk.addColorStop(0,'#fff9e6');titleInk.addColorStop(.36,'#d8c7a3');titleInk.addColorStop(.53,'#fff6de');titleInk.addColorStop(1,'#958066');
-  titleLines.forEach((line,i)=>{
-    const subtitleLine=splitTitle&&i>=mainLines.length;
-    const size=subtitleLine?subtitleSize:heading.size;
-    ctx.font=`${subtitleLine?650:800} ${size}px ${sans}`;
-    ctx.shadowColor='#140b19';ctx.shadowBlur=5;ctx.shadowOffsetY=2;
-    ctx.strokeStyle='#584b3e';ctx.lineWidth=3;
-    ctx.strokeText?.(line,left,cursor);
-    ctx.fillStyle=subtitleLine?'#e5d4ba':titleInk;
-    ctx.fillText(line,left,cursor);
-    cursor+=size+8;
-  });
-  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
-  if(subtitle){
-    const lettering=fitText(ctx,subtitle.toLocaleUpperCase('pt-BR'),width*1.34,1,96,35,serif,800);
-    const steel=ctx.createLinearGradient(0,cursor,0,cursor+lettering.size);
-    steel.addColorStop(0,'#d9c49c');steel.addColorStop(.36,'#a18a70');steel.addColorStop(.58,'#ddd0ab');steel.addColorStop(1,'#735b4d');
-    ctx.save();
-    ctx.globalAlpha=.92;ctx.shadowColor='#0c0712';ctx.shadowBlur=8;ctx.shadowOffsetY=3;
-    ctx.strokeStyle='#d1b788';ctx.lineWidth=2;
-    ctx.strokeText?.(lettering.lines[0],left,cursor+4,width);
-    ctx.fillStyle=steel;ctx.fillText(lettering.lines[0],left,cursor+4,width);ctx.restore();
-    cursor+=lettering.size+10;
+  ctx.save();
+  ctx.font=`800 ${heading.size}px ${serif}`;
+  ctx.globalAlpha=.92;ctx.shadowColor='#0c0712';ctx.shadowBlur=8;ctx.shadowOffsetY=3;
+  ctx.strokeStyle='#d1b788';ctx.lineWidth=2;
+  for(const line of titleLines){
+    const gold=ctx.createLinearGradient(0,cursor,0,cursor+heading.size);
+    gold.addColorStop(0,'#d9c49c');gold.addColorStop(.36,'#a18a70');gold.addColorStop(.58,'#ddd0ab');gold.addColorStop(1,'#735b4d');
+    ctx.fillStyle=gold;
+    ctx.strokeText?.(line,left,cursor,titleWidth);
+    ctx.fillText(line,left,cursor,titleWidth);
+    cursor+=heading.size+8;
   }
+  ctx.restore();
   const review=storyOpinion(caption,rating);
-  cursor=Math.max(cursor+24,image?1120:915);
-  if(!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase()&&cursor<1250){
+  const reviewMinimum=image?1120:915;
+  // Preserve the previous watermark position while moving the text below the artwork.
+  let originalReviewY=Math.max(cursor-titleOffset+24,reviewMinimum);
+  cursor=Math.max(cursor+24,reviewMinimum+(image?120:0));
+  const showOriginalTitle=!availability.length&&originalTitle&&originalTitle.toLocaleLowerCase()!==title.toLocaleLowerCase();
+  if(showOriginalTitle&&originalReviewY<1250)originalReviewY+=34;
+  if(showOriginalTitle&&cursor<1370){
     ctx.font=`500 24px ${sans}`;ctx.fillStyle='#d6c8ea';
     ctx.fillText(wrapStoryText(ctx,originalTitle,width,1)[0]||'',left,cursor);cursor+=34;
   }
@@ -156,92 +170,55 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
   ctx.font=`400 ${opinion.size}px ${sans}`;
   ctx.fillStyle='#f6edf9';
   opinion.lines.forEach((line,i)=>ctx.fillText(line,opinionX,cursor+i*(opinion.size+10)));
-  const opinionBottom=cursor+Math.max(hasScore?89:0,opinion.lines.length*(opinion.size+10));
-  if(brandMark){
-    const markY=Math.max(1230,opinionBottom+28);
-    const markSize=Math.min(560,1880-markY);
-    if(markSize>0){
-      const markX=1160-markSize;
-      ctx.save();
-      ctx.globalAlpha=.46;
-      ctx.drawImage(brandMark,markX,markY,markSize,markSize);
-      ctx.restore();
-      if(mist){
-        ctx.save();ctx.beginPath();ctx.roundRect(markX,markY,markSize,markSize,0);ctx.clip();
-        ctx.globalAlpha=.62;ctx.drawImage(mist,0,0,1080,1920);ctx.restore();
-      }
+  const reviewHeight=Math.max(hasScore?89:0,opinion.lines.length*(opinion.size+10));
+  const opinionBottom=cursor+reviewHeight;
+  const markY=Math.max(1230,originalReviewY+reviewHeight+28);
+  const markSize=Math.min(560,1880-markY);
+  const mark=brandMark&&markSize>0?{x:1160-markSize,y:markY,size:markSize}:null;
+  const particlesTop=Math.max(1440,opinionBottom+24);
+  if(particlesTop<1880)drawFogParticles(ctx,particlesTop,mark);
+  if(mark){
+    const {x,y,size}=mark;
+    ctx.save();
+    ctx.globalAlpha=.46;
+    ctx.drawImage(brandMark,x,y,size,size);
+    ctx.restore();
+    if(mist){
+      ctx.save();ctx.beginPath();ctx.roundRect(x,y,size,size,0);ctx.clip();
+      ctx.globalAlpha=.62;ctx.drawImage(mist,0,0,1080,1920);ctx.restore();
     }
   }
-  if(sources.length){
-    const rows=sources.map(row=>{
-      const separator=row.indexOf(' · ');
-      const label=separator<0?'':row.slice(0,separator);
-      const providers=(separator<0?row:row.slice(separator+3)).split(', ');
-      const ads=providers.findIndex(name=>/^Netflix (Standard with Ads|com anúncios)$/i.test(name));
-      const hasBoth=ads>=0&&providers.some(name=>/^Netflix$/i.test(name));
-      if(hasBoth)providers.splice(ads,1);
-      else if(ads>=0)providers[ads]='Netflix com anúncios';
-      return {label,providers,hasBoth};
-    });
-    const panelX=left-12,panelWidth=cinematicStoryStyle.streamingPanelWidth;
-    const rowHeight=row=>row.label==='Cinema'?54:28+Math.ceil(row.providers.length/2)*61+(row.hasBoth?24:0);
-    let panelHeight=56+rows.reduce((sum,row)=>sum+rowHeight(row),0);
-    // Quando a resenha ocupa mais linhas, preserva a primeira opção de streaming
-    // em vez de deixar o cartão sair da área exportada.
-    while(rows.length>1&&opinionBottom+28+panelHeight>cinematicStoryStyle.streamingPanelMaxBottom){
-      rows.pop();panelHeight=56+rows.reduce((sum,row)=>sum+rowHeight(row),0);
-    }
-    const ruleY=Math.max(opinionBottom+28,Math.min(image?1285:1190,cinematicStoryStyle.streamingPanelMaxBottom-panelHeight));
-    ctx.save();ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,27);ctx.clip();
-    ctx.filter='blur(15px)';
-    ctx.drawImage(canvas,0,0);
-    ctx.restore();
-    const glass=ctx.createLinearGradient(panelX,ruleY,panelX+panelWidth,ruleY+panelHeight);
-    glass.addColorStop(0,'#5c5764a8');glass.addColorStop(.50,'#302b37c4');glass.addColorStop(1,'#31253b96');
-    ctx.fillStyle=glass;ctx.beginPath();ctx.roundRect(panelX,ruleY,panelWidth,panelHeight,27);ctx.fill();
-    const edge=ctx.createLinearGradient(0,ruleY,0,ruleY+panelHeight);
-    edge.addColorStop(0,'#e1d8dc82');edge.addColorStop(1,'#bb9fc22e');
-    ctx.strokeStyle=edge;ctx.lineWidth=1.4;ctx.stroke();
-    const inset=left+12;
-    ctx.fillStyle='#f3e8fa';ctx.beginPath();
-    ctx.moveTo(inset,ruleY+21);ctx.lineTo(inset+13,ruleY+28);ctx.lineTo(inset,ruleY+35);ctx.closePath();ctx.fill();
-    ctx.fillStyle='#f0e7f1';ctx.font=`800 20px ${sans}`;
-    ctx.fillText('ONDE ASSISTIR NO BRASIL',inset+25,ruleY+16);
-    let y=ruleY+48;
-    for(const [index,row] of rows.entries()){
-      const {label,providers,hasBoth}=row;
-      if(index){ctx.fillStyle='#e0cde621';ctx.fillRect(inset,y-4,panelWidth-48,1);}
-      ctx.font=`750 15px ${sans}`;ctx.fillStyle='#cfb9d6';
-      ctx.fillText(label.toLocaleUpperCase('pt-BR'),inset,y+6);
-      if(label==='Cinema'){
-        ctx.font=`700 23px ${sans}`;ctx.fillStyle='#fff';
-        ctx.fillText('Assisti no cinema',inset,y+25);
-      }else{
-        const cellWidth=providers.length>1?(panelWidth-48)/2:panelWidth-48;
-        providers.forEach((name,i)=>{
-          const x=inset+16+(i%2)*cellWidth,tileY=y+26+Math.floor(i/2)*61;
-          const icon=providerIcons.get(name)||(/^Netflix com anúncios$/i.test(name)?providerIcons.get('Netflix'):null);
-          if(icon){
-            ctx.save();ctx.beginPath();ctx.roundRect(x,tileY+2,44,44,9);ctx.clip();
-            ctx.drawImage(icon,x,tileY+2,44,44);ctx.restore();
-          }
-          const nameX=x+(icon?56:0);
-          const heading=fitText(ctx,name,cellWidth-(icon?74:22),2,27,20,sans,700);
-          ctx.fillStyle='#f9f2fa';
-          const nameY=tileY+(heading.lines.length===1?10:0);
-          heading.lines.forEach((line,lineIndex)=>ctx.fillText(line,nameX,nameY+lineIndex*25));
-        });
-        if(hasBoth){
-          ctx.font=`italic 500 17px ${sans}`;ctx.fillStyle='#d5c4d9';
-          ctx.fillText('Também no plano com anúncios',inset,y+rowHeight(row)-24);
-        }
+  const providers=[...new Set(sources.flatMap(row=>{
+    const separator=row.indexOf(' · ');
+    if(separator<0||row.startsWith('Cinema · '))return [];
+    return row.slice(separator+3).split(', ').map(name=>
+      /^Netflix Standard with Ads$/i.test(name)?'Netflix com anúncios':name);
+  }))];
+  if(providers.includes('Netflix')){
+    const ads=providers.indexOf('Netflix com anúncios');
+    if(ads>=0)providers.splice(ads,1);
+  }
+  if(providers.length){
+    // A marca usa uma área de até 560 px ancorada em x=1160.
+    const providerRight=brandMark?572:right;
+    const startY=opinionBottom+28;
+    const rowHeight=Math.min(56,(1788-startY)/providers.length);
+    const iconSize=Math.min(42,rowHeight-6);
+    providers.forEach((name,index)=>{
+      const y=startY+index*rowHeight;
+      const icon=providerIcons.get(name)||(name==='Netflix com anúncios'?providerIcons.get('Netflix'):null);
+      if(icon){
+        ctx.save();ctx.beginPath();
+        ctx.roundRect(left,y+(rowHeight-iconSize)/2,iconSize,iconSize,8);ctx.clip();
+        ctx.drawImage(icon,left,y+(rowHeight-iconSize)/2,iconSize,iconSize);
+        ctx.restore();
       }
-      y+=rowHeight(row);
-    }
-    if(rows.some(row=>row.label!=='Cinema')){
-      ctx.font=`500 20px ${sans}`;ctx.fillStyle='#c9b6d8';
-      ctx.textAlign='center';ctx.fillText('TMDB / JustWatch',540,Math.min(1855,Math.max(cinematicStoryStyle.creditsY,y+21)));
-    }
+      const nameX=left+(icon?iconSize+14:0);
+      const size=Math.min(27,Math.floor((rowHeight-4)/1.6));
+      const heading=fitText(ctx,name,providerRight-nameX,1,size,Math.min(18,size),sans,700);
+      ctx.fillStyle='#f9f2fa';
+      ctx.fillText(heading.lines[0],nameX,y+(rowHeight-heading.size)/2,providerRight-nameX);
+    });
   }
   const logo=constrainStoryLogo(logoPosition);
   ctx.textAlign='left';ctx.textBaseline='top';
@@ -253,6 +230,6 @@ export function renderStory(canvas,{image=null,title='',originalTitle='',year=''
     ctx.fillText('CENA IA',logo.x,logo.y+20);
   }
   canvas.dataset.logoX=String(logo.x);canvas.dataset.logoY=String(logo.y);
-  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='24';
+  canvas.dataset.storyTitle=title;canvas.dataset.storyRating=review.score===null?'':String(review.score);canvas.dataset.storyOpinion=review.opinion;canvas.dataset.layoutVersion='29';
   return {titleLines,opinionLines:opinion.lines,opinionBottom,score:review.score,opinionTruncated:opinion.lines.join('').replace(/\s/g,'')!==review.opinion.replace(/\s/g,'')};
 }
