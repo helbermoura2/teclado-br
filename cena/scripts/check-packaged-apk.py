@@ -47,7 +47,7 @@ with ZipFile(apk) as archive:
     assert 'assets/home-feed.js' in archive.namelist()
     assert 'brand-triangle' in index and 'resume-dismiss' in app
     assert 'assets/watch-history.js' in archive.namelist()
-    assert 'profile-shortcut' in index and 'Ano em que assistiu' in app
+    assert 'profile-shortcut' in index and 'id="history-year"' in app
     assert 'assets/nuvio-state.js' in archive.namelist() and 'assets/nuvio-panel.js' in archive.namelist()
     assert 'CenaNuvioResult' in app and 'Continuar assistindo' in app
     assert 'assets/ratings.js' in archive.namelist()
