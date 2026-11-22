@@ -65,7 +65,9 @@ with ZipFile(apk) as archive:
 tools = sorted(Path(os.environ['ANDROID_HOME']).glob('build-tools/*/aapt'))
 assert tools
 badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()[0]
-assert "name='app.cena.mobile'" in badging
+expected_package = sys.argv[2] if len(sys.argv)>2 else "app.cena.mobile"
+assert expected_package in {"app.cena.mobile","app.cena.mobile.next"}
+assert f"name='{expected_package}'" in badging
 assert "versionName='0.28.0'" in badging and "versionCode='67'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
