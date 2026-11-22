@@ -151,3 +151,4 @@ nav .camera-nav small{font-size:10px}
 #main[data-screen=connect]{z-index:1}#main[data-screen=connect] .panel{position:relative;z-index:1}
 
 .online-ai-status{padding:12px;border:1px solid var(--line);border-radius:12px}.panel .online-ai-status[data-state=error]{color:#ffb3c5;background:#3b202c}.panel .online-ai-status[data-state=ok]{color:#a9e6c7;background:#122d25}
+.camera-ai-opt{display:flex;align-items:flex-start;gap:10px;margin:14px 0;font-size:13px;line-height:1.45}.camera-ai-opt input[type=checkbox]{width:20px;height:20px;padding:0;flex:0 0 20px;accent-color:#b77aff}.scan-intro .muted{font-size:13px;line-height:1.45}#camera-ai-status{overflow-wrap:anywhere}
