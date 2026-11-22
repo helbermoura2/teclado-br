@@ -79,3 +79,41 @@ test('broken spacing in the reported Hiroshima screenshot recovers the full cata
 test('Gemini camera hints are search inputs; only real catalog IDs can become cards',async()=>{
  const {verifyCameraTitles}=await import('../web/identify-cover.js');const rows=await verifyCameraTitles({titles:[{title:'Hiroshima: Out of the Ashes',year:'1990',type:'movie',id:'tt-invented'}]},[],{search:async()=>[{id:'tt0099772',type:'movie',name:'Hiroshima: Out of the Ashes',year:'1990'},{id:'invented',type:'movie',name:'Hiroshima: Out of the Ashes'},{id:'tt9999999',type:'series',name:'Hiroshima: Out of the Ashes'}]});assert.equal(rows.length,1);assert.equal(rows[0].id,'tt0099772');
 });
+
+test('camera rejects thematic Auschwitz films despite valid IDs and AI title hints',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');
+ const wrong=[{id:'tt8774388',type:'movie',name:'The Angel of Auschwitz',year:'2019'},{id:'tt8123728',type:'movie',name:'The Guard of Auschwitz',year:'2018'}];
+ const hints={titles:wrong.map(x=>({title:x.name,year:x.year,type:x.type})),visibleText:['O PROTOCOLO DE AUSCHWITZ'],uncertain:false};
+ assert.deepEqual(await verifyCameraTitles(hints,['Auschwitz'],{search:async()=>wrong}),[]);
+});
+test('camera searches complete visible title even if Gemini guesses different films',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');const calls=[];
+ const film={id:'tt9415108',type:'movie',name:'The Auschwitz Report',year:'2021',aliases:['O Protocolo de Auschwitz']};
+ const rows=await verifyCameraTitles({titles:[{title:'The Angel of Auschwitz',type:'movie'}],visibleText:['O PROTOCOLO DE','AUSCHWITZ'],uncertain:true},['Auschwitz'],{search:async query=>{calls.push(query);return [film,{id:'tt8774388',type:'movie',name:'The Angel of Auschwitz'}];}});
+ assert.equal(rows[0].id,film.id);assert.equal(rows.length,1);assert.ok(calls.some(query=>/PROTOCOLO DE.*AUSCHWITZ/i.test(query)));
+});
+test('regional catalog clue requires a unique full phrase and corroborating distinctive word',async()=>{
+ const {localizedCoverEvidence}=await import('../web/identify-cover.js');const item={id:'tt9415108',name:'The Auschwitz Report',releaseInfo:'2021'};
+ const fetcher=async url=>({ok:true,json:async()=>({metas:decodeURIComponent(url).includes('search=protocolo')?[item]:[]})});
+ const rows=await localizedCoverEvidence('O Protocolo de Auschwitz',fetcher);assert.equal(rows[0].id,item.id);assert.ok(rows[0].aliases.includes('O Protocolo de Auschwitz'));
+ assert.deepEqual(await localizedCoverEvidence('O Protocolo de Auschwitz',async()=>({ok:true,json:async()=>({metas:[item,{id:'tt8774388',name:'The Angel of Auschwitz'}]})})),[]);
+ assert.deepEqual(await localizedCoverEvidence('Auschwitz',fetcher),[]);
+ assert.deepEqual(await localizedCoverEvidence('O Protocolo de Auschwitz',async url=>({ok:true,json:async()=>({metas:decodeURIComponent(url).includes('search=protocolo de')?[item]:[]})})),[]);
+});
+test('camera rejects a high title score when a known release year contradicts the hint',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');assert.deepEqual(await verifyCameraTitles({titles:[{title:'Auschwitz',year:'2021',type:'movie'}]},[],{search:async()=>[{id:'tt1684714',type:'movie',name:'Auschwitz',year:'2011'}]}),[]);
+});
+test('cover input retains the complete phrase instead of the largest single word',()=>{
+ const input=coverInput({title:'AUSCHWITZ',lines:['AUSCHWITZ','O PROTOCOLO DE'],phrases:['O PROTOCOLO DE AUSCHWITZ']});assert.equal(input.query,'O PROTOCOLO DE AUSCHWITZ');
+});
+
+test('a single shared visible word cannot corroborate a different multi-word AI title',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');
+ assert.deepEqual(await verifyCameraTitles({titles:[{title:'The Angel of Auschwitz',type:'movie'}],visibleText:['AUSCHWITZ'],uncertain:false},['AUSCHWITZ'],{search:async()=>[{id:'tt8774388',type:'movie',name:'The Angel of Auschwitz'}]}),[]);
+});
+
+test('split OCR title is assembled in a usable order and excludes the standalone Auschwitz film',async()=>{
+ const {coverTitlePhrase}=await import('../web/identify-cover.js');assert.equal(coverTitlePhrase(['AUSCHWITZ','O PROTOCOLO DE']),'O PROTOCOLO DE AUSCHWITZ');
+ const fetcher=async raw=>{const url=new URL(raw);let metas=[];if(url.host==='v3-cinemeta.strem.io'){const path=decodeURIComponent(url.pathname).toLowerCase();metas=path.includes('search=protocolo')?[{id:'tt9415108',name:'The Auschwitz Report',releaseInfo:'2021'}]:path.includes('search=auschwitz')?[{id:'tt1684714',name:'Auschwitz',releaseInfo:'2011'}]:[];}return {ok:true,json:async()=>({metas,search:[],query:{pages:{}}})};};
+ const rows=await identifyCover(['AUSCHWITZ','O PROTOCOLO DE'],fetcher);assert.equal(rows.length,1);assert.equal(rows[0].id,'tt9415108');
+});
