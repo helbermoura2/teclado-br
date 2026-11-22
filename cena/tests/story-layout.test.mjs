@@ -18,7 +18,7 @@ test('personal scores including zero and decimal commas are separated from a tra
 test('long titles and opinions stay inside the Instagram safe area with bounded line counts',()=>{
  const ctx=context(),canvas={dataset:{},getContext:()=>ctx};
  const result=renderStory(canvas,{title:'Um título muito longo '.repeat(15),originalTitle:'A long original title',year:'2006',type:'movie',caption:'Uma opinião completa e bastante longa '.repeat(6),rating:'8,5'});
- assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=6);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'30');
+ assert.equal(canvas.width,1080);assert.equal(canvas.height,1920);assert.ok(result.titleLines.length<=2);assert.ok(result.opinionLines.length<=6);assert.ok(result.opinionBottom<storyLayout.safe.bottom);assert.equal(result.score,8.5);assert.equal(canvas.dataset.layoutVersion,'31');
  const lines=wrapStoryText(ctx,'X'.repeat(200),860,3);assert.ok(lines.length<=3);assert.ok(lines.every(line=>ctx.measureText(line).width<=860));
 });
 test('Story reveals more of the artwork and preserves the gold title, fog particles, watermark and deduplicated providers',()=>{
@@ -29,13 +29,16 @@ test('Story reveals more of the artwork and preserves the gold title, fog partic
  renderStory(canvas,{image:{width:1400,height:800},brandMark:mark,
   providerIcons:new Map([['Netflix',provider]]),title:'Peaky Blinders: O Homem Imortal',year:'2026',caption:'Aqui escrevo minha resenha.',rating:'3,6',
   availability:['Assinatura · Netflix, Netflix Standard with Ads','Aluguel · Netflix, Apple TV']});
- assert.equal(canvas.dataset.layoutVersion,'30');
+ assert.equal(canvas.dataset.layoutVersion,'31');
  assert.ok(text.some(({label})=>label==='3,6 / 10'));
  assert.equal(text.filter(({label})=>label==='Netflix').length,1);
  assert.ok(text.some(({label})=>label==='Apple TV'));
  assert.ok(text.some(({label})=>label==='PEAKY BLINDERS'&&text.find(t=>t.label===label).y>=998));
  assert.ok(text.some(({label})=>label==='O HOMEM IMORTAL'));
  assert.ok(images.some(([asset])=>asset===mark));
+ const watermark=images.find(([asset])=>asset===mark);
+ assert.ok(watermark[3]>410,'The A watermark should be larger than the previous 410px maximum');
+ assert.ok(watermark[1]+watermark[3]<=1080&&watermark[2]+watermark[4]<=1900,'Watermark remains within the Story canvas');
  assert.ok(images.some(([asset])=>asset===provider));
  assert.ok(particles.length>0&&particles.every(([,y])=>y>=1440&&y<=1920));
  assert.ok(text.every(({y})=>y>=storyLayout.safe.top&&y<1920));
