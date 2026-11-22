@@ -154,3 +154,9 @@ test('local OCR uses regional names after catalog retrieval without weakening th
  const fetcher=async raw=>{const url=new URL(raw);return {ok:true,json:async()=>url.host==='v3-cinemeta.strem.io'?{metas:url.pathname.includes('/movie/')?[movie,other]:[]}:{search:[],query:{pages:{}}}};};
  const rows=await identifyCover(['HIROSHIMA A GUERRA DA SOBREVIVENCIA','HIROSHIMA','A GUERRA DA SOBREVIVENCIA'],fetcher,{enrich:async item=>item.id===movie.id?{...item,aliases:['Hiroshima - A Guerra da Sobrevivência']}:item});assert.equal(rows.length,1);assert.equal(rows[0].id,movie.id);
 });
+
+test('regional recognition can retrieve an IMDb candidate from the main title when Gemini omits its original name',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');const queries=[],movie={id:'tt0099772',type:'movie',name:'Hiroshima: Out of the Ashes',year:'1990'};
+ const rows=await verifyCameraTitles({titles:[{title:'Hiroshima - A Guerra da Sobrevivência',type:'movie'}],visibleText:['HIROSHIMA A GUERRA DA SOBREVIVENCIA'],uncertain:false},[],{search:async query=>{queries.push(query);return query.toLowerCase()==='hiroshima'?[movie]:[];},enrich:async item=>({...item,aliases:['Hiroshima - A Guerra da Sobrevivência']})});
+ assert.equal(rows[0]?.id,movie.id);assert.ok(queries.some(query=>query.toLowerCase()==='hiroshima'));
+});
