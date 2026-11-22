@@ -4,12 +4,15 @@ plugins {
 }
 val cenaAbi = providers.gradleProperty("cenaAbi").orElse("arm64-v8a").get()
 require(cenaAbi in setOf("arm64-v8a", "x86_64")) { "Unsupported CENA ABI" }
+val cenaEdition = providers.gradleProperty("cenaEdition").orElse("standard").get()
+require(cenaEdition in setOf("standard", "next")) { "Unsupported CENA edition" }
 android {
     namespace = "app.cena"
     ndkVersion = "28.0.13004108"
     compileSdk = 35
     defaultConfig {
-        applicationId = "app.cena.mobile"
+        applicationId = if (cenaEdition == "next") "app.cena.mobile.next" else "app.cena.mobile"
+        manifestPlaceholders["cenaAppLabel"] = if (cenaEdition == "next") "CENA IA Novo" else "CENA IA"
         ndk { abiFilters += cenaAbi }
         minSdk = 26
         targetSdk = 35
