@@ -52,7 +52,7 @@ export function archiveSummary(events){
 export function mountBackup(element,{storage,bridge,toast,onRestore}){
  if(!element)return;
  element.innerHTML='<h2>Seu backup</h2><p>Guarde catálogo, listas, notas, preferências e histórico disponível. Os logins ficam no aparelho.</p><div class="actions"><button class="primary" id="backup-export">Salvar backup</button><button class="secondary" id="backup-import">Restaurar arquivo</button></div><input id="backup-file" type="file" accept="application/json,.json" hidden><div id="backup-preview"></div><div id="backup-archive"></div>';
- element.querySelector('#backup-export').onclick=()=>{try{storage.sync();if(bridge?.exportBackup)bridge.exportBackup();else downloadJson(buildBackup(storage));}catch(error){toast(error.message);}};
+ element.querySelector('#backup-export').onclick=()=>{try{storage.sync();toast('Preparando o arquivo de backup…');if(bridge?.exportBackup)bridge.exportBackup();else downloadJson(buildBackup(storage));}catch(error){toast(error.message);}};
  const preview=raw=>{try{const value=validateBackup(raw),target=element.querySelector('#backup-preview');target.innerHTML='<p class="notice"></p><button class="secondary" id="backup-apply">Mesclar este backup</button>';target.querySelector('p').textContent=`${value.data['cena.local.items.v1']?.length||0} títulos e ${value.history?.events.length||0} registros de histórico. Seus dados atuais prevalecem em conflitos. O histórico restaurado fica separado da sincronização.`;target.querySelector('button').onclick=()=>{try{mergeBackup(storage,value);toast('Backup restaurado. Suas conexões foram mantidas.');onRestore();}catch(error){toast(error.message);}};}catch(error){toast(error.message);}};
  window.CenaBackupFile=preview;
  element.querySelector('#backup-import').onclick=()=>bridge?.pickBackup?bridge.pickBackup():element.querySelector('#backup-file').click();
@@ -68,3 +68,4 @@ export function mountBackup(element,{storage,bridge,toast,onRestore}){
   account.onchange=changeAccount;select.onchange=()=>{page=0;draw();};changeAccount();
  }
 }
+
