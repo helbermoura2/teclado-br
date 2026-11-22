@@ -1,3 +1,4 @@
+import {parseCoverReading} from './cover-reading.js';
 const DEFAULT_URL='https://cena-ia.terrestre.workers.dev';
 export function createOnlineAI(storage,{fetcher=fetch}={}){
  const key='cena.online-ai.v1';
@@ -19,16 +20,16 @@ export function createOnlineAI(storage,{fetcher=fetch}={}){
  if(!Array.isArray(data.items)||data.items.length>5||data.items.some(x=>!x||!allowed.has(x.id)||seen.has(x.id)||!seen.add(x.id)||typeof x.reason!=='string'||!x.reason.trim()||x.reason.length>500))throw Error('Resposta incompatível com os candidatos do catálogo.');
  return data.items.map(x=>({...allowed.get(x.id),recommendationReason:x.reason,similarEvidence:[]}));
  },
- async identifyCover(image,lines=[]){
+ async identifyCover(image,lines=[],regions=[]){
   const config=read();if(!config?.url||!config.token)throw Error('Conecte o Gemini em Perfil → IA online · Gemini.');
   if(typeof image!=='string'||!/^data:image\/jpeg;base64,\/9j\//.test(image)||image.length>1400040)throw Error('Selecione novamente uma capa para preparar a imagem.');
   let response;
-  try{response=await fetcher(origin(config.url)+'/api/ai/identify-cover',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+config.token},signal:AbortSignal.timeout(40000),body:JSON.stringify({image:{mimeType:'image/jpeg',data:image.split(',')[1]},lines:lines.filter(x=>typeof x==='string').slice(0,24).map(x=>x.slice(0,150))})});}catch{throw Error('Não consegui analisar a capa online. Confira a conexão e tente novamente.');}
+  try{response=await fetcher(origin(config.url)+'/api/ai/identify-cover',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+config.token},signal:AbortSignal.timeout(40000),body:JSON.stringify({regions:Array.isArray(regions)?regions.slice(0,64).filter(x=>x&&typeof x.text==='string'&&[x.x,x.y,x.width,x.height].every(v=>Number.isFinite(v)&&v>=0&&v<=20000)).map(x=>({text:x.text.slice(0,160),x:x.x,y:x.y,width:x.width,height:x.height})):[],image:{mimeType:'image/jpeg',data:image.split(',')[1]},lines:lines.filter(x=>typeof x==='string').slice(0,24).map(x=>x.slice(0,150))})});}catch{throw Error('Não consegui analisar a capa online. Confira a conexão e tente novamente.');}
   let data;try{data=await response.json();}catch{throw Error('Resposta de reconhecimento incompatível.');}
   if(response.status===404)throw Error('O serviço de reconhecimento de imagens precisa ser atualizado na Cloudflare. A busca local continua disponível.');
   if(!response.ok)throw Error(response.status===401?'Token do CENA recusado. Confira a conexão Gemini no Perfil.':String(data.error||'Não consegui analisar a capa.').slice(0,500));
   if(!Array.isArray(data.titles)||data.titles.length>3||data.titles.some(x=>!x||typeof x.title!=='string'||!x.title.trim()||x.title.length>160))throw Error('O Gemini não retornou títulos válidos.');
-  return {titles:data.titles.map(x=>({title:x.title.trim(),originalTitle:typeof x.originalTitle==='string'?x.originalTitle.slice(0,160):'',year:/^\d{4}$/.test(x.year||'')?x.year:'',type:['movie','series'].includes(x.type)?x.type:'unknown'})),visibleText:Array.isArray(data.visibleText)?data.visibleText.filter(x=>typeof x==='string').slice(0,12).map(x=>x.slice(0,150)):[],uncertain:data.uncertain!==false};
+  return {reading:parseCoverReading(data.reading),titles:data.titles.map(x=>({title:x.title.trim(),originalTitle:typeof x.originalTitle==='string'?x.originalTitle.slice(0,160):'',year:/^\d{4}$/.test(x.year||'')?x.year:'',type:['movie','series'].includes(x.type)?x.type:'unknown'})),visibleText:Array.isArray(data.visibleText)?data.visibleText.filter(x=>typeof x==='string').slice(0,12).map(x=>x.slice(0,150)):[],uncertain:data.uncertain!==false};
  },
  mount(target){
   const config=read();
