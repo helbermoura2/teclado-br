@@ -71,7 +71,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.28.3')
+                  expect(page.locator('#app-version')).to_contain_text('0.28.4')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -156,7 +156,7 @@ jobs:
                   native_page.locator('#story-caption').fill('Uma história excelente, com atuações marcantes.')
                   native_page.locator('#story-title').fill('Sisu')
                   expect(native_page.locator('#story-canvas')).to_have_attribute('data-story-rating','8.53')
-                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-layout-version','30')
+                  expect(native_page.locator('#story-canvas')).to_have_attribute('data-layout-version','31')
                   assert native_page.locator('#story-canvas').get_attribute('width')=='1080'
                   assert native_page.locator('#story-canvas').get_attribute('height')=='1920'
                   expect(native_page.locator('#story-status')).to_have_attribute('data-state','ready')
