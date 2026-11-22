@@ -255,13 +255,13 @@ function paintSimilar(panel,result,local=false){
 }
 async function findSimilar(seed,includeSaved=true,query=''){
  localAI.cancel();const ticket=++similarTicket,panel=$('#similar-panel');
- panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><button class="secondary wide" id="online-similar">✧ Refinar com Gemini online</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':'<button class="secondary wide" id="similar-ai-settings">Configurar IA local opcional</button>'}`;
- const search=panel.querySelector('#search-similar'),ai=panel.querySelector('#refine-similar'),status=panel.querySelector('#similar-status');
- search.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;
+ panel.innerHTML=`<h3>Semelhantes a ${escape(seed.name)}</h3><label><input type="checkbox" id="similar-saved" ${includeSaved?'checked':''}> Incluir títulos do meu catálogo</label><label for="similar-preference">O que você quer encontrar?</label><input id="similar-preference" maxlength="200" placeholder="Ex.: mais ação com o presidente dos EUA" value="${escape(query)}"><button class="secondary wide" id="search-similar">Buscar pelo enredo</button><button class="secondary wide" id="online-similar">${onlineAI.configured()?'✧ Refinar com Gemini online':'✧ Conectar Gemini online'}</button><p id="similar-status" class="muted" role="status">Consultando sinopses e temas…</p><div id="similar-grid"></div><div id="similar-reasons"></div><div id="similar-omitted"></div>${localAI.state.configured&&localAI.state.supported?'<button class="secondary wide" id="refine-similar">✧ Refinar com IA local</button><button class="secondary wide" id="cancel-similar" hidden>Cancelar IA</button>':''}`;
+ const search=panel.querySelector('#search-similar'),ai=panel.querySelector('#refine-similar'),online=panel.querySelector('#online-similar'),status=panel.querySelector('#similar-status');
+ search.disabled=true;online.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;
  const run=async useLocal=>{
   if(!search.isConnected||search.disabled)return;
   const preference=panel.querySelector('#similar-preference').value,include=panel.querySelector('#similar-saved').checked;
-  search.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;let cancelled=false;const cancel=panel.querySelector('#cancel-similar');if(cancel&&useLocal){cancel.hidden=false;cancel.onclick=()=>{cancelled=true;localAI.cancel();status.textContent='Consulta cancelada. As opções anteriores foram preservadas.';};}
+  search.disabled=true;online.disabled=true;panel.querySelector('#similar-saved').disabled=true;if(ai)ai.disabled=true;let cancelled=false;const cancel=panel.querySelector('#cancel-similar');if(cancel&&useLocal){cancel.hidden=false;cancel.onclick=()=>{cancelled=true;localAI.cancel();status.textContent='Consulta cancelada. As opções anteriores foram preservadas.';};}
   status.textContent='Buscando candidatos para o pedido e conferindo sinopses…';
   try{
    const result=await similarEngine.find(seed,{existing:items,includeSaved:include,query:preference});
@@ -270,15 +270,15 @@ async function findSimilar(seed,includeSaved=true,query=''){
    if(useLocal==='online'){status.textContent='Consultando Gemini online…';const selected=await onlineAI.select(result,preference);if(ticket!==similarTicket||!panel.isConnected)return;paintSimilar(panel,{...result,items:selected});status.textContent=selected.length+' opções selecionadas pelo Gemini entre candidatos do catálogo.';}
    if(useLocal===true&&result.candidates.length){status.textContent='Executando o GGUF no celular entre candidatos que atendem aos critérios…';const answer=await localAI.generate(buildLocalSelectionPrompt(result.seed,result.candidates,preference));if(ticket!==similarTicket||!panel.isConnected||cancelled)return;const selected=validateLocalSelection(answer,result.candidates,{seed:result.seed,query:preference});if(!selected)throw Error('A IA não retornou uma seleção válida para os critérios. Mantive as opções do catálogo.');paintSimilar(panel,{...result,items:selected},true);}
   }catch(error){if(ticket===similarTicket&&status.isConnected&&!cancelled)status.textContent=error.message;}
-  finally{if(search.isConnected){search.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;if(cancel?.isConnected)cancel.hidden=true;}
+  finally{if(search.isConnected){search.disabled=false;online.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;if(cancel?.isConnected)cancel.hidden=true;}
  };
- search.onclick=()=>run(false);panel.querySelector('#online-similar').onclick=()=>{if(!onlineAI.configured()){$('#detail').close();setTab('connect');$('#online-ai-panel')?.scrollIntoView({block:'center'});return;}run('online');};if(ai)ai.onclick=()=>run(true);
+ search.onclick=()=>run(false);panel.querySelector('#online-similar').onclick=()=>{if(!onlineAI.configured()){toast('Conecte o Gemini online com seu token do CENA. A IA local é opcional.');$('#detail').close();setTab('connect');$('#online-ai-panel')?.scrollIntoView({block:'center'});return;}run('online');};if(ai)ai.onclick=()=>run(true);
  panel.querySelector('#similar-preference').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();run(false);}};
  panel.querySelector('#similar-saved').onchange=()=>run(false);
  if($('#similar-ai-settings'))$('#similar-ai-settings').onclick=()=>{$('#detail').close();setTab('connect');$('#local-ai-panel')?.scrollIntoView({block:'center'});};
  try{const result=await similarEngine.find(seed,{existing:items,includeSaved,query});if(ticket===similarTicket&&panel.isConnected)paintSimilar(panel,result);}
  catch(error){if(ticket===similarTicket&&status.isConnected)status.textContent=error.message;}
- finally{if(search.isConnected){search.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;}
+ finally{if(search.isConnected){search.disabled=false;online.disabled=false;panel.querySelector('#similar-saved').disabled=false;}if(ai?.isConnected)ai.disabled=false;}
 }
 
 window.CenaNuvioResult=state=>{
