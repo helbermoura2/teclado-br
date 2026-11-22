@@ -156,10 +156,14 @@ function renderHistoryStats(){
  let notes={};try{notes=JSON.parse(storage.getItem('cena.story.notes.v1')||'{}')||{};}catch{}const ratings=personalRatings(notes);
  const tabs=[['library','Biblioteca'],['time','Tempo'],['ratings','Avaliações'],['platforms','Plataformas']];
  const cards=`<div class="history-stat-grid"><div><strong>${stats.movies||0}</strong><span>Filmes diferentes</span></div><div><strong>${stats.series||0}</strong><span>Séries acompanhadas</span></div><div><strong>${stats.episodes||0}</strong><span>Episódios diferentes</span></div><div><strong>${stats.plays||0}</strong><span>Reproduções</span></div><div><strong>${Math.floor(minutes/60)}h ${minutes%60}min</strong><span>Tempo estimado</span></div></div>`;
+ const historyPending=!historyState.lastImport&&!Number(stats.plays);
+ const historyEmpty='<div class="profile-empty"><strong>Seu histórico, com mais detalhes</strong><p>As estatísticas aparecem após importar o histórico detalhado do Trakt. Os últimos vistos do Nuvio continuam disponíveis na aba Histórico.</p></div>';
  const yearChart=years.length?`<div class="profile-chart" role="img" aria-label="Reproduções por ano"><div class="profile-bars">${years.map(row=>`<div class="profile-bar-column"><span>${row.plays}</span><div class="profile-bar" style="height:${Math.max(3,Math.round(100*row.plays/Math.max(1,...years.map(x=>x.plays))))}%"></div><small>${row.year}</small></div>`).join('')}</div></div>`:'<p class="muted">Ainda não há datas conhecidas no histórico.</p>';
  let content='';
- if(profileStatsTab==='library')content=`<div class="profile-hero"><span>SUA COLEÇÃO NESTE APARELHO</span><strong>${collection.total} títulos</strong><div><span>${collection.movies} filmes</span><span>${collection.series} séries</span><span>${collection.watchlist} para assistir</span></div></div><h2>Histórico assistido</h2>${cards}<p class="muted">A coleção inclui títulos salvos para assistir. Os números do histórico contam títulos e episódios diferentes; revisitas contam como novas reproduções.</p>`;
+ if(profileStatsTab==='library')content=`<div class="profile-hero"><span>SUA COLEÇÃO NESTE APARELHO</span><strong>${collection.total} ${collection.total===1?'título':'títulos'}</strong><div><span>${collection.movies} filmes</span><span>${collection.series} séries</span><span>${collection.watchlist} para assistir</span></div></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">A coleção inclui títulos salvos para assistir. Os números do histórico contam títulos e episódios diferentes; revisitas contam como novas reproduções.</p>`;
+ if(profileStatsTab==='library'&&!collection.total&&nuvioState.active)content=`<div class="profile-hero"><span>SUA ATIVIDADE CONECTADA</span><strong>Nuvio</strong><p>${Number(nuvioState.watchedCount)||0} registros recebidos${nuvioState.profileName?' · '+escape(nuvioState.profileName):''}.</p></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">Sua coleção reúne os títulos que você salva no CENA. Os registros recebidos do Nuvio podem incluir episódios e não equivalem ao total de filmes assistidos.</p>`;
  if(profileStatsTab==='time')content=`<div class="profile-hero"><span>TEMPO DE VISUALIZAÇÃO ESTIMADO</span><strong>${Math.floor(minutes/60)}h ${minutes%60}min</strong><p>Duração disponível em ${stats.timedPlays||0} de ${stats.plays||0} registros.</p></div><h2>Reproduções por ano</h2>${yearChart}<p class="muted">O gráfico usa o ano em que você assistiu. O tempo soma a duração informada dos títulos e não mede o tempo real na tela. Datas no fuso ${escape(historyState.timezone||'local')}.</p>${cards}`;
+ if(profileStatsTab==='time'&&historyPending)content=historyEmpty;
  if(profileStatsTab==='ratings')content=`<div class="profile-hero"><span>SUAS NOTAS NO CENA</span><strong>${ratings.average===null?'Sem notas':ratings.average.toLocaleString('pt-BR',{maximumFractionDigits:2})+' / 10'}</strong><p>${ratings.count} ${ratings.count===1?'avaliação salva':'avaliações salvas'} nos Stories deste aparelho.</p></div><h2>Distribuição das notas</h2>${ratings.count?`<div class="profile-chart"><div class="profile-bars">${ratings.distribution.map(row=>`<div class="profile-bar-column"><span>${row.count||''}</span><div class="profile-bar" style="height:${Math.max(row.count?3:0,Math.round(100*row.count/Math.max(1,...ratings.distribution.map(x=>x.count))))}%"></div><small>${row.rating}</small></div>`).join('')}</div></div><p class="muted">Para o gráfico, notas decimais são agrupadas no inteiro mais próximo. A média usa a nota original.</p>`:'<p class="muted">Adicione uma nota ao criar um Story para começar.</p>'}<p class="muted">Essas são suas notas locais; avaliações do Trakt ainda não são importadas.</p>`;
  if(profileStatsTab==='platforms')content='<div class="profile-empty"><strong>Plataformas assistidas</strong><p>O histórico atual não informa em qual serviço cada reprodução aconteceu. Os logotipos das capas mostram disponibilidade atual e não determinam onde você assistiu.</p></div>';
  target.innerHTML=`<div class="profile-stat-tabs" role="tablist" aria-label="Categorias de estatísticas">${tabs.map(([id,label])=>`<button role="tab" aria-selected="${profileStatsTab===id}" class="chip ${profileStatsTab===id?'selected':''}" data-profile-stats="${id}">${label}</button>`).join('')}</div>${content}${historyState.coverage==='partial'?'<p class="notice">Histórico parcial: os totais podem aumentar após uma importação completa.</p>':''}${historyState.unmatched?`<p class="muted">${Number(historyState.unmatched)} registro(s) sem correspondência IMDb continuam no histórico.</p>`:''}`;
@@ -419,7 +423,8 @@ function seriesBadges(item){
 }
 function poster(item, badge = '', showRating = false, showStreaming = true) {
   const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
-  return `<div class="poster-art" data-artwork-key="${escape(key)}"><span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}${showStreaming?streamBadge(key):''}</div>`;
+  const image=artworkResolver.peek(item)||trustedArtwork(item.poster);
+  return `<div class="poster-art" data-artwork-key="${escape(key)}">${image?`<img src="${escape(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}${showStreaming?streamBadge(key):''}</div>`;
 }
 function grid(rows,recommendation=false) {
   return `<div class="grid">${rows.map(item=>{
@@ -432,6 +437,8 @@ function wireImages() {
   wireRatings();wireStreaming();
   for(const element of document.querySelectorAll('.poster-art[data-artwork-key]')) {
     if(artworkObserved.has(element))continue;artworkObserved.add(element);
+    const image=element.querySelector(':scope > img');
+    if(image){element.dataset.artworkState='ready';image.onerror=()=>{image.remove();element.dataset.artworkState='missing';const item=artworkModels.get(element.dataset.artworkKey);if(item){delete artworkResolver.cache[artworkResolver.key(item)];persistArtwork(item,'');item.poster='';}hydrateArtwork(element);};continue;}
     if(artworkObserver)artworkObserver.observe(element);else hydrateArtwork(element);
   }
 }
@@ -941,7 +948,7 @@ function localConnection() {
 
 // Render a 9:16 PNG locally. Photo captures never leave the device.
 const story=createStoryEditor({$,escape,storage,getItems:()=>items,native,artworkResolver,persistArtwork,toast,wireStreaming});
-document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = () => setTab(button.dataset.tab));
+document.querySelectorAll('nav [data-tab]').forEach(button => button.onclick = () => {if(button.dataset.tab===tab&&tab!=='profile'){window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});return;}setTab(button.dataset.tab);});
 $('nav [data-tab=profile]').addEventListener('click',()=>{historyMode='stats';historyDedicated=false;historyMedia='';},true);
 $('#profile-shortcut').onclick=()=>setTab('connect');
 $('#search-shortcut').onclick = () => { setTab('library'); $('#query').focus(); };
