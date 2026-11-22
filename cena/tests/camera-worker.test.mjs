@@ -18,3 +18,9 @@ test('updated Worker preserves the existing recommendation endpoint and rejects 
  const body={seed:{id:'tt0118571',type:'movie',name:'Air Force One'},candidates:[{id:'tt2334879',type:'movie',name:'White House Down'}]};
  assert.equal((await worker.fetch(request('/api/ai/similar',body),env)).status,200);returned='tt9999999';assert.equal((await worker.fetch(request('/api/ai/similar',body),env)).status,502);
 });
+
+test('semantic Worker preserves role-separated transcription and OCR coordinates without exposing secrets',async()=>{
+ let body;const reading={title:'1917',subtitle:'',cast:['George MacKay'],awards:['3 NOMEAÇÕES GLOBOS DE OURO'],taglines:['O TEMPO É O INIMIGO'],other:['23 JANEIRO NOS CINEMAS']};
+ const worker=createWorker(async(url,options)=>{body=JSON.parse(options.body);return Response.json({candidates:[{content:{parts:[{text:JSON.stringify({reading,titles:[{title:'1917',year:'2019',type:'movie'}],visibleText:['1917'],uncertain:false})}]}}]});});
+ const response=await worker.fetch(request('/api/ai/identify-cover',{...vision,regions:[{text:'1917',x:50,y:200,width:500,height:300}]}),env);const value=await response.json();assert.deepEqual(value.reading,reading);assert.ok(body.systemInstruction.parts[0].text.includes('PRIMEIRO'));assert.ok(body.contents[0].parts[0].text.includes('"height":300'));assert.ok(!JSON.stringify(value).includes(env.GEMINI_API_KEY));
+});
