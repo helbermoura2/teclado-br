@@ -676,7 +676,7 @@ async function analyzeCameraOnline(){
   const hints=await onlineAI.identifyCover(image,cameraLines);
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   const rows=await verifyCameraTitles(hints,cameraLines);
-  const readTitle=coverTitlePhrase([...(hints.visibleText||[]),...cameraLines])||hints.titles?.[0]?.title||'';
+  const readTitle=coverTitlePhrase([...(hints.visibleText||[]),...cameraLines])||rows[0]?.name||'';
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
   else {renderCaptureMatches($('#search-results'),{items:[],mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Não consegui confirmar o título completo no catálogo. As sugestões sem concordância com a capa foram descartadas. Tente outro recorte ou ajuste o texto.';}
