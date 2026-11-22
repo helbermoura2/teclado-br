@@ -1,3 +1,4 @@
+import {createTitleAliasResolver} from './title-aliases.js';
 import {recentWatches} from './recent-watches.js';
 import {createOnlineAI} from './online-ai.js';
 import {availabilityRows} from './availability.js';
@@ -34,6 +35,8 @@ const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
 const storage=createAppStorage(localStorage,window.CenaAndroid);
 const onlineAI=createOnlineAI(storage);
+const titleAliases=createTitleAliasResolver(window.CenaAndroid);
+const enrichCameraTitle=item=>streamingConfigured?titleAliases.resolve(item):Promise.resolve(item);
 window.CenaStoryArtworkResult=receiveStoryArtwork;
 const storageKey = 'cena.connection.v1';
 let connection = null;
@@ -215,6 +218,7 @@ function requestCinema(node,key){
 }
 function wireStreaming(){for(const node of document.querySelectorAll('[data-stream-key]')){const cached=streamingData.get(node.dataset.streamKey);requestCinema(node,node.dataset.streamKey);if(cached||node.id==='detail-providers'||node.onCenaAvailability)paintStreaming(node,cached);if(streamingObserved.has(node))continue;streamingObserved.add(node);if(streamingObserver)streamingObserver.observe(node);else requestStreaming(node);}}
 window.CenaStreamingResult=value=>{
+ if(value.kind==='titleAliases'){titleAliases.accept(value);return;}
  if(value.kind==='cinema'){
   const key=`movie:${value.id}`;cinemaPending.delete(key);
   if(!value.error)cinemaData.set(key,value.date||'');
@@ -675,7 +679,7 @@ async function analyzeCameraOnline(){
   const image=await cameraJpeg();if(sequence!==cameraSequence)return;
   const hints=await onlineAI.identifyCover(image,cameraLines);
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
-  const rows=await verifyCameraTitles(hints,cameraLines);
+  const rows=await verifyCameraTitles(hints,cameraLines,{enrich:enrichCameraTitle});
   const readTitle=coverTitlePhrase([...(hints.visibleText||[]),...cameraLines])||rows[0]?.name||'';
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
@@ -692,7 +696,7 @@ async function runSearch(query, coverLines = null) {
   const generation = ++searchGeneration;
   target.innerHTML = '<div class="loading" role="status">Procurando sua próxima história…</div>';
   try {
-    const response = coverLines && apiBase === 'local' ? { items: await identifyCover(coverLines), mode: 'assisted' } : await api(`/api/search?q=${encodeURIComponent(query)}`);
+    const response = coverLines && apiBase === 'local' ? { items: await identifyCover(coverLines,fetch,{enrich:enrichCameraTitle}), mode: 'assisted' } : await api(`/api/search?q=${encodeURIComponent(query)}`);
     if (generation !== searchGeneration || !target.isConnected) return;
     renderCaptureMatches(target,response,coverLines);
     if(coverLines&&(!searchResults.length||!coverTitlePhrase(coverLines)||!searchResults.some(item=>item.matchScore>=.72&&!item.partialTitle&&!item.ambiguousTitle))&&cameraAuto()&&onlineAI.configured()&&scanPhoto&&cameraAttempt!==cameraSequence){analyzeCameraOnline();return;}
