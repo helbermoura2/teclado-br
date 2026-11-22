@@ -86,7 +86,7 @@ export function coverInput(result) {
 
 export function coverSearchPhrases(lines){
  const unique=[...new Set(lines.filter(value=>typeof value==='string').map(value=>value.trim()).filter(value=>value.length>=3&&value.length<=150))];
- const repair=text=>text.replace(/\b0\b/g,'O').replace(/\b([AIO])\s+([A-Z]{2,5})\b/g,'$1$2');
+ const repair=text=>text.replace(/([\p{L}]{3,}\s+)A0(?=\s+[\p{L}]{3,})/giu,'$1AO').replace(/\b0\b/g,'O').replace(/\b([AIO])\s+([A-Z]{2,5})\b/g,'$1$2');
  const variants=[];
  for(const line of unique){const fixed=repair(line);if(fixed!==line)variants.push(fixed);}
  // A subtitle on a separate line can survive even when the main title is damaged.
