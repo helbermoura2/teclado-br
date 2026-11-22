@@ -1,4 +1,5 @@
 import { searchPublicTitles, titleFromEntity } from './search-public.js';
+import {trustedArtwork} from './artwork.js';
 
 export const normalizeTitle = text => String(text || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const cache = new Map();
@@ -25,12 +26,24 @@ export function coverInput(result) {
   return { query, lines: [...new Set([query, ...lines, ...phrases, ...String(result.fullText || '').split('\n')])].filter(Boolean).slice(0, 24) };
 }
 
+export function coverSearchPhrases(lines){
+ const unique=[...new Set(lines.filter(value=>typeof value==='string').map(value=>value.trim()).filter(value=>value.length>=3&&value.length<=150))];
+ const repair=text=>text.replace(/\b0\b/g,'O').replace(/\b([AIO])\s+([A-Z]{2,5})\b/g,'$1$2');
+ const variants=[];
+ for(const line of unique){const fixed=repair(line);if(fixed!==line)variants.push(fixed);}
+ // A subtitle on a separate line can survive even when the main title is damaged.
+ const words=repair(unique[0]||'').split(/\s+/);
+ if(words.length>=4&&words.length<=14)variants.push(words.slice(1).join(' '));
+ return [...new Set(variants)].filter(value=>value.length>=4).slice(0,3);
+}
+
 export function coverQueries(lines) {
   const usable = [...new Set(lines.filter(value => typeof value === 'string').map(value => value.trim()).filter(value => value.length >= 3 && value.length <= 150))];
   const primary = usable[0] || '';
   const anchor = usable.find(value => value.split(/\s+/).length === 1 && normalizeTitle(value).length >= 5) || primary;
   const compact = normalizeTitle(anchor);
-  const queries = [];
+  const repairs=coverSearchPhrases(usable);
+  const queries = repairs.slice().reverse().map(value=>'"'+value.replaceAll('"','')+'" film');
   // Search the complete assembled phrase as well as independent OCR fragments.
   if (primary.split(/\s+/).length > 1) queries.push(primary.replace(/[^\p{L}\p{N} ]/gu, ' ') + ' film');
   queries.push(`intitle:${compact || primary}~2`);
@@ -92,7 +105,9 @@ export function scoreCover(item, lines, extract = '') {
   const clues = lines.slice(1).filter(line => line.split(/\s+/).length >= 2 && normalizeTitle(line).length >= 7);
   const hits = clues.filter(line => description.includes(normalizeTitle(line))).length;
   // Two cast-name clues can rescue a badly read title, without claiming certainty.
-  return Math.min(1, Math.max(titleScore * .85, secondaryTitle * .85, fragment) + Math.min(hits, 3) * .12 + labelBonus);
+  const primaryWords=primary.match(/[\p{L}\p{N}]+/gu)||[],anchorWord=primaryWords.find(word=>normalizeTitle(word).length>=5);
+  const anchorMatch=primaryWords.length>=3&&anchorWord&&labels.some(label=>(label.match(/[\p{L}\p{N}]+/gu)||[]).some(word=>similarity(anchorWord,word)>=.6));
+  return Math.min(1, Math.max(titleScore * .85, secondaryTitle * .85, fragment) + Math.min(hits, 3) * .12 + labelBonus + (anchorMatch ? .12 : 0));
 }
 
 export async function identifyCover(lines, fetcher = fetch) {
@@ -104,6 +119,15 @@ export async function identifyCover(lines, fetcher = fetch) {
   let exact = [];
   try { exact = await searchPublicTitles(primary, fetcher); } catch { /* The independent wiki search can still succeed. */ }
   if (lines.length === 1 && primary.trim().split(/\s+/).length > 1 && exact.some(item => Math.max(similarity(primary, item.name), similarity(primary, item.originalName)) > .93)) return exact;
+  const variants=coverSearchPhrases(lines);
+  if(variants.length&&!exact.some(item=>scoreCover(item,lines)>.82)){
+    const replies=await Promise.allSettled(variants.flatMap(query=>['movie','series'].map(async type=>{
+      const response=await fetcher(`https://v3-cinemeta.strem.io/catalog/${type}/top/search=${encodeURIComponent(query)}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});
+      if(!response.ok)throw Error('Catálogo indisponível');
+      return ((await response.json()).metas||[]).filter(meta=>/^tt\d{5,12}$/.test(meta.imdb_id||meta.id||'')).map(meta=>({id:meta.imdb_id||meta.id,type,name:meta.name||'',originalName:meta.name||'',year:String(meta.releaseInfo||'').slice(0,4),poster:trustedArtwork(meta.poster),description:meta.description||'',source:'Cinemeta'}));
+    })));
+    for(const reply of replies)if(reply.status==='fulfilled')exact.push(...reply.value);
+  }
   const queries = coverQueries(lines);
   const replies = await Promise.allSettled(queries.map(query => json(fetcher, 'https://en.wikipedia.org/w/api.php', {
     action: 'query', generator: 'search', gsrsearch: query, gsrnamespace: '0', gsrlimit: '50',
@@ -122,7 +146,7 @@ export async function identifyCover(lines, fetcher = fetch) {
     const relevant = [...pages.entries()].map(([id, page]) => ({ id, page,
       score: scoreCover({ name: page.title.replace(/\([^)]*\)/g, '') }, lines, page.extract || '')
     })).sort((a, b) => b.score - a.score).slice(0, 40).map(({ id, page }) => [id, page]);
-    const data = await json(fetcher, 'https://www.wikidata.org/w/api.php', { action: 'wbgetentities', ids: relevant.map(([id]) => id).join('|'), props: 'claims|labels|descriptions|sitelinks', languages: 'pt|en', sitefilter: 'enwiki' });
+    let data;try { data = await json(fetcher, 'https://www.wikidata.org/w/api.php', { action: 'wbgetentities', ids: relevant.map(([id]) => id).join('|'), props: 'claims|labels|descriptions|sitelinks', languages: 'pt|en', sitefilter: 'enwiki' }); } catch(error) { if(!exact.length)throw error;data={entities:{}}; }
     for (const [id, page] of relevant) {
       const item = titleFromEntity(data.entities?.[id] || {});
       if (!item) continue;
@@ -151,4 +175,19 @@ export async function searchTolerantTitles(query) {
   const key = normalizeTitle(query);
   if (exact.some(item => [item.name, item.originalName, item.localWikiTitle, ...(item.aliases || [])].filter(Boolean).some(label => normalizeTitle(label).includes(key) || similarity(query, label) > .85))) return exact;
   return identifyCover([query]);
+}
+
+
+export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitles}={}){
+ const suggestions=Array.isArray(hints?.titles)?hints.titles.filter(x=>x&&typeof x.title==='string').slice(0,3):[];
+ const replies=await Promise.allSettled(suggestions.map(async hint=>{
+  const queries=[...new Set([hint.title,hint.originalTitle].filter(x=>typeof x==='string'&&x.trim().length>=2&&x.length<=150))].slice(0,2);
+  const results=await Promise.allSettled(queries.map(query=>search(query)));
+  return results.flatMap(result=>result.status==='fulfilled'?result.value:[]).filter(item=>/^tt\d{5,12}$/.test(item?.id||'')&&['movie','series'].includes(item.type)&&(!['movie','series'].includes(hint.type)||item.type===hint.type)).flatMap(item=>{
+   const titleScore=scoreCover(item,[hint.title,hint.originalTitle,...lines].filter(Boolean));if(titleScore<.4)return [];
+   return [{...item,matchScore:Math.min(1,titleScore+(hint.year&&String(item.year)===String(hint.year)? .04:0)),suggested:true,aiAssisted:true}];
+  });
+ }));
+ const unique=new Map();for(const reply of replies)if(reply.status==='fulfilled')for(const item of reply.value)if(!unique.has(item.id)||unique.get(item.id).matchScore<item.matchScore)unique.set(item.id,item);
+ return [...unique.values()].sort((a,b)=>b.matchScore-a.matchScore).slice(0,8);
 }
