@@ -36,7 +36,14 @@ export function coverTitlePhrase(lines){
  // Prefer the original full phrase. Assemble adjacent short OCR lines only when necessary.
  return phrases.find(phrase=>lines.includes(phrase)&&meaningful(phrase).length>=2)||phrases.sort((a,b)=>Number(titleStops.has(titleWords(a).at(-1)))-Number(titleStops.has(titleWords(b).at(-1))))[0]||'';
 }
-function contradictsCover(item,lines){const phrase=coverTitlePhrase(lines),words=coverLabels(item).flatMap(meaningful);const anchored=meaningful(phrase).some(word=>words.some(other=>word===other||word.length>=5&&other.length>=5&&similarity(word,other)>=.78));return Boolean(phrase&&anchored&&phraseAgreement(item,phrase)<.72);}
+function contradictsCover(item,lines){
+ const phrase=coverTitlePhrase(lines),words=coverLabels(item).flatMap(meaningful),anchors=meaningful(phrase);
+ const anchored=anchors.some(word=>words.some(other=>word===other||word.length>=5&&other.length>=5&&similarity(word,other)>=.78));
+ if(!phrase||!anchored||phraseAgreement(item,phrase)>=.72)return false;
+ // A large-font fragment must not veto a fuller, independently matching title phrase.
+ const fuller=completeCoverPhrases(lines).some(candidate=>meaningful(candidate).length>anchors.length&&!promotionalCoverText(candidate)&&!/\b\d{1,2}:\d{2}\b/.test(candidate)&&anchors.every(anchor=>meaningful(candidate).some(word=>similarity(anchor,word)>=.78))&&phraseAgreement(item,candidate)>=.72);
+ return !fuller;
+}
 
 // Cinemeta indexes regional titles even when its returned display name is English.
 // A unique full-phrase result must also occur in a separate distinctive-word query.
