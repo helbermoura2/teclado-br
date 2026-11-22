@@ -34,8 +34,8 @@ with ZipFile(apk) as archive:
     assert 'assets/story-artwork.js' in archive.namelist()
     assert 'assets/story-layout.js' in archive.namelist()
     layout = archive.read('assets/story-layout.js').decode()
-    assert 'streamingPanelWidth:900' in layout and 'cinematicStoryStyle' in layout
-    assert "layoutVersion='24'" in layout
+    assert 'drawFogParticles' in layout and 'const titleWidth=width-24' in layout
+    assert "layoutVersion='29'" in layout
     assert 'Story cinematográfico' in story
     assert 'assets/story-metadata.js' in archive.namelist()
     assert 'id="story-rating"' in story and 'id="story-title"' in story
@@ -47,7 +47,7 @@ with ZipFile(apk) as archive:
     assert 'assets/home-feed.js' in archive.namelist()
     assert 'brand-triangle' in index and 'resume-dismiss' in app
     assert 'assets/watch-history.js' in archive.namelist()
-    assert 'profile-shortcut' in index and 'Ano em que assistiu' in app
+    assert 'profile-shortcut' in index and 'id="history-year"' in app
     assert 'assets/nuvio-state.js' in archive.namelist() and 'assets/nuvio-panel.js' in archive.namelist()
     assert 'CenaNuvioResult' in app and 'Continuar assistindo' in app
     assert 'assets/ratings.js' in archive.namelist()
