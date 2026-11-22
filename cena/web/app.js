@@ -372,7 +372,7 @@ window.CenaTraktResult = state => {
   if(libraryChanged) { items=merged; storage.setItem('cena.local.items.v1',JSON.stringify(items)); }
   if(becameConnected) sendTraktInventory();
   if(state.connected && state.needsUpload && !traktInitialUploadRequested) { traktInitialUploadRequested=true; sendTraktList(); }
-  if(tab==='connect' && $('#streaming-panel') && !document.querySelector('#trakt-client-id:focus, #stremio-filter:focus, #online-ai-panel input:focus, #streaming-key:focus, #local-server-url:focus')) localConnection();
+  if(tab==='connect') renderTraktPanel();
   else if(!$('#detail').open) {
     if(tab==='library') { if(libraryChanged)patchLibrary();else updateArtworkProgress(); }
     else if(tab==='home'&&libraryChanged) {const position=window.scrollY;home();window.scrollTo(0,position);}
@@ -830,9 +830,24 @@ async function refresh() {
   if (connection) { const result = await api(`/api/libraries/${connection.id}`); connection = { id: result.id, writeToken: result.writeToken, manifestUrl: result.manifestUrl }; items = result.items; persist(); }
 }
 
-function localConnection() {
+function renderTraktPanel() {
+  const panel = $('#trakt-panel');
+  if (!panel || panel.querySelector('#trakt-client-id:focus')) return;
   const supported = native && typeof window.CenaAndroid.connectTrakt === 'function';
   const pending = traktState.pending?.length || 0;
+  panel.innerHTML = `<h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
+    ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
+    ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}`;
+  if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
+  if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
+  if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
+  if($('#trakt-authorize')) $('#trakt-authorize').onclick=()=>window.CenaAndroid.openTraktVerification();
+  if($('#trakt-sync')) $('#trakt-sync').onclick=()=>{ sendTraktInventory(); window.CenaAndroid.syncTrakt(); };
+  if($('#trakt-send-list')) $('#trakt-send-list').onclick=()=>{ sendTraktInventory(); sendTraktList(); toast('Envio solicitado. Confira os itens pendentes.'); };
+  if($('#trakt-disconnect')) $('#trakt-disconnect').onclick=()=>window.CenaAndroid.disconnectTrakt();
+}
+
+function localConnection() {
   main.innerHTML = `<div class="connections-heading"><h1>Perfil</h1><p>Contas, sincronização e preferências do CENA.</p></div>
     <section class="profile-services" aria-labelledby="profile-services-title"><h2 id="profile-services-title">Conexões</h2><div class="connection-jumps" aria-label="Serviços">
     <button data-service="nuvio-panel"><strong>Nuvio</strong><small>Perfil e progresso</small></button>
@@ -849,9 +864,7 @@ function localConnection() {
     </div></details> ${native&&apiBase!=='local'?'<button class="secondary" id="manage-remote-list">Gerenciar catálogo remoto</button>':''}<div class="panel" id="update-panel"><h2>Atualizações do CENA</h2><p id="update-status">Confira novas versões do aplicativo.</p><div class="actions"><button class="secondary" id="update-check">Verificar atualização</button><button class="primary" id="update-install" hidden>Atualizar</button></div></div><div class="panel" id="streaming-panel"><h2>TMDB · Onde assistir</h2><p id="streaming-status"></p><p>Para mostrar os serviços no Brasil, use uma chave de API v3 gratuita da sua conta TMDB. <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">Criar ou consultar chave no TMDB</a>. Dados de disponibilidade: JustWatch via TMDB.</p><form id="streaming-form"><label for="streaming-key">Chave de API v3 do TMDB</label><input id="streaming-key" type="password" autocomplete="off" minlength="32" maxlength="32" required><button class="secondary" type="submit">Conectar TMDB</button></form></div>
     <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
     <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
-    <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"><h2>${traktState.connected ? `✓ Trakt conectado${traktState.username ? ` · ${escape(traktState.username)}` : ''}` : 'Conectar sua conta Trakt'}</h2>
-    ${!supported ? '<p>O login e a conexão protegida estão disponíveis no APK Android.</p>' : !traktState.configured ? `<p>Falta o cadastro único da integração CENA no Trakt. Depois, você autoriza sua conta por um código no navegador do celular.</p><details><summary>Configurar integração CENA</summary><p>Cadastre CENA em <a href="https://developer.trakt.tv/docs/create-an-app" target="_blank" rel="noreferrer">Trakt Developer</a> e copie somente o Client ID público. Não informe Client Secret, senha ou token.</p><form id="trakt-config-form"><label for="trakt-client-id">Client ID público</label><input id="trakt-client-id" minlength="20" maxlength="200" autocomplete="off" required><button class="primary" type="submit">Salvar cadastro</button></form></details>` : traktState.connected ? `<p>${pending ? `${pending} alteração(ões) aguardam envio.` : 'Nenhum envio pendente.'}</p><p class="muted">${traktState.lastSync ? `Última sincronização: ${new Date(traktState.lastSync).toLocaleString('pt-BR')}` : 'Aguardando a primeira sincronização.'}</p><div class="actions"><button class="primary" id="trakt-sync">${traktState.error ? 'Tentar novamente' : 'Sincronizar agora'}</button><button class="secondary" id="trakt-send-list">Enviar Quero assistir</button><button class="secondary" id="trakt-disconnect">Desconectar</button></div>` : traktState.userCode ? `<p>Seu código de autorização:</p><p class="auth-code" id="trakt-user-code">${escape(traktState.userCode)}</p><p>Copie o código, abra o Trakt e autorize o CENA. Volte ao app: a conexão será conferida até o código expirar.</p><div class="actions"><button class="secondary" id="trakt-copy-code">Copiar código</button><button class="primary" id="trakt-authorize">Abrir Trakt para autorizar</button></div>` : `<p>Ao autorizar, sua lista Quero assistir será enviada ao Trakt. Os filmes já assistidos no Trakt poderão receber o check no CENA.</p><button class="primary wide" id="trakt-connect">Conectar e enviar Quero assistir</button>`}
-    ${traktState.error ? `<p class="error" role="alert">${escape(traktState.error)}</p>` : ''}</div>
+    <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"></div>
     <div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div><div class="panel" id="online-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
@@ -881,13 +894,7 @@ function localConnection() {
   onlineAI.mount($('#online-ai-panel'));
   renderUpdatePanel();$('#update-check').onclick=()=>window.CenaAndroid?.checkUpdates?.();$('#update-install').onclick=()=>window.CenaAndroid?.installUpdate?.();
   $('#streaming-status').textContent=streamingMessage;$('#streaming-form').onsubmit=event=>{event.preventDefault();const field=$('#streaming-key');window.CenaAndroid?.configureStreaming?.(field.value);field.value='';$('#streaming-status').textContent='Conectando ao TMDB…';};window.CenaAndroid?.streamingStatus?.();
-  if($('#trakt-config-form')) $('#trakt-config-form').onsubmit = event => { event.preventDefault(); window.CenaAndroid.configureTrakt($('#trakt-client-id').value.trim()); };
-  if($('#trakt-connect')) $('#trakt-connect').onclick=()=>window.CenaAndroid.connectTrakt();
-  if($('#trakt-copy-code')) $('#trakt-copy-code').onclick=()=>copy(traktState.userCode);
-  if($('#trakt-authorize')) $('#trakt-authorize').onclick=()=>window.CenaAndroid.openTraktVerification();
-  if($('#trakt-sync')) $('#trakt-sync').onclick=()=>{ sendTraktInventory(); window.CenaAndroid.syncTrakt(); };
-  if($('#trakt-send-list')) $('#trakt-send-list').onclick=()=>{ sendTraktInventory(); sendTraktList(); toast('Envio solicitado. Confira os itens pendentes.'); };
-  if($('#trakt-disconnect')) $('#trakt-disconnect').onclick=()=>window.CenaAndroid.disconnectTrakt();
+  renderTraktPanel();
   $('#local-server-form').onsubmit = async event => {
     event.preventDefault(); const previous={apiBase,connection,config,items};
     try { apiBase=validBase($('#local-server-url').value.trim()); connection=null; config=await api('/api/config'); await ensureConnection(); items=[]; connect(true); toast('Servidor conectado. Sua lista local foi preservada.'); }
