@@ -18,8 +18,18 @@ try:
   page.locator('#history-back').click()
   page.evaluate('window.CenaHistoryResult({scope:"conta-b",connected:true,totals:{},media:[],lastImport:2})')
   assert page.locator('#recent-history strong').get_by_text('The Pacific').count()==0
+  page.evaluate('window.CenaHistoryResult({scope:"",connected:false,totals:{},media:[],lastImport:0})')
+  page.evaluate('window.CenaNuvioResult({connected:true,active:true,scope:"nuvio-a",lastSync:1,profileId:1,recent:[{id:"tt1335975",type:"movie",name:"47 Ronin",watchedAt:1795262400000},{id:"tt0374463",type:"series",name:"The Pacific",season:1,episode:4,watchedAt:1795348800000}],watched:[],series:[]})')
+  page.locator('#recent-history strong').get_by_text('47 Ronin').wait_for(timeout=5000)
+  assert 'T1 · E4' in page.locator('#recent-history').inner_text()
+  page.locator('#recent-see-all').click()
+  assert 'The Pacific' in page.locator('#history-records').inner_text()
+  page.locator('#history-back').click()
+  page.evaluate('window.CenaNuvioResult({connected:true,active:true,scope:"nuvio-b",profileId:2,lastSync:2,recent:[],watched:[],series:[]})')
+  assert page.locator('#recent-history strong').get_by_text('47 Ronin').count()==0
   assert not errors, errors
-  print('Últimos vistos: episódio, data e isolamento de conta conferidos no navegador.')
+  print('Últimos vistos: Trakt e Nuvio, episódio, data e isolamento de perfil conferidos.')
   b.close()
 finally:
  p.terminate();p.wait()
+
