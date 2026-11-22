@@ -131,3 +131,9 @@ test('cast names are supporting clues and cannot become a conflicting synthetic 
 test('AI cannot override readable cover text with a completely unrelated exact catalog title',async()=>{
  const {verifyCameraTitles}=await import('../web/identify-cover.js');assert.deepEqual(await verifyCameraTitles({titles:[{title:'Top Gun',type:'movie'}],visibleText:['O PROTOCOLO DE AUSCHWITZ'],uncertain:false},[],{search:async()=>[{id:'tt0092099',type:'movie',name:'Top Gun'}]}),[]);
 });
+
+test('manual regional-title search preserves catalog results when strict cover matching finds no proof',async()=>{
+ const {searchTolerantTitles}=await import('../web/identify-cover.js');const rows=[{id:'tt7713068',type:'movie',name:'Birds of Prey',year:'2020'}];
+ assert.deepEqual(await searchTolerantTitles('Aves de Rapina',{search:async()=>rows,identify:async()=>[]}),rows);
+ assert.deepEqual(await searchTolerantTitles('Aves de Rapina',{search:async()=>rows,identify:async()=>{throw Error('offline');}}),rows);
+});
