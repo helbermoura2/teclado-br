@@ -14,7 +14,8 @@ PY
 
 mkdir -p ../qa
 adb shell run-as app.cena.mobile cat files/native-cover-layout.json > ../qa/native-cover-layout.json
-node ../scripts/check-native-cover-layout.mjs
-
 adb shell run-as app.cena.mobile cat files/native-ocr.json > ../qa/native-ocr.json
-(cd .. && node scripts/check-native-cover-identification.mjs)
+layout_result=0
+node ../scripts/check-native-cover-layout.mjs || layout_result=$?
+(cd .. && node scripts/check-native-cover-identification.mjs) || exit 1
+exit "$layout_result"
