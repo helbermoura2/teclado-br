@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private var scanning = false
     private val recognizerDelegate = lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val recognizer by recognizerDelegate
+    private val captureExecutor = Executors.newSingleThreadExecutor()
     private val visionExecutor = Executors.newSingleThreadExecutor()
     private val storyExecutor = Executors.newSingleThreadExecutor()
     private var visualMatcher: VisualMatcher? = null
@@ -158,17 +159,21 @@ class MainActivity : ComponentActivity() {
     private fun recognize(uri: Uri) {
         try {
             require(uri.authority == "$packageName.files")
-            visionInput = try { VisualMatcher.source(this, uri) } catch (_: Exception) { null }
-            val image = InputImage.fromFilePath(this, uri)
-            recognizer.process(image)
-                .addOnSuccessListener { result ->
-                    sendResult(CoverOcr.analyze(result))
+            captureExecutor.execute {
+                val preview=try{CapturePreview.fromUri(this,uri)}catch(_:Exception){""}
+                visionInput=try{VisualMatcher.source(this,uri)}catch(_:Exception){null}
+                val image=try{InputImage.fromFilePath(this,uri)}catch(_:Exception){null}
+                runOnUiThread {
+                    if(isDestroyed||isFinishing)return@runOnUiThread
+                    fun unreadable(){sendResult(JSONObject().put("image",preview).put("title","").put("lines",JSONArray()).put("ocrError","Não consegui ler o texto. Você pode usar o Gemini online ou digitar o título."))}
+                    if(image==null){unreadable();scanning=false;cleanPhoto();consumePending()}
+                    else recognizer.process(image)
+                        .addOnSuccessListener { result -> sendResult(CoverOcr.analyze(result).put("image",preview)) }
+                        .addOnFailureListener { unreadable() }
+                        .addOnCompleteListener { scanning=false;cleanPhoto();consumePending() }
                 }
-                .addOnFailureListener { sendError("Não consegui ler a imagem. Você pode digitar o título.") }
-                .addOnCompleteListener { scanning = false; cleanPhoto(); consumePending() }
-        } catch (_: Exception) {
-            scanning = false; cleanPhoto(); sendError("Não consegui ler essa imagem. Tente outro print.")
-        }
+            }
+        }catch(_:Exception){scanning=false;cleanPhoto();sendError("Não consegui abrir a imagem. Tente outro print.")}
     }
     private fun importImage(uri: Uri) {
         if (scanning) { pendingImage = uri; return }
@@ -467,7 +472,7 @@ class MainActivity : ComponentActivity() {
 
     private fun sendError(message: String) = sendResult(JSONObject().put("error", message))
     private fun sendResult(result: JSONObject) {
-        web.evaluateJavascript("window.CenaNativeResult(${result})", null)
+        if(!isDestroyed&&!isFinishing)web.evaluateJavascript("window.CenaNativeResult(${result})", null)
     }
     private fun cleanPhoto() { photoFile?.delete(); croppedFile?.delete(); photoFile = null; croppedFile = null; photoUri = null }
     override fun onDestroy() {
@@ -483,6 +488,7 @@ class MainActivity : ComponentActivity() {
         localAiClient.cancel();localModelExecutor.shutdownNow();nuvioVisible=false;nuvioExecutor.shutdownNow();historyExecutor.shutdownNow();backupExecutor.shutdownNow()
         seriesExecutor.shutdownNow()
         storyExecutor.shutdownNow()
+        captureExecutor.shutdownNow()
         traktExecutor.shutdownNow()
         visionExecutor.execute { visualMatcher?.close(); visualMatcher = null }
         visionExecutor.shutdown()
