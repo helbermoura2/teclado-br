@@ -69,3 +69,13 @@ test('the new phone OCR searches the assembled phrase and distinguishes the full
   assert.ok(coverQueries(input.lines).some(query => query.includes('Jheye God9 ItsMe')));
   assert.ok(scoreCover({ name: "Are You There God? It's Me, Margaret." }, input.lines) > scoreCover({ name: 'Margaret' }, input.lines));
 });
+
+
+test('broken spacing in the reported Hiroshima screenshot recovers the full catalog title even when Wikidata is limited',async()=>{
+ const {coverSearchPhrases}=await import('../web/identify-cover.js');const lines=['HROSHIN 0 UT OF THE A SHES','HROSHIN','0 UT OF THE A SHES'];assert.ok(coverSearchPhrases(lines).includes('OUT OF THE ASHES'));
+ const fetcher=async raw=>{const url=new URL(raw);if(url.searchParams.get('action')==='wbgetentities')return {ok:false};if(url.host==='v3-cinemeta.strem.io')return {ok:true,json:async()=>({metas:decodeURIComponent(url.pathname).includes('OUT OF THE ASHES')&&url.pathname.includes('/movie/')?[{id:'tt0099772',name:'Hiroshima: Out of the Ashes',releaseInfo:'1990'}]:[]})};if(url.searchParams.get('action')==='wbsearchentities')return {ok:true,json:async()=>({search:[]})};return {ok:true,json:async()=>({query:{pages:{1:{title:'Hiroshima: Out of the Ashes',pageprops:{wikibase_item:'Q123'},extract:'A 1990 film.'}}}})};};
+ const rows=await identifyCover(lines,fetcher);assert.equal(rows[0].id,'tt0099772');assert.equal(rows[0].year,'1990');
+});
+test('Gemini camera hints are search inputs; only real catalog IDs can become cards',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');const rows=await verifyCameraTitles({titles:[{title:'Hiroshima: Out of the Ashes',year:'1990',type:'movie',id:'tt-invented'}]},[],{search:async()=>[{id:'tt0099772',type:'movie',name:'Hiroshima: Out of the Ashes',year:'1990'},{id:'invented',type:'movie',name:'Hiroshima: Out of the Ashes'},{id:'tt9999999',type:'series',name:'Hiroshima: Out of the Ashes'}]});assert.equal(rows.length,1);assert.equal(rows[0].id,'tt0099772');
+});
