@@ -95,7 +95,7 @@ test('camera searches complete visible title even if Gemini guesses different fi
 test('regional catalog clue requires a unique full phrase and corroborating distinctive word',async()=>{
  const {localizedCoverEvidence}=await import('../web/identify-cover.js');const item={id:'tt9415108',name:'The Auschwitz Report',releaseInfo:'2021'};
  const fetcher=async url=>({ok:true,json:async()=>({metas:decodeURIComponent(url).includes('search=protocolo')?[item]:[]})});
- const rows=await localizedCoverEvidence('O Protocolo de Auschwitz',fetcher);assert.equal(rows[0].id,item.id);assert.ok(rows[0].aliases.includes('O Protocolo de Auschwitz'));
+ const rows=await localizedCoverEvidence('O Protocolo de Auschwitz',fetcher);assert.equal(rows[0].id,item.id);assert.ok(!rows[0].aliases.includes('O Protocolo de Auschwitz'),'Search terms must never become title aliases');
  assert.deepEqual(await localizedCoverEvidence('O Protocolo de Auschwitz',async()=>({ok:true,json:async()=>({metas:[item,{id:'tt8774388',name:'The Angel of Auschwitz'}]})})),[]);
  assert.deepEqual(await localizedCoverEvidence('Auschwitz',fetcher),[]);
  assert.deepEqual(await localizedCoverEvidence('O Protocolo de Auschwitz',async url=>({ok:true,json:async()=>({metas:decodeURIComponent(url).includes('search=protocolo de')?[item]:[]})})),[]);
@@ -115,7 +115,7 @@ test('a single shared visible word cannot corroborate a different multi-word AI 
 test('split OCR title is assembled in a usable order and excludes the standalone Auschwitz film',async()=>{
  const {coverTitlePhrase}=await import('../web/identify-cover.js');assert.equal(coverTitlePhrase(['AUSCHWITZ','O PROTOCOLO DE']),'O PROTOCOLO DE AUSCHWITZ');
  const fetcher=async raw=>{const url=new URL(raw);let metas=[];if(url.host==='v3-cinemeta.strem.io'){const path=decodeURIComponent(url.pathname).toLowerCase();metas=path.includes('search=protocolo')?[{id:'tt9415108',name:'The Auschwitz Report',releaseInfo:'2021'}]:path.includes('search=auschwitz')?[{id:'tt1684714',name:'Auschwitz',releaseInfo:'2011'}]:[];}return {ok:true,json:async()=>({metas,search:[],query:{pages:{}}})};};
- const rows=await identifyCover(['AUSCHWITZ','O PROTOCOLO DE'],fetcher);assert.equal(rows.length,1);assert.equal(rows[0].id,'tt9415108');
+ const rows=await identifyCover(['AUSCHWITZ','O PROTOCOLO DE'],fetcher,{enrich:async item=>item.id==='tt9415108'?{...item,aliases:['O Protocolo de Auschwitz']}:item});assert.equal(rows.length,1);assert.equal(rows[0].id,'tt9415108');
 });
 
 test('garbled multi-line OCR retains a full-title match supported by multiple distinct words',async()=>{
