@@ -1,3 +1,4 @@
+import {prepareCoverReading} from './cover-reading.js';
 import {createTitleAliasResolver} from './title-aliases.js';
 import {recentWatches} from './recent-watches.js';
 import {createOnlineAI} from './online-ai.js';
@@ -74,6 +75,7 @@ let libraryReady=false, deferredTraktState=null;
 let cameraSequence=0,cameraAttempt=-1;
 let cameraLines=[];
 const cameraAuto=()=>{try{return JSON.parse(storage.getItem('cena.camera.online.v1')||'false')===true;}catch{return false;}};
+let cameraReading=null,cameraRegions=[];
 let scanPhoto = '', detectedLines = [], detailItem = null, searchGeneration = 0, busy = false;
 const main = $('#main');
 const stremioPanel=createStremioPanel({
@@ -670,6 +672,12 @@ async function cameraJpeg(){
  const image=await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>resolve(image);image.onerror=()=>reject(Error('Não consegui preparar esta imagem.'));image.src=scanPhoto;});
  const scale=Math.min(1,1024/Math.max(image.width,image.height)),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(image.width*scale));canvas.height=Math.max(1,Math.round(image.height*scale));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);return canvas.toDataURL('image/jpeg',.82);
 }
+function showCameraReading(value){
+ const target=$('#camera-reading');if(!target)return;
+ const reading=value?.reading||value;if(!reading?.title){target.hidden=true;return;}
+ const groups=[['Elenco',reading.cast],['Prêmios e publicidade',reading.awards],['Frases da capa',reading.taglines]].filter(([,rows])=>Array.isArray(rows)&&rows.length);
+ target.hidden=false;target.innerHTML=`<strong>${reading.source==='layout'?'Texto em destaque':'Título lido'}: ${escape(reading.title)}</strong>${reading.subtitle?`<p>Subtítulo: ${escape(reading.subtitle)}</p>`:''}${groups.length?`<details><summary>Outros textos da capa</summary>${groups.map(([label,rows])=>`<p><strong>${label}</strong>: ${rows.map(escape).join(' · ')}</p>`).join('')}</details>`:''}`;
+}
 async function analyzeCameraOnline(){
  if(!onlineAI.configured()){toast('Conecte o Gemini no Perfil para analisar a capa.');setTab('connect');$('#online-ai-panel')?.scrollIntoView({block:'center'});return;}
  if(!scanPhoto){toast('Escolha ou fotografe uma capa primeiro.');return;}
@@ -677,10 +685,11 @@ async function analyzeCameraOnline(){
  if(button)button.disabled=true;if(status)status.textContent='Enviando o recorte ao Gemini e conferindo os nomes no catálogo…';
  try{
   const image=await cameraJpeg();if(sequence!==cameraSequence)return;
-  const hints=await onlineAI.identifyCover(image,cameraLines);
+  const hints=await onlineAI.identifyCover(image,cameraLines,cameraRegions);
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
-  const rows=await verifyCameraTitles(hints,cameraLines,{enrich:enrichCameraTitle});
-  const readTitle=coverTitlePhrase([...(hints.visibleText||[]),...cameraLines])||rows[0]?.name||'';
+  const selectedReading=prepareCoverReading(hints,cameraLines,cameraReading);showCameraReading({...selectedReading.reading,title:selectedReading.title});
+  const rows=await verifyCameraTitles(hints,cameraLines,{enrich:enrichCameraTitle,reading:cameraReading});
+  const readTitle=prepareCoverReading(hints,cameraLines,cameraReading).title||rows[0]?.name||'';
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
   else {renderCaptureMatches($('#search-results'),{items:[],mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Não consegui confirmar o título completo no catálogo. As sugestões sem concordância com a capa foram descartadas. Tente outro recorte ou ajuste o texto.';}
@@ -723,7 +732,7 @@ function scan() {
       <p class="scan-tip">Enquadre a capa inteira, incluindo o título e o subtítulo.</p>
       <button class="secondary wide" id="camera-ai-action">${onlineAI.configured()?'✧ Analisar esta capa com Gemini':'✧ Conectar Gemini para analisar capas'}</button>
       <label class="camera-ai-opt"><input id="camera-ai-auto" type="checkbox" ${cameraAuto()?'checked':''}> Usar Gemini automaticamente quando a leitura local estiver incompleta</label>
-      <p class="muted">Ao usar o Gemini, o recorte desta imagem é enviado à Cloudflare e ao Google. Usa internet e a cota da sua API.</p><p class="muted" id="camera-ai-status" role="status"></p>
+      <p class="muted">Ao usar o Gemini, o recorte desta imagem é enviado à Cloudflare e ao Google. Usa internet e a cota da sua API.</p><p class="muted" id="camera-ai-status" role="status"></p><div class="notice" id="camera-reading" hidden></div>
     </section>
     <section class="scan-manual">
       <form id="scan-search">
@@ -744,7 +753,7 @@ $('#photo-input').onchange = event => {
   if (!file) return;
   if (!file.type.startsWith('image/') || file.size > 15 * 1024 * 1024) { toast('Escolha uma imagem de até 15 MB.'); return; }
   if (scanPhoto) URL.revokeObjectURL(scanPhoto);
-  cameraSequence++;cameraLines=[];scanPhoto = URL.createObjectURL(file);
+  cameraSequence++;cameraReading=null;cameraRegions=[];cameraLines=[];scanPhoto = URL.createObjectURL(file);
   setTab('scan'); $('#scan-query').focus();
   event.target.value = '';
 };
@@ -752,8 +761,8 @@ window.CenaNativeResult = result => {
   if (result.error) { toast(result.error); return; }
   if ($('#detail').open) $('#detail').close();
   cameraSequence++;if(scanPhoto.startsWith('blob:'))URL.revokeObjectURL(scanPhoto);scanPhoto=typeof result.image==='string'&&result.image.startsWith('data:image/jpeg;base64,')?result.image:'';
-  const input = coverInput(result);cameraLines=input.lines;
-  setTab('scan');
+  const input = coverInput(result);cameraLines=input.lines;cameraReading=input.reading;cameraRegions=Array.isArray(result.regions)?result.regions:[];
+  setTab('scan');showCameraReading(cameraReading);
   const lines = (result.lines || []).filter(line => typeof line === 'string' && line.trim().length > 2);
   detectedLines = [...new Set(lines)].slice(0, 6);
   if (detectedLines.length > 1 && input.query === lines[0]) {
