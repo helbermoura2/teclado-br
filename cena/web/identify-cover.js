@@ -18,8 +18,10 @@ export function completeCoverPhrases(lines){
 function phraseAgreement(item,phrase){
  const wanted=meaningful(phrase);if(!wanted.length)return 0;
  return Math.max(0,...coverLabels(item).map(label=>{
-  const words=meaningful(label),coverage=wanted.filter(word=>words.some(other=>word===other||word.length>=5&&other.length>=5&&similarity(word,other)>=.78)).length/wanted.length;
-  return Math.max(similarity(phrase,label),coverage===1&&wanted.length>=2?.9:0);
+  const raw=titleWords(label),words=[...meaningful(label)];for(let i=0;i<raw.length;i++)for(let n=2;n<=3&&i+n<=raw.length;n++)words.push(raw.slice(i,i+n).join(''));
+  const hits=wanted.filter(word=>words.some(other=>word===other||/^[a-z]{3,}[0-9]$/.test(word)&&word.slice(0,-1)===other||word.length>=5&&other.length>=5&&similarity(word,other)>=.78)).length,coverage=hits/wanted.length;
+  const fuzzy=hits>=2&&coverage>=.5&&similarity(phrase,label)>=.35?.78:0;
+  return Math.max(similarity(phrase,label),coverage===1&&wanted.length>=2?.9:fuzzy);
  }));
 }
 export function coverTitlePhrase(lines){
@@ -236,7 +238,7 @@ export async function verifyCameraTitles(hints,lines=[],{search=searchPublicTitl
   if(agreement<.72||hints?.uncertain===true&&!constraint)continue;
   verified.push({...item,matchScore:agreement,suggested:true,aiAssisted:true});
  }
- if(constraint&&!verified.length)for(const item of await localized(constraint))verified.push({...item,matchScore:.86,suggested:true,aiAssisted:true});
+ if(constraint&&!verified.length)for(const item of (await localized(constraint)).filter(item=>suggestions.some(hint=>!['movie','series'].includes(hint.type))||!suggestions.length||suggestions.some(hint=>hint.type===item.type)))verified.push({...item,matchScore:.86,suggested:true,aiAssisted:true});
  const unique=new Map();for(const item of verified)if(!unique.has(item.id)||unique.get(item.id).matchScore<item.matchScore)unique.set(item.id,item);
  return [...unique.values()].sort((a,b)=>b.matchScore-a.matchScore).slice(0,8);
 }
