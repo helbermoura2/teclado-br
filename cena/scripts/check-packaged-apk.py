@@ -10,9 +10,11 @@ apk = Path(sys.argv[1])
 with ZipFile(apk) as archive:
     index = archive.read('assets/index.html').decode()
     app = archive.read('assets/app.js').decode()
-    assert 'v0.28.2' in index
+    assert 'v0.28.3' in index
     assert 'assets/brand-mark.png' in archive.namelist()
     assert 'assets/online-ai.js' in archive.namelist()
+    assert 'camera-ai-action' in app and 'analyzeCameraOnline' in app
+    assert '/api/ai/identify-cover' in archive.read('assets/online-ai.js').decode()
     assert 'assets/recent-watches.js' in archive.namelist()
     assert 'assets/brand-wordmark.svg' in archive.namelist()
     assert 'CENA IA, início' in index
@@ -69,7 +71,7 @@ badging = subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)],
 expected_package = sys.argv[2] if len(sys.argv)>2 else "app.cena.mobile"
 assert expected_package in {"app.cena.mobile","app.cena.mobile.next"}
 assert f"name='{expected_package}'" in badging
-assert "versionName='0.28.2'" in badging and "versionCode='69'" in badging
+assert "versionName='0.28.3'" in badging and "versionCode='70'" in badging
 assert any('application-icon' in line for line in subprocess.check_output([str(tools[-1]), 'dump', 'badging', str(apk)], text=True).splitlines()), 'Launcher icon must be packaged.'
 print('Verified packaged APK:', badging, 'model bytes:', model['size'])
 
