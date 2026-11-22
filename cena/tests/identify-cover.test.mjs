@@ -137,3 +137,20 @@ test('manual regional-title search preserves catalog results when strict cover m
  assert.deepEqual(await searchTolerantTitles('Aves de Rapina',{search:async()=>rows,identify:async()=>[]}),rows);
  assert.deepEqual(await searchTolerantTitles('Aves de Rapina',{search:async()=>rows,identify:async()=>{throw Error('offline');}}),rows);
 });
+
+test('Portuguese Hiroshima subtitle matches the same film through verified native aliases',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');
+ const movie={id:'tt0099772',type:'movie',name:'Hiroshima: Out of the Ashes',year:'1990'},other={id:'tt0475296',type:'movie',name:'Hiroshima',year:'2005'};
+ const aliases=['Hiroshima - A Guerra da Sobrevivência',movie.name];let queried=[];
+ const rows=await verifyCameraTitles({titles:[{title:'Hiroshima - A Guerra da Sobrevivência',originalTitle:movie.name,year:'1990',type:'movie'}],visibleText:['HIROSHIMA','A GUERRA DA SOBREVIVENCIA'],uncertain:false},['HIROSHIMA A GUERRA DA SOBREVIVENCIA'],{search:async()=>[movie,other],enrich:async item=>{queried.push(item.id);return item.id===movie.id?{...item,aliases}:item;}});
+ assert.equal(rows.length,1);assert.equal(rows[0].id,movie.id);assert.ok(queried.includes(movie.id));
+});
+test('alias enrichment cannot replace a candidate with another IMDb ID or validate unrelated themes',async()=>{
+ const {verifyCameraTitles}=await import('../web/identify-cover.js');const wrong={id:'tt8774388',type:'movie',name:'The Angel of Auschwitz',year:'2019'};
+ assert.deepEqual(await verifyCameraTitles({titles:[{title:wrong.name,type:'movie'}],visibleText:['O PROTOCOLO DE AUSCHWITZ'],uncertain:false},[],{search:async()=>[wrong],enrich:async()=>({id:'tt9415108',type:'movie',name:'O Protocolo de Auschwitz'})}),[]);
+});
+test('local OCR uses regional names after catalog retrieval without weakening the full-title filter',async()=>{
+ const movie={id:'tt0099772',name:'Hiroshima: Out of the Ashes',releaseInfo:'1990'},other={id:'tt0475296',name:'Hiroshima',releaseInfo:'2005'};
+ const fetcher=async raw=>{const url=new URL(raw);return {ok:true,json:async()=>url.host==='v3-cinemeta.strem.io'?{metas:url.pathname.includes('/movie/')?[movie,other]:[]}:{search:[],query:{pages:{}}}};};
+ const rows=await identifyCover(['HIROSHIMA A GUERRA DA SOBREVIVENCIA','HIROSHIMA','A GUERRA DA SOBREVIVENCIA'],fetcher,{enrich:async item=>item.id===movie.id?{...item,aliases:['Hiroshima - A Guerra da Sobrevivência']}:item});assert.equal(rows.length,1);assert.equal(rows[0].id,movie.id);
+});
