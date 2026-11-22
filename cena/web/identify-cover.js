@@ -28,9 +28,11 @@ function phraseAgreement(item,phrase){
 }
 export function coverTitlePhrase(lines){
  lines=lines.filter(line=>!promotionalCoverText(line));
- if(/^\d{1,4}$/.test(String(lines[0]||'').trim()))return String(lines[0]).trim();
+ if(/^(?:\d{1,4}|\d{1,2}:\d{2})$/.test(String(lines[0]||'').trim()))return String(lines[0]).trim();
  const primary=lines.find(x=>typeof x==='string'&&meaningful(x).length)||'',anchor=meaningful(primary);
- const phrases=completeCoverPhrases(lines).filter(phrase=>anchor.some(word=>meaningful(phrase).some(other=>similarity(word,other)>=.78)));
+ const primaryWords=titleWords(primary);
+ if(primaryWords.length>=2&&!titleStops.has(primaryWords.at(-1)))return primary;
+ const phrases=completeCoverPhrases(lines).filter(phrase=>anchor.some(word=>meaningful(phrase).some(other=>similarity(word,other)>=.78))&&!/\b\d{1,2}:\d{2}\b/.test(phrase)&&/\b(a|o|ao|de|da|do|dos|das|em|no|na|the|of|and|it|its|me|you|are)\b/i.test(phrase));
  // Prefer the original full phrase. Assemble adjacent short OCR lines only when necessary.
  return phrases.find(phrase=>lines.includes(phrase)&&meaningful(phrase).length>=2)||phrases.sort((a,b)=>Number(titleStops.has(titleWords(a).at(-1)))-Number(titleStops.has(titleWords(b).at(-1))))[0]||'';
 }
