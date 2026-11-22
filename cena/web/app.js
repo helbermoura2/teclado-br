@@ -28,7 +28,7 @@ import { ArtworkResolver, trustedArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
 import { getTitleDetails } from './search-public.js';
 import { createLocalApi } from './local-api.js';
-import { coverInput, identifyCover, searchTolerantTitles, verifyCameraTitles } from './identify-cover.js';
+import { coverInput, identifyCover, searchTolerantTitles, verifyCameraTitles, coverTitlePhrase } from './identify-cover.js';
 import { rankWithVision } from './visual-ranking.js';
 const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
@@ -514,7 +514,7 @@ function renderSync(){const target=$('#sync-summary');if(target)renderSyncSummar
 function libraryRows(){const rows=items.filter(i=>(filter==='all'||i.status===filter)&&(libraryType==='all'||i.type===libraryType));if(librarySort==='name')rows.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));else if(librarySort==='year')rows.sort((a,b)=>(Number(b.year)||0)-(Number(a.year)||0));return rows;}
 function library() {
   const rows = libraryRows();
-  main.innerHTML = `<div class="library-titlebar"><h1>Minha lista</h1><button class="secondary" id="open-collections">Minhas listas</button></div><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips library-status-filters"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Já assisti</button><button class="chip ${filter==='progress'?'selected':''}" data-filter="progress">Em andamento</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div>${filter==='progress'?'<section id="nuvio-library"></section>':''}<div id="library-saved" ${filter==='progress'?'hidden':''}><details class="library-filter-panel"><summary>Filtros e ordenação</summary><div class="library-controls"><label>Tipo <select id="library-type" aria-label="Tipo no catálogo"><option value="all">Filmes e séries</option><option value="movie">Filmes</option><option value="series">Séries</option></select></label><label>Ordenar <select id="library-sort" aria-label="Ordenar catálogo"><option value="saved">Ordem da lista</option><option value="name">Título A–Z</option><option value="year">Ano de lançamento</option></select></label></div></details><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} títulos</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p><div id="library-grid">${rows.length ? grid(rows) : empty()}</div><div id="library-sync-notice">${notice()}</div></div>`;
+  main.innerHTML = `<div class="library-titlebar"><h1>Minha lista</h1><button class="secondary" id="open-collections">Minhas listas</button></div><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips library-status-filters"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Já assisti</button><button class="chip ${filter==='progress'?'selected':''}" data-filter="progress">Em andamento</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div>${filter==='progress'?'<section id="nuvio-library"></section>':''}<div id="library-saved" ${filter==='progress'?'hidden':''}><details class="library-filter-panel"><summary>Filtros e ordenação</summary><div class="library-controls"><label>Tipo <select id="library-type" aria-label="Tipo no catálogo"><option value="all">Filmes e séries</option><option value="movie">Filmes</option><option value="series">Séries</option></select></label><label>Ordenar <select id="library-sort" aria-label="Ordenar catálogo"><option value="saved">Ordem da lista</option><option value="name">Título A–Z</option><option value="year">Ano de lançamento</option></select></label></div></details><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} ${rows.length===1?'título':'títulos'}</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p><div id="library-grid">${rows.length ? grid(rows) : empty()}</div><div id="library-sync-notice">${notice()}</div></div>`;
   $('#library-type').value=libraryType;$('#library-sort').value=librarySort;$('#library-type').onchange=e=>{libraryType=e.target.value;patchLibrary();};$('#library-sort').onchange=e=>{librarySort=e.target.value;patchLibrary();};
   if($('#open-collections'))$('#open-collections').onclick=()=>setTab('collections');
   if($('#refresh-artwork')) $('#refresh-artwork').onclick=()=>{
@@ -557,7 +557,7 @@ function patchLibrary(){
     }
     for(const card of existing.values())card.remove();
   }
-  const count=$('#library-count');if(count)count.textContent=`${rows.length} títulos`;
+  const count=$('#library-count');if(count)count.textContent=`${rows.length} ${rows.length===1?'título':'títulos'}`;
   const noticeArea=$('#library-sync-notice');if(noticeArea)noticeArea.innerHTML=notice();
   updateArtworkProgress();wireImages();
   const anchor=anchors.find(value=>value.card.isConnected);
@@ -656,7 +656,7 @@ function renderCaptureMatches(target,response,coverLines){
       if (field) field.value = searchResults[0].originalName || searchResults[0].name;
     }
     const assisted = searchResults.some(item => item.suggested) || ['assisted','vision'].includes(response.mode);
-    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} títulos</span></div>${assisted && searchResults.length ? `<p class="muted">${response.mode==='vision'?'O Gemini analisou a imagem e conferi os nomes no catálogo.':'Conferi variações do texto e pistas da capa.'} Confira a imagem e o ano antes de adicionar.</p>` : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
+    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} ${searchResults.length===1?'título':'títulos'}</span></div>${assisted && searchResults.length ? `<p class="muted">${response.mode==='vision'?'O Gemini analisou a imagem e conferi os nomes no catálogo.':'Conferi variações do texto e pistas da capa.'} Confira a imagem e o ano antes de adicionar.</p>` : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
 
     wireImages();
 }
@@ -676,9 +676,11 @@ async function analyzeCameraOnline(){
   const hints=await onlineAI.identifyCover(image,cameraLines);
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   const rows=await verifyCameraTitles(hints,cameraLines);
+  const readTitle=coverTitlePhrase([...(hints.visibleText||[]),...cameraLines])||hints.titles?.[0]?.title||'';
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
-  else if(status?.isConnected)status.textContent='Não consegui confirmar um título no catálogo. Tente outro recorte ou ajuste o texto; não adicionei nenhum filme automaticamente.';
+  else {renderCaptureMatches($('#search-results'),{items:[],mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Não consegui confirmar o título completo no catálogo. As sugestões sem concordância com a capa foram descartadas. Tente outro recorte ou ajuste o texto.';}
+  if(readTitle&&$('#scan-query'))$('#scan-query').value=readTitle.slice(0,150);
  }catch(error){if(sequence===cameraSequence&&status?.isConnected)status.textContent=error.message;}
  finally{if(button?.isConnected)button.disabled=false;}
 }
@@ -693,7 +695,7 @@ async function runSearch(query, coverLines = null) {
     const response = coverLines && apiBase === 'local' ? { items: await identifyCover(coverLines), mode: 'assisted' } : await api(`/api/search?q=${encodeURIComponent(query)}`);
     if (generation !== searchGeneration || !target.isConnected) return;
     renderCaptureMatches(target,response,coverLines);
-    if(coverLines&&!searchResults.length&&cameraAuto()&&onlineAI.configured()&&scanPhoto&&cameraAttempt!==cameraSequence){analyzeCameraOnline();return;}
+    if(coverLines&&(!searchResults.length||!coverTitlePhrase(coverLines)||!searchResults.some(item=>item.matchScore>=.72&&!item.partialTitle&&!item.ambiguousTitle))&&cameraAuto()&&onlineAI.configured()&&scanPhoto&&cameraAttempt!==cameraSequence){analyzeCameraOnline();return;}
 
     if (native && coverLines && searchResults.some(item => item.poster) && typeof window.CenaAndroid.compareCovers === 'function') {
       target.insertAdjacentHTML('beforeend', '<div id="vision-status" class="notice" role="status">Comparando as capas com IA no aparelho…</div>');
@@ -716,7 +718,7 @@ function scan() {
       </div>
       <p class="scan-tip">Enquadre a capa inteira, incluindo o título e o subtítulo.</p>
       <button class="secondary wide" id="camera-ai-action">${onlineAI.configured()?'✧ Analisar esta capa com Gemini':'✧ Conectar Gemini para analisar capas'}</button>
-      <label class="camera-ai-opt"><input id="camera-ai-auto" type="checkbox" ${cameraAuto()?'checked':''}> Usar Gemini automaticamente quando a leitura local não encontrar títulos</label>
+      <label class="camera-ai-opt"><input id="camera-ai-auto" type="checkbox" ${cameraAuto()?'checked':''}> Usar Gemini automaticamente quando a leitura local estiver incompleta</label>
       <p class="muted">Ao usar o Gemini, o recorte desta imagem é enviado à Cloudflare e ao Google. Usa internet e a cota da sua API.</p><p class="muted" id="camera-ai-status" role="status"></p>
     </section>
     <section class="scan-manual">
