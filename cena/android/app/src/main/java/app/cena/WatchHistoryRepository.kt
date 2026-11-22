@@ -74,6 +74,11 @@ class WatchHistoryRepository(context:Context,private val source:WatchHistorySour
   }}catch(error:Exception){val message=safe(error);if(owner.isNotBlank()){meta.put("error",message);store.setMeta(owner,meta)}else preferences.edit().putString("error",message).apply();return HistoryPass.FAILED}
   finally{running.set(false)}
  }
- fun export():JSONObject {val owner=ownerForView();check(owner.isNotBlank()){"Nenhum histórico local para exportar."};return JSONObject().put("format","cena-watch-history").put("version",1).put("source","Trakt").put("exportedAt",java.time.Instant.ofEpochMilli(now()).toString()).put("account",store.meta(owner).optString("username")).put("events",JSONArray(store.rows(owner)))}
+ private fun exportOwner(owner:String):JSONObject {check(owner.isNotBlank()){"Nenhum histórico local para exportar."};return JSONObject().put("format","cena-watch-history").put("version",1).put("source","Trakt").put("exportedAt",java.time.Instant.ofEpochMilli(now()).toString()).put("account",store.meta(owner).optString("username")).put("events",JSONArray(store.rows(owner)))}
+ fun export():JSONObject=exportOwner(ownerForView())
+ // Backup is a local operation: never wait for the Trakt network synchronization lock.
+ fun exportLocal():JSONObject=exportOwner(preferences.getString("account","").orEmpty())
+
  override fun close(){store.close()}
 }
+
