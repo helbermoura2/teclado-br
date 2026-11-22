@@ -36,3 +36,185 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 @media(prefers-reduced-motion:no-preference){.primary:active::after{transform:translateX(120%);transition:transform 350ms var(--ease)}.poster-card:active,.resume-open:active{transform:scale(.985)}.scan-sweep{animation:cena-scan 2.3s ease-in-out 2 alternate}.capture-emblem{animation:cena-emblem-in 500ms var(--ease) both}dialog[open]{animation:cena-dialog-in 220ms var(--ease) both}details[open]>*:not(summary){animation:cena-panel-in 180ms var(--ease) both}.poster-art[data-artwork-state=loading]::before{content:'';position:absolute;inset:0;background:linear-gradient(110deg,transparent 20%,#ffffff08 50%,transparent 80%);pointer-events:none;animation:cena-skeleton 1.4s ease-in-out 2}}
 @keyframes cena-dialog-in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}@keyframes cena-panel-in{from{opacity:.6;transform:translateY(-3px)}to{opacity:1;transform:none}}@keyframes cena-emblem-in{from{opacity:.5;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes cena-scan{to{transform:translateY(57px);opacity:.25}}@keyframes cena-skeleton{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* CENA Vision — captura redesenhada, edição NOVO.
+   Somente apresentação: IDs, formulários e callbacks originais preservados. */
+#main[data-screen="scan"]{
+  --vision-text:#f5f0fc;--vision-muted:#aaa1b9;--vision-stroke:rgba(226,205,255,.13);
+  --vision-glass:rgba(24,20,32,.64);
+}
+#main[data-screen="scan"] .scan-studio{
+  position:relative;isolation:isolate;overflow:hidden;
+  padding:26px 18px 19px;border:1px solid var(--vision-stroke);border-radius:28px;
+  background:
+    radial-gradient(ellipse 105% 50% at 50% -23%,rgba(147,95,203,.23),transparent 73%),
+    linear-gradient(155deg,rgba(25,21,35,.9),rgba(11,11,17,.94) 76%);
+  box-shadow:0 18px 44px rgba(0,0,0,.27),inset 0 1px 0 rgba(255,255,255,.075);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+}
+#main[data-screen="scan"] .scan-studio::before{
+  content:"";position:absolute;inset:0 0 auto;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(238,216,255,.45),transparent);
+  pointer-events:none;
+}
+#main[data-screen="scan"] .scan-studio-kicker{
+  display:flex;align-items:center;gap:8px;margin:0 0 17px;
+  color:#cfb2eb;font:750 9px/1.2 Manrope,system-ui,sans-serif;
+  letter-spacing:.16em;text-transform:uppercase;
+}
+#main[data-screen="scan"] .scan-studio-dot{
+  width:6px;height:6px;border-radius:50%;background:#c697fa;
+  box-shadow:0 0 0 4px rgba(174,110,233,.10),0 0 14px rgba(190,139,249,.6);
+}
+#main[data-screen="scan"] .scan-kicker-divider{color:#725d82}
+#main[data-screen="scan"] .scan-studio h1{
+  font-family:Manrope,system-ui,sans-serif;font-size:clamp(28px,7vw,39px);
+  font-weight:800;letter-spacing:-.06em;line-height:1.09;
+  margin:0 0 10px;color:var(--vision-text);
+}
+#main[data-screen="scan"] .scan-studio h1 span{
+  background:linear-gradient(110deg,#f5dfff,#b986ef 72%,#dcb4ff);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+#main[data-screen="scan"] .scan-studio>p:first-of-type{
+  max-width:31ch;color:#c0b7ce;line-height:1.55;font-size:12px;
+}
+#main[data-screen="scan"] .scan-viewfinder{
+  width:100%;height:175px;max-width:none;margin:21px auto 13px;
+  border:1px solid rgba(190,147,234,.20);border-radius:21px;
+  background:
+    radial-gradient(circle at 50% 48%,rgba(174,115,234,.16),transparent 55%),
+    repeating-linear-gradient(90deg,transparent,transparent 31px,rgba(215,177,255,.027) 32px),
+    linear-gradient(145deg,rgba(18,15,27,.9),rgba(36,27,49,.8));
+  box-shadow:inset 0 0 34px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.08);
+}
+#main[data-screen="scan"] .scan-viewfinder::before{
+  content:"";position:absolute;inset:15px;border:1px dashed rgba(202,169,245,.19);
+  border-radius:14px;pointer-events:none;
+}
+#main[data-screen="scan"] .scan-viewfinder svg{
+  width:138px;height:112px;z-index:1;stroke:#cba5f6;
+  filter:drop-shadow(0 0 11px rgba(173,106,232,.16));
+}
+#main[data-screen="scan"] .scan-sweep{
+  left:12%;right:12%;top:24%;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(201,160,251,.85),transparent);
+  box-shadow:0 0 14px rgba(203,158,255,.46);
+}
+#main[data-screen="scan"] .scan-frame{
+  margin:20px auto 14px;min-height:120px;border-radius:20px;overflow:hidden;
+  border:1px solid rgba(199,157,240,.26);background:rgba(6,7,12,.8);
+}
+#main[data-screen="scan"] .scan-frame img{border-radius:17px}
+#main[data-screen="scan"] .scan-studio-actions{
+  grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);
+  gap:10px;margin:14px 0 9px;
+}
+#main[data-screen="scan"] .scan-studio-actions button{
+  min-width:0;min-height:52px;padding:11px 8px;border-radius:15px;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  font-size:12px;font-weight:800;letter-spacing:-.015em;
+}
+#main[data-screen="scan"] .scan-studio-actions svg{
+  width:18px;height:18px;flex:none;fill:none;stroke:currentColor;
+  stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;
+}
+#main[data-screen="scan"] .scan-camera-primary{
+  background:linear-gradient(120deg,#e4c4ff,#b88aef);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 9px 24px rgba(139,74,200,.19);
+}
+#main[data-screen="scan"] .scan-gallery-secondary{
+  background:rgba(255,255,255,.045);border-color:rgba(222,199,249,.15);
+}
+#main[data-screen="scan"] .scan-studio .scan-tip{
+  margin:12px 1px 20px;font-size:11px;line-height:1.45;color:#9e96ad;
+}
+#main[data-screen="scan"] .scan-ai-module{
+  padding:15px 13px 12px;margin-top:17px;
+  border:1px solid rgba(212,180,246,.13);border-radius:19px;
+  background:linear-gradient(138deg,rgba(111,72,152,.13),rgba(255,255,255,.018));
+}
+#main[data-screen="scan"] .scan-ai-topline{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+#main[data-screen="scan"] .scan-ai-icon{
+  display:grid;place-items:center;width:37px;height:37px;flex:none;
+  border:1px solid rgba(211,163,255,.24);border-radius:12px;
+  background:rgba(185,133,238,.12);font-size:18px;color:#d6adff;
+}
+#main[data-screen="scan"] .scan-ai-topline>div{flex:1;min-width:0}
+#main[data-screen="scan"] .scan-ai-topline strong,
+#main[data-screen="scan"] .scan-ai-topline small{display:block}
+#main[data-screen="scan"] .scan-ai-topline strong{font-size:12px;letter-spacing:-.01em}
+#main[data-screen="scan"] .scan-ai-topline small{font-size:10px;color:#aaa0b7;margin-top:3px}
+#main[data-screen="scan"] .scan-ai-online{
+  font-size:8px;font-weight:850;letter-spacing:.08em;color:#c5a1ec;
+  padding:5px 7px;border-radius:7px;background:rgba(203,158,249,.08);
+}
+#main[data-screen="scan"] .scan-ai-trigger{
+  width:100%;min-height:43px;border-radius:12px;background:rgba(255,255,255,.052);
+  border:1px solid rgba(218,182,246,.15);font-size:12px;
+}
+#main[data-screen="scan"] .scan-ai-preferences{margin:6px 0 0}
+#main[data-screen="scan"] .scan-ai-preferences summary{
+  min-height:38px;padding:5px 2px;color:#aaa0b6;font-size:11px;
+  font-weight:600;
+}
+#main[data-screen="scan"] .scan-ai-preferences .camera-ai-opt{
+  margin:9px 0 12px;font-size:12px;
+}
+#main[data-screen="scan"] .scan-ai-preferences .scan-ai-privacy{
+  font-size:11px;line-height:1.55;padding:10px;border-radius:10px;
+  background:rgba(0,0,0,.15);color:#a99eaf;
+}
+#main[data-screen="scan"] #camera-ai-status:empty{display:none}
+#main[data-screen="scan"] #camera-ai-status{padding-top:7px;font-size:11px}
+#main[data-screen="scan"] .scan-search-panel{
+  margin:19px 0 12px;padding:18px 17px;
+  border:1px solid rgba(233,209,255,.09);border-radius:23px;
+  background:rgba(22,20,29,.55);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+}
+#main[data-screen="scan"] .scan-search-heading{
+  display:flex;align-items:center;gap:11px;margin-bottom:15px;
+}
+#main[data-screen="scan"] .scan-search-symbol{
+  display:grid;place-items:center;width:37px;height:37px;flex:none;border-radius:12px;
+  font-size:27px;color:#d3b2f5;background:rgba(208,164,248,.085);
+}
+#main[data-screen="scan"] .scan-search-heading strong{display:block;font-size:15px;font-weight:800}
+#main[data-screen="scan"] .scan-search-heading p{
+  margin:2px 0 0;color:#a59caf;font-size:11px;line-height:1.4;
+}
+#main[data-screen="scan"] .scan-search-panel label{
+  display:block;font-size:11px;color:#aaa1b4;margin-bottom:7px;font-weight:650;
+}
+#main[data-screen="scan"] .scan-search-panel .search-row{gap:9px}
+#main[data-screen="scan"] #scan-query{
+  min-height:49px;padding:13px 12px;border-radius:12px;
+  background:rgba(4,5,10,.54);border:1px solid rgba(228,199,255,.12);
+}
+#main[data-screen="scan"] .scan-search-panel .primary{border-radius:12px;min-height:49px}
+#main[data-screen="scan"] .scan-info{
+  margin:0 0 22px;padding:5px 14px;
+  background:rgba(17,15,24,.38);border-color:rgba(222,195,250,.075);
+}
+@media(prefers-reduced-motion:no-preference){
+  #main[data-screen="scan"] .scan-studio,
+  #main[data-screen="scan"] .scan-search-panel{animation:cena-vision-reveal .38s cubic-bezier(.2,.8,.2,1) both}
+  #main[data-screen="scan"] .scan-search-panel{animation-delay:.08s}
+  #main[data-screen="scan"] .scan-studio-actions button:active{transform:scale(.96)}
+  #main[data-screen="scan"] .scan-ai-icon{animation:cena-vision-breathe 3.2s ease-in-out infinite}
+}
+@keyframes cena-vision-reveal{from{opacity:.55;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cena-vision-breathe{50%{box-shadow:0 0 21px rgba(185,126,236,.18)}}
+@media(max-width:360px){
+  #main[data-screen="scan"] .scan-studio{padding:23px 14px 16px}
+  #main[data-screen="scan"] .scan-studio h1{font-size:28px}
+  #main[data-screen="scan"] .scan-studio-actions button{font-size:11px;gap:4px}
+  #main[data-screen="scan"] .scan-studio-actions svg{width:16px;height:16px}
+  #main[data-screen="scan"] .scan-ai-module{padding-inline:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  #main[data-screen="scan"] .scan-studio *,
+  #main[data-screen="scan"] .scan-studio,
+  #main[data-screen="scan"] .scan-search-panel{animation:none!important;transition:none!important}
+}
