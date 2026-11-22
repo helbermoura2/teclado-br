@@ -8,6 +8,7 @@ import kotlin.math.min
 
 /** Keep complete title phrases instead of taking only the largest printed word. */
 object CoverOcr {
+    fun region(text:String,box:android.graphics.Rect):JSONObject=JSONObject().put("text",text.take(160)).put("x",box.left.coerceAtLeast(0)).put("y",box.top.coerceAtLeast(0)).put("width",box.width().coerceAtLeast(0)).put("height",box.height().coerceAtLeast(0))
     fun analyze(result: Text): JSONObject {
         val all = result.textBlocks.flatMap { it.lines }
         val ranked = all.sortedByDescending { it.boundingBox?.height() ?: 0 }
@@ -27,5 +28,6 @@ object CoverOcr {
             .put("lines", JSONArray(ranked.map { it.text }.distinct().take(24)))
             .put("phrases", JSONArray(phrases))
             .put("fullText", result.text.take(6000))
+            .put("regions",JSONArray(all.take(100).mapNotNull{line->line.boundingBox?.let{box->region(line.text,box)}}))
     }
 }
