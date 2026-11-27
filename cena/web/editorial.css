@@ -256,3 +256,16 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 #viewing-period:not([hidden]){margin-top:24px}
 .recap-canvas{display:block;width:min(100%,320px);height:auto;margin:16px auto;border-radius:12px;border:1px solid #b18ddd35}
 #recap-preview>button{margin-top:8px}
+
+.history-filters.stats-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:12px 0}
+.stats-filters label{margin:0 0 4px;font-size:11px}
+.stats-filters select{width:100%;min-height:38px;padding:7px 9px;font-size:13px}
+.stats-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0;background:none}
+#history-stats .stats-section-heading h2{font:750 18px/1.2 Manrope,system-ui;margin:0}
+.stats-section-heading span{font-size:11px;color:#cbb3ff}
+#history-stats .stats-overview{padding:0;background:none;border:0}
+#history-stats .stats-overview .history-stat-grid,.stats-year-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0}
+#history-stats .stats-overview .history-stat-grid>div,.stats-year-strip>div{display:flex;flex-direction:column;justify-content:center;min-height:68px;background:#16141a;border:1px solid #ffffff13;border-radius:11px;padding:9px}
+#history-stats .stats-overview strong,.stats-year-strip strong{font:800 clamp(15px,4.4vw,21px)/1.14 Manrope,system-ui;color:#d9bcff;font-variant-numeric:tabular-nums}
+#history-stats .stats-overview .history-stat-grid span,.stats-year-strip span{font-size:10px;line-height:1.2;margin-top:5px;color:#c8becf}
+#history-stats .stats-year{margin-top:20px}
