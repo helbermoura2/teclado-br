@@ -60,6 +60,7 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
   val progress=d.optJSONArray("progress")?:JSONArray();val resume=JSONArray();for(i in 0 until progress.length()){val row=progress.optJSONObject(i)?:continue;if(row.optString("id").isBlank()){unsupported++;continue};if(resume.length()<100&&row.optString("type")+":"+row.optString("id")+":"+row.optInt("season")+":"+row.optInt("episode") !in finished)resume.put(row)}
   val output=JSONObject().put("connected",connected).put("active",active).put("profileId",selected).put("profiles",a.optJSONArray("profiles")?:JSONArray()).put("profileName",a.optString("profileName")).put("account",a.optString("account"))
    .put("scope",java.security.MessageDigest.getInstance("SHA-256").digest((a.optString("uid")+":"+selected).toByteArray()).joinToString(""){"%02x".format(it)}.take(24)).put("lastSync",if(d.optInt("profile")==selected)d.optLong("lastSync") else 0).put("error",a.optString("error")).put("series",if(active&&d.optInt("profile")==selected)JSONArray(shows.values.sortedByDescending{it.optLong("watchedAt")})else JSONArray()).put("watchedCount",watched.length()).put("unsupported",unsupported).put("watched",if(active&&d.optInt("profile")==selected)filtered else JSONArray()).put("recent",if(active&&d.optInt("profile")==selected)recent else JSONArray()).put("progress",if(active&&d.optInt("profile")==selected)resume else JSONArray())
+  if(active&&d.optInt("profile")==selected)output.put("statistics",NuvioCodec.statistics(watched))
   if(!connected&&a.optLong("pairExpires")>now())output.put("pairing",true).put("userCode",a.optString("userCode")).put("verificationUrl",a.optString("verificationUrl"))
   output
  }
@@ -123,6 +124,37 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
 }
 
 internal object NuvioCodec {
+ private class WatchTotals {
+  val movies=mutableSetOf<String>()
+  val series=mutableSetOf<String>()
+  val episodes=mutableSetOf<String>()
+  fun add(row:JSONObject) {
+   val id=row.optString("id")
+   if(row.optString("type")=="movie")movies.add(id)
+   else {
+    series.add(id)
+    episodes.add("$id:${row.optInt("season")}:${row.optInt("episode")}")
+   }
+  }
+  fun json()=JSONObject().put("movies",movies.size).put("series",series.size)
+   .put("episodes",episodes.size).put("plays",movies.size+episodes.size)
+ }
+ fun statistics(watched:JSONArray):JSONObject {
+  val totals=WatchTotals()
+  val unknown=WatchTotals()
+  val years=sortedMapOf<Int,WatchTotals>(compareByDescending{it})
+  val timezone=java.time.ZoneId.systemDefault()
+  for(index in 0 until watched.length()){
+   val row=watched.optJSONObject(index)?:continue
+   if(row.optString("id").isBlank())continue
+   totals.add(row)
+   val date=try{row.optLong("watchedAt").takeIf{it>0}?.let{java.time.Instant.ofEpochMilli(it).atZone(timezone)}}catch(_:java.time.DateTimeException){null}
+   if(date!=null&&date.year in 1..9999)years.getOrPut(date.year){WatchTotals()}.add(row)
+   else unknown.add(row)
+  }
+  return JSONObject().put("origin","Nuvio").put("totals",totals.json().put("unknownDates",unknown.json().optInt("plays")))
+   .put("unknown",unknown.json()).put("years",JSONArray(years.map{(year,counts)->counts.json().put("year",year)}))
+ }
  private fun base(row:JSONObject):JSONObject? {
   val source=row.optString("content_id");val type=when(row.optString("content_type")){"movie"->"movie";"series","show","tv"->"series";else->return null}
   val match=Regex("^(tt\\d{5,12})(?::(\\d+):(\\d+))?$").matchEntire(source)

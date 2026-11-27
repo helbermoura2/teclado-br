@@ -1,5 +1,5 @@
 import {historyStats} from './watch-history.js';
-export function recapData(state,year){if(!/^\d{4}$/.test(String(year)))throw Error('Escolha um ano para sua retrospectiva.');const stats=historyStats(state,String(year));if(!stats.plays)throw Error('Não há registros confirmados para este ano.');return {origin:state.origin==='backup'?'backup':'Trakt',year:Number(year),movies:Number(stats.movies)||0,series:Number(stats.series)||0,episodes:Number(stats.episodes)||0,plays:Number(stats.plays)||0,minutes:Number(stats.estimatedMinutes)||0};}
+export function recapData(state,year){if(!/^\d{4}$/.test(String(year)))throw Error('Escolha um ano para sua retrospectiva.');const stats=historyStats(state,String(year));if(!stats.plays)throw Error('Não há registros confirmados para este ano.');return {origin:state.origin==='backup'?'backup':state.origin==='Nuvio'?'Nuvio':'Trakt',year:Number(year),movies:Number(stats.movies)||0,series:Number(stats.series)||0,episodes:Number(stats.episodes)||0,plays:Number(stats.plays)||0,minutes:Number(stats.estimatedMinutes)||0};}
 const number = value => value.toLocaleString('pt-BR');
 const logo = Promise.resolve().then(() => {
  if(typeof Image==='undefined')return [];
@@ -38,7 +38,7 @@ export async function renderRecap(canvas,data){
   [data.movies,data.movies===1?'filme diferente':'filmes diferentes'],
   [data.series,data.series===1?'série acompanhada':'séries acompanhadas'],
   [data.episodes,data.episodes===1?'episódio diferente':'episódios diferentes'],
-  [data.plays,data.plays===1?'reprodução':'reproduções'],
+  [data.plays,data.origin==='Nuvio'?'itens assistidos':data.plays===1?'reprodução':'reproduções'],
  ];
  metrics.forEach(([value,name],index)=>{
   const x=100+(index%2)*450,y=640+Math.floor(index/2)*270;
@@ -51,7 +51,7 @@ export async function renderRecap(canvas,data){
  });
  label(data.minutes?`${Math.floor(data.minutes/60)}h ${data.minutes%60}min`:'Sem duração disponível',540,1328,'700 56px sans-serif');
  if(data.minutes)label('Tempo estimado pelas durações do catálogo',540,1386,'28px sans-serif','#d7c3ec');
- label(data.origin==='backup'?'Histórico restaurado do backup':'Histórico disponível no Trakt',540,1484,'26px sans-serif','#bbb0c9');
+ label(data.origin==='backup'?'Histórico restaurado do backup':data.origin==='Nuvio'?'Itens assistidos no perfil Nuvio':'Histórico disponível no Trakt',540,1484,'26px sans-serif','#bbb0c9');
 
  if(mark&&wordmark){
   ctx.globalCompositeOperation='screen';
@@ -63,8 +63,8 @@ export async function renderRecap(canvas,data){
  }
 }
 export function mountRetrospective(element,{state,bridge,toast,prefix='recap'}){
- element.innerHTML='<h2>Sua retrospectiva</h2><p>Um card do seu ano para guardar ou compartilhar.</p><select id="recap-year" aria-label="Ano da retrospectiva"></select><div class="actions"><button class="secondary" id="recap-generate">Criar retrospectiva</button></div><div id="recap-preview"></div>';
+ element.innerHTML='<h2>Sua retrospectiva</h2><p>Escolha um ano do histórico selecionado para gerar o card.</p><select id="recap-year" aria-label="Ano da retrospectiva"></select><div class="actions"><button class="secondary" id="recap-generate">Criar retrospectiva</button></div><div id="recap-preview"></div>';
  if(prefix!=='recap')for(const node of element.querySelectorAll('[id]'))node.id=node.id.replace('recap',prefix);
- const select=element.querySelector('select');for(const row of state.years||[]){const option=document.createElement('option');option.value=String(row.year);option.textContent=String(row.year);select.append(option);}if(!select.options.length){element.querySelector('button').disabled=true;return;}
+ const select=element.querySelector('select');for(const row of state.years||[]){const option=document.createElement('option');option.value=String(row.year);option.textContent=String(row.year);select.append(option);}if(!select.options.length){element.querySelector('button').disabled=true;const message=document.createElement('p');message.className='muted';message.textContent=state.origin==='Stremio'?'A biblioteca importada não fornece datas de exibição para a retrospectiva.':'Nenhum ano com assistidos disponível nesta fonte.';element.append(message);return;}
  element.querySelector('#'+prefix+'-generate').onclick=async event=>{const generate=event.currentTarget;generate.disabled=true;try{const data=recapData(state,select.value),target=element.querySelector('#'+prefix+'-preview');target.replaceChildren();const canvas=document.createElement('canvas');canvas.className='recap-canvas';canvas.setAttribute('aria-label','Prévia da retrospectiva');await renderRecap(canvas,data);if(!target.isConnected)return;target.append(canvas);for(const [label,share]of [['Compartilhar retrospectiva',true],['Salvar imagem PNG',false]]){const button=document.createElement('button');button.className='secondary wide';button.textContent=label;button.onclick=async()=>{try{const encoded=canvas.toDataURL('image/png').split(',')[1];if(share&&bridge?.shareStory)bridge.shareStory(encoded);else if(!share&&bridge?.saveStory)bridge.saveStory(encoded);else{const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));const file=new File([blob],`CENA-${data.year}.png`,{type:'image/png'});if(share&&navigator.canShare?.({files:[file]}))await navigator.share({files:[file]});else{const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=file.name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),1000);}}}catch(error){if(error.name!=='AbortError')toast('Não consegui exportar a retrospectiva.');}};target.append(button);}}catch(error){toast(error.message);}finally{generate.disabled=false;}};
 }
