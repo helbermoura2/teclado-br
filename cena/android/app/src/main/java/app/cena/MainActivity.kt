@@ -292,7 +292,50 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() { nuvioVisible=false;traktVisible=false;localAiClient.cancel();super.onPause() }
 
+    private fun translateSynopsis(requestId: String, text: String) {
+        fun reply(status: String, synopsis: String = "") {
+            val result = JSONObject().put("requestId", requestId).put("status", status).put("synopsis", synopsis)
+            runOnUiThread {
+                if (!isDestroyed && pageReady) {
+                    web.evaluateJavascript("window.CenaSynopsisTranslation && window.CenaSynopsisTranslation($result)", null)
+                }
+            }
+        }
+
+        val identifier = com.google.mlkit.nl.languageid.LanguageIdentification.getClient()
+        identifier.identifyLanguage(text).addOnCompleteListener { detection ->
+            identifier.close()
+            val source = if (detection.isSuccessful) {
+                com.google.mlkit.nl.translate.TranslateLanguage.fromLanguageTag(detection.result)
+            } else null
+            when (source) {
+                null -> reply("unavailable")
+                com.google.mlkit.nl.translate.TranslateLanguage.PORTUGUESE -> reply("original", text)
+                else -> {
+                    val options = com.google.mlkit.nl.translate.TranslatorOptions.Builder()
+                        .setSourceLanguage(source)
+                        .setTargetLanguage(com.google.mlkit.nl.translate.TranslateLanguage.PORTUGUESE)
+                        .build()
+                    val translator = com.google.mlkit.nl.translate.Translation.getClient(options)
+                    translator.downloadModelIfNeeded()
+                        .onSuccessTask { translator.translate(text) }
+                        .addOnCompleteListener { task ->
+                            translator.close()
+                            if (task.isSuccessful) reply("translated", task.result)
+                            else reply("unavailable")
+                        }
+                }
+            }
+        }
+    }
+
     inner class Bridge {
+        @JavascriptInterface fun translateCatalogSynopsis(requestId: String, text: String) {
+            if (requestId.matches(Regex("[0-9]{1,12}")) && text.isNotBlank() && text.length <= 4000) {
+                runOnUiThread { if (!isDestroyed) translateSynopsis(requestId, text) }
+            }
+        }
+
         @JavascriptInterface fun checkUpdates(){updater.check()}
         @JavascriptInterface fun installUpdate(){updater.install()}
         @JavascriptInterface fun streamingStatus(){streaming.status()}

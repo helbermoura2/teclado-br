@@ -237,3 +237,9 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 .capture-review #capture-verdict{margin:8px 0 0}
 .capture-review #capture-verdict:empty{display:none}
 .capture-sync-tip{margin:8px 0 14px}
+
+.detail-summary{margin:0 0 18px}
+.detail-summary h3{margin-bottom:8px}
+.detail-summary p{margin:0 0 8px}
+.detail-summary #synopsis-status:empty{display:none}
+.detail-summary button{margin-right:12px}

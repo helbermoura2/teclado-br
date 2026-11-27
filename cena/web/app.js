@@ -823,6 +823,66 @@ async function remove(item) {
   } catch (error) { toast(error.message); }
   finally { busy = false; }
 }
+let synopsisSerial=0;
+const synopsisRequests=new Map(), synopsisTranslations=new Map();
+window.CenaSynopsisTranslation = result => synopsisRequests.get(String(result?.requestId))?.(result);
+
+function translateSynopsis(text) {
+  if(synopsisTranslations.has(text))return synopsisTranslations.get(text);
+  const id=String(++synopsisSerial);
+  const promise=new Promise(resolve=>{
+    const timer=setTimeout(()=>complete(null),120000);
+    function complete(result){
+      clearTimeout(timer);synopsisRequests.delete(id);
+      const synopsis=typeof result?.synopsis==='string' ? result.synopsis.trim() : '';
+      resolve(synopsis && ['original','translated'].includes(result.status) ? {synopsis,status:result.status} : null);
+    }
+    synopsisRequests.set(id,complete);
+    try{window.CenaAndroid.translateCatalogSynopsis(id,text);}catch{complete(null);}
+  });
+  if(synopsisTranslations.size>=60)synopsisTranslations.delete(synopsisTranslations.keys().next().value);
+  synopsisTranslations.set(text,promise);
+  promise.then(result=>{if(!result && synopsisTranslations.get(text)===promise)synopsisTranslations.delete(text);});
+  return promise;
+}
+
+function mountSynopsis(item, awaitingDetails=false) {
+  const synopsis=$('#detail-synopsis'),expand=$('#synopsis-expand'),status=$('#synopsis-status'),retry=$('#synopsis-retry');
+  const source=String(item.description||item.plot||'').trim().slice(0,4000);
+  const localized=String(item.portugueseSynopsis||'').trim();
+  function show(text, credit=''){
+    synopsis.textContent=text;
+    synopsis.hidden=!text;
+    expand.hidden=text.length<=160;
+    status.textContent=credit;
+  }
+  expand.onclick=()=>{
+    const expanded=expand.getAttribute('aria-expanded')==='true';
+    synopsis.classList.toggle('synopsis-clamp',expanded);
+    expand.setAttribute('aria-expanded',String(!expanded));
+    expand.textContent=expanded?'Ler sinopse completa':'Recolher sinopse';
+  };
+  if(localized){show(localized);return;}
+  if(awaitingDetails){show('','Buscando a sinopse…');return;}
+  if(!source){show('Sem sinopse no catálogo.');return;}
+  if(typeof window.CenaAndroid?.translateCatalogSynopsis!=='function'){show(source);return;}
+  retry.onclick=async()=>{
+    retry.hidden=true;
+    expand.setAttribute('aria-expanded','false');
+    expand.textContent='Ler sinopse completa';
+    synopsis.classList.add('synopsis-clamp');
+    show('','Preparando a tradução. O primeiro uso pode baixar um modelo.');
+    const result=await translateSynopsis(source);
+    if(!synopsis.isConnected || !$('#detail').open)return;
+    if(result)show(result.synopsis,result.status==='translated'?'Tradução automática do Google':'');
+    else{
+      show(source,'Tradução indisponível. Texto original do catálogo.');
+      retry.hidden=false;
+    }
+  };
+  retry.click();
+}
+
 function showDetail(item, enriched = false, capture = null) {
   if (!item) return;
   localAI.cancel();similarTicket++;
@@ -830,7 +890,7 @@ function showDetail(item, enriched = false, capture = null) {
   if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
   const traktReady = apiBase === 'local' && traktState.connected && typeof window.CenaAndroid?.queueTrakt === 'function';
-  const synopsis = capture ? item.portugueseSynopsis || 'Sinopse em português indisponível para este título.' : item.description || 'Sem sinopse disponível.';
+
   const captureReview = capture ? `<section class="capture-review" aria-label="Resultado da captura">
     <h3>Por que este título?</h3><p>${capture.reading ? `Texto usado na busca <strong>${escape(capture.reading)}</strong>. ` : ''}${item.aiAssisted ? 'A análise da imagem sugeriu este título para conferência no catálogo.' : 'Este título apareceu na busca pelas pistas da capa.'} Confira o ano e o cartaz.</p>
     <h3>A identificação está correta?</h3><div class="actions"><button class="secondary" id="capture-correct" aria-pressed="${Boolean(capture.confirmed)}">Correto</button><button class="secondary" id="capture-wrong">Errado</button></div>
@@ -838,7 +898,7 @@ function showDetail(item, enriched = false, capture = null) {
   </section>` : '';
   const addLabel = capture && traktReady ? (saved?.status === 'watchlist' ? 'Enviar ao Nuvio via Trakt' : 'Adicionar ao Nuvio via Trakt') : saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir';
   const syncHint = capture ? `<p class="muted capture-sync-tip">${traktReady ? 'O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.' : 'Para levar a lista ao Nuvio, conecte o Trakt e selecione-o como fonte da biblioteca do player.'}</p>` : '';
-  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body">${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp">${escape(synopsis)}</p><button class="link-button" id="synopsis-expand" aria-expanded="false">Ler sinopse completa</button><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body"><section class="detail-summary" aria-label="Sinopse"><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp" hidden></p><p class="muted" id="synopsis-status" role="status"></p><button class="link-button" id="synopsis-expand" aria-expanded="false" hidden>Ler sinopse completa</button><button class="link-button" id="synopsis-retry" hidden>Tentar traduzir novamente</button></section>${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
   $('#add-title').onclick = () => {
     if(saved?.status !== 'watchlist') return save(item,'watchlist',capture);
     if(capture && traktReady){queueTrakt(item,'add');toast('Envio para a lista do Trakt solicitado.');return;}
@@ -868,7 +928,7 @@ function showDetail(item, enriched = false, capture = null) {
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
   $('#share-title').onclick = () => story(item);
   $('#rate-title').onclick=async()=>{await story(item);$('#story-rating')?.focus();};
-  $('#synopsis-expand').onclick=()=>{const expanded=$('#synopsis-expand').getAttribute('aria-expanded')==='true';$('#detail-synopsis').classList.toggle('synopsis-clamp',expanded);$('#synopsis-expand').setAttribute('aria-expanded',String(!expanded));$('#synopsis-expand').textContent=expanded?'Ler sinopse completa':'Recolher sinopse';};
+
   const backdrop=$('#detail-backdrop');if(trustedArtwork(item.poster)){const image=new Image();image.src=item.poster;image.alt='';backdrop.append(image);}
   mountTitleCollections($('#title-collections'),{storage,item,toast});
   mountFeedback($('#title-feedback'),{storage,item,toast,onSeen:async value=>{if(value.type==='series')throw Error('Para séries, registre os episódios no player ou use os controles de progresso.');if(!await save(value,'watched'))throw Error('Não consegui marcar este filme. Tente novamente.');},onChange:()=>{const values=readFeedback(storage);discoveryResults=discoveryResults.filter(row=>!['dislike','seen'].includes(values[row.type+':'+row.id]?.value));discoveryInfo=null;discoveryFingerprint='';if(tab==='discover')renderRecommendations();if(tab==='home')renderHomeRecommendations();}});
@@ -878,12 +938,13 @@ function showDetail(item, enriched = false, capture = null) {
   if(typeof window.CenaAndroid?.historyState==='function')window.CenaAndroid.historyState();
   wireImages();
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
+  mountSynopsis(item,!enriched);
   if (!enriched) getTitleDetails(item).then(details => {
     if ($('#detail').open && detailItem === item) {
-      if($('#story-canvas')||$('#similar-panel')?.childNodes.length||document.activeElement?.closest('#title-collections,#title-feedback')) { const status=$('#detail-loading'); if(status) status.textContent=''; }
+      if($('#story-canvas')||$('#similar-panel')?.childNodes.length||document.activeElement?.closest('#title-collections,#title-feedback')) { const status=$('#detail-loading'); if(status) status.textContent=''; mountSynopsis(details); }
       else showDetail(details, true, capture);
     }
-  }).catch(() => { const status = $('#detail-loading'); if (status && detailItem === item) status.textContent = 'Não consegui carregar a ficha. Tente abrir o filme novamente.'; });
+  }).catch(() => { const status = $('#detail-loading'); if (status && detailItem === item) {status.textContent = 'Não consegui carregar a ficha completa.';mountSynopsis(item);} });
 }
 async function copy(text) {
   try { await navigator.clipboard.writeText(text); toast('Link copiado.'); }

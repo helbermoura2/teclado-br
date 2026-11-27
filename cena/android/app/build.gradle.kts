@@ -16,8 +16,8 @@ android {
         ndk { abiFilters += cenaAbi }
         minSdk = 26
         targetSdk = 35
-        versionCode = 78
-        versionName = "0.28.11"
+        versionCode = 79
+        versionName = "0.28.12"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     System.getenv("CENA_KEYSTORE_PATH")?.let { path ->
@@ -48,5 +48,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     // Bundled Latin text model: OCR runs on the device, without a remote service.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:language-id:17.0.6")
+    implementation("com.google.mlkit:translate:17.0.3")
 }
 
