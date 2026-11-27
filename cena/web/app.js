@@ -1,3 +1,4 @@
+import {createCaptureMemory} from './capture-memory.js';
 import {prepareCoverReading} from './cover-reading.js';
 import {createTitleAliasResolver} from './title-aliases.js';
 import {recentWatches} from './recent-watches.js';
@@ -36,6 +37,8 @@ const $ = selector => document.querySelector(selector);
 const native = Boolean(window.CenaAndroid);
 const storage=createAppStorage(localStorage,window.CenaAndroid);
 const onlineAI=createOnlineAI(storage);
+const captureMemory=createCaptureMemory(storage);
+let captureEvidence='';
 const titleAliases=createTitleAliasResolver(window.CenaAndroid);
 const enrichCameraTitle=item=>streamingConfigured?titleAliases.resolve(item):Promise.resolve(item);
 window.CenaStoryArtworkResult=receiveStoryArtwork;
@@ -402,7 +405,7 @@ main.addEventListener('click', event => {
   const pool = capture ? searchResults : [...searchResults,...discoveryResults,...highlightsResults,...similarResults,...nuvioResults,...seriesResults,...collectionResults,...recentHistoryResults,...items];
   const item = pool.find(row => row.id === card.dataset.id);
   if (!item) return;
-  showDetail(item,false,capture ? {reading: prepareCoverReading({},cameraLines,cameraReading).title || coverTitlePhrase(cameraLines)} : null);
+  showDetail(item,false,capture ? {reading:captureEvidence} : null);
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -661,7 +664,8 @@ async function loadRecommendations(force=false){
  finally{discoveryRefreshing=false;const active=$('#refresh-recommendations');if(active){active.disabled=false;active.textContent='Mostrar outras sugestões';}}
 }
 function renderCaptureMatches(target,response,coverLines){
-    searchResults = response.items;
+    captureEvidence=coverLines ? response.reading || prepareCoverReading({},coverLines,cameraReading).title || coverTitlePhrase(coverLines) : '';
+    searchResults = captureMemory.prioritize(captureEvidence,response.items);
     if (coverLines && searchResults[0]?.matchScore >= .65 && (!searchResults[1] || searchResults[0].matchScore - searchResults[1].matchScore >= .04)) {
       const field = $('#scan-query');
       if (field) field.value = searchResults[0].originalName || searchResults[0].name;
@@ -694,9 +698,9 @@ async function analyzeCameraOnline(){
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
   const selectedReading=prepareCoverReading(hints,cameraLines,cameraReading);showCameraReading({...selectedReading.reading,title:selectedReading.title});
   const rows=await verifyCameraTitles(hints,cameraLines,{enrich:enrichCameraTitle,reading:cameraReading});
-  const readTitle=prepareCoverReading(hints,cameraLines,cameraReading).title||rows[0]?.name||'';
+  const readTitle=selectedReading.title||rows[0]?.name||'';
   if(sequence!==cameraSequence||generation!==searchGeneration||tab!=='scan')return;
-  if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
+  if(rows.length){renderCaptureMatches($('#search-results'),{items:rows,mode:'vision',reading:selectedReading.title},cameraLines);if(status?.isConnected)status.textContent='Análise concluída. Confira o título, o ano e a capa antes de adicionar.';}
   else {renderCaptureMatches($('#search-results'),{items:[],mode:'vision'},cameraLines);if(status?.isConnected)status.textContent='Não consegui confirmar o título completo no catálogo. As sugestões sem concordância com a capa foram descartadas. Tente outro recorte ou ajuste o texto.';}
   if(readTitle&&$('#scan-query'))$('#scan-query').value=readTitle.slice(0,150);
  }catch(error){if(sequence===cameraSequence&&status?.isConnected)status.textContent=error.message;}
@@ -786,7 +790,7 @@ window.CenaVisualResult = result => {
   const status = $('#vision-status');
   if (!status) return;
   if (result.status === 'ok' && Array.isArray(result.scores) && result.scores.length) {
-    searchResults = rankWithVision(searchResults, result.scores);
+    searchResults = captureMemory.prioritize(captureEvidence,rankWithVision(searchResults,result.scores));
     const area = $('#result-grid');
     if (area) {
       area.innerHTML = grid(searchResults);
@@ -894,7 +898,7 @@ function showDetail(item, enriched = false, capture = null) {
   const captureReview = capture ? `<section class="capture-review" aria-label="Resultado da captura">
     <h3>Por que este título?</h3><p>${capture.reading ? `Texto usado na busca <strong>${escape(capture.reading)}</strong>. ` : ''}${item.aiAssisted ? 'A análise da imagem sugeriu este título para conferência no catálogo.' : 'Este título apareceu na busca pelas pistas da capa.'} Confira o ano e o cartaz.</p>
     <h3>A identificação está correta?</h3><div class="actions"><button class="secondary" id="capture-correct" aria-pressed="${Boolean(capture.confirmed)}">Correto</button><button class="secondary" id="capture-wrong">Errado</button></div>
-    <p class="muted" id="capture-verdict" role="status">${capture.confirmed ? 'Identificação confirmada neste resultado.' : ''}</p>
+    <p class="muted" id="capture-verdict" role="status">${capture.remembered ? 'Confirmação guardada neste aparelho.' : capture.confirmed ? 'Identificação confirmada neste resultado.' : ''}</p>
   </section>` : '';
   const addLabel = capture && traktReady ? (saved?.status === 'watchlist' ? 'Enviar ao Nuvio via Trakt' : 'Adicionar ao Nuvio via Trakt') : saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir';
   const syncHint = capture ? `<p class="muted capture-sync-tip">${traktReady ? 'O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.' : 'Para levar a lista ao Nuvio, conecte o Trakt e selecione-o como fonte da biblioteca do player.'}</p>` : '';
@@ -908,7 +912,10 @@ function showDetail(item, enriched = false, capture = null) {
     $('#capture-correct').onclick = event => {
       capture.confirmed=true;
       event.currentTarget.setAttribute('aria-pressed','true');
-      $('#capture-verdict').textContent='Identificação confirmada neste resultado.';
+      let remembered=false;
+      try{remembered=captureMemory.remember(capture.reading,item);}catch{}
+      capture.remembered=remembered;
+      $('#capture-verdict').textContent=remembered?'Confirmação guardada neste aparelho.':'Identificação confirmada neste resultado.';
     };
     $('#capture-wrong').onclick = () => {
       const results = $('#result-grid[data-capture="true"]');
@@ -1026,7 +1033,7 @@ function localConnection() {
     <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
     <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
     <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"></div>
-    <div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div><div class="panel" id="online-ai-panel"></div>
+    <section class="panel"><h2>Memória das capturas</h2><p>O CENA guarda o título lido e o filme confirmado neste aparelho.</p><button class="secondary" id="clear-capture-memory" ${captureMemory.size()?'':'disabled'}>Apagar confirmações locais</button><p class="muted" id="capture-memory-status" role="status"></p></section><div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div><div class="panel" id="online-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
@@ -1051,6 +1058,10 @@ function localConnection() {
     };
   }
   if($('#manage-remote-list'))$('#manage-remote-list').onclick=()=>connect(true);
+  $('#clear-capture-memory').onclick=event=>{
+    try{captureMemory.clear();event.currentTarget.disabled=true;$('#capture-memory-status').textContent='Confirmações apagadas.';}
+    catch{$('#capture-memory-status').textContent='Não consegui apagar as confirmações. Tente novamente.';}
+  };
   window.CenaAndroid?.visionModelState?.();stremioPanel.mount($('#stremio-panel'));renderLocalAI();renderSync();renderVisionModel();renderNuvioPanel($('#nuvio-panel'),nuvioState,window.CenaAndroid);
   onlineAI.mount($('#online-ai-panel'));
   renderUpdatePanel();$('#update-check').onclick=()=>window.CenaAndroid?.checkUpdates?.();$('#update-install').onclick=()=>window.CenaAndroid?.installUpdate?.();
