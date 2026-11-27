@@ -44,7 +44,7 @@ jobs:
                   errors = []
                   page.on('pageerror', lambda error: errors.append(str(error)))
                   page.add_init_script("localStorage.setItem('cena.connection.v1', JSON.stringify({apiBase:'local'}))")
-                  page.goto('http://127.0.0.1:3000', wait_until='networkidle')
+                  page.goto('http://127.0.0.1:3000', wait_until='domcontentloaded')
                   page.locator('nav [data-tab="library"]').click()
                   page.locator('#query').fill('SISU')
                   page.locator('#search-form button').click()
@@ -133,7 +133,7 @@ jobs:
                       },200),
                       saveStory:value=>window.savedStory=value,shareStory:value=>window.sharedStory=value};
                   """)
-                  native_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  native_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
                   native_page.locator('#profile-shortcut').click()
                   native_page.locator('summary').filter(has_text='Configurar integração').click()
                   native_page.locator('#trakt-client-id').fill('cena-public-test-client-0000000000')
@@ -227,7 +227,7 @@ jobs:
                     localStorage.setItem('cena.local.items.v1',JSON.stringify(Array.from({length:110},(_,i)=>({id:'tt'+(9000000+i),type:'movie',name:'Saved film '+i,status:'watchlist',poster:'https://image.tmdb.org/fixture.jpg'}))));
                     window.CenaAndroid={appVersion:()=> '0.23.0',ready:()=>{},traktInventory:()=>{}};
                   """)
-                  scroll_page.goto('http://127.0.0.1:3000',wait_until='networkidle')
+                  scroll_page.goto('http://127.0.0.1:3000',wait_until='domcontentloaded')
                   scroll_page.locator('nav [data-tab="library"]').click()
                   scroll_page.locator('[data-filter="all"]').click()
                   scroll_page.locator('#query').fill('rascunho preservado')
