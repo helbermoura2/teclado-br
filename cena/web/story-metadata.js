@@ -7,6 +7,5 @@ export async function storyMetadata(item,{details=getTitleDetails,search=searchP
   const match=results[1].status==='fulfilled'?results[1].value.find(row=>row.id===item.id&&row.type===item.type):null;
   const localTitle=match?.localWikiTitle?.replace(/\s+\([^)]*\)\s*$/,'')||'';
   const result={title:localTitle||match?.name||rich.name||item.name,originalTitle:match?.originalName||rich.originalName||item.originalName||item.name,year:rich.year||match?.year||item.year||''};
-  if(rich.backdrop)result.backdrop=rich.backdrop;
   if(details===getTitleDetails&&search===searchPublicTitles){if(memo.size>100)memo.clear();memo.set(key,result);}return result;
 }

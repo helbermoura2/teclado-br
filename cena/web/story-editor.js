@@ -1,7 +1,7 @@
 import {renderStory,parseStoryRating,constrainStoryLogo,storyCaptionLimit} from './story-layout.js';
 import {storyMetadata} from './story-metadata.js';
 import {storyAvailability} from './availability.js';
-import {loadStoryPoster,loadStoryBackdrop,loadCanvasImage} from './story-artwork.js';
+import {loadStoryPoster,loadCanvasImage} from './story-artwork.js';
 export function createStoryEditor({$,escape,storage,getItems,native,artworkResolver,persistArtwork,toast,wireStreaming}){
 return async function story(item) {
   const items=getItems();
@@ -10,7 +10,7 @@ return async function story(item) {
   let brandMark=null,brandWordmark=null,mist=null;
   const mistAsset=loadCanvasImage('story-mist.png').then(asset=>{mist=asset;}).catch(()=>{});
   const brandAssets=Promise.all(['brand-mark.png','brand-wordmark.svg'].map(src=>new Promise((resolve,reject)=>{const asset=new Image();asset.onload=()=>resolve(asset);asset.onerror=()=>reject(Error('Não consegui carregar a marca do CENA. Tente novamente.'));asset.src=src;}))).then(([mark,wordmark])=>{brandMark=mark;brandWordmark=wordmark;});
-  let image=null,backdrop=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
+  let image=null,metadata={title:item.name,originalTitle:item.originalName||'',year:item.year||''},ready=false;
   const notesKey='cena.story.notes.v1',noteId=`${item.type}:${item.id}`;
   let notes={};try{notes=JSON.parse(storage.getItem(notesKey)||'{}');}catch{}
   if(!notes||typeof notes!=='object'||Array.isArray(notes))notes={};
@@ -23,7 +23,7 @@ return async function story(item) {
   let editedTitle=Boolean(notes[noteId]?.title);
   const validRating=()=>rating.value.trim()===''||parseStoryRating(rating.value)!==null;
   const draw=()=>{
-    const layout=renderStory(canvas,{image:image&&(backdrop||image),title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,providerIcons,mist,logoPosition,availability:$('#story-include').checked?availability:[]});
+    const layout=renderStory(canvas,{image,title:title.value.trim()||metadata.title,originalTitle:metadata.originalTitle,year:metadata.year,type:item.type,caption:caption.value,rating:rating.value,brandMark,brandWordmark,providerIcons,mist,logoPosition,availability:$('#story-include').checked?availability:[]});
     $('#story-caption-count').textContent=`${caption.value.length} / ${storyCaptionLimit} caracteres${layout.opinionTruncated?' · O final do texto ficou fora do PNG.':''}`;
     ratingError.hidden=validRating();
     if($('#share-story')){$('#share-story').disabled=!ready||!validRating();$('#save-story').disabled=!ready||!validRating();}
@@ -82,12 +82,9 @@ return async function story(item) {
   };
   $('#story-include').onchange=draw;
   wireStreaming();
-  storyMetadata(item).then(async value=>{
+  storyMetadata(item).then(value=>{
     if(!canvas.isConnected)return;
     metadata=value;if(!editedTitle)title.value=value.title;draw();
-    if(!value.backdrop)return;
-    backdrop=await loadStoryBackdrop(item,value.backdrop,window.CenaAndroid);
-    if(backdrop&&canvas.isConnected&&image)draw();
   }).catch(()=>{});
   draw();
   const status=$('#story-status'),share=$('#share-story'),save=$('#save-story'),retry=$('#retry-story'),without=$('#story-without-poster');

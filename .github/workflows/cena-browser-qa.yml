@@ -71,7 +71,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.28.19')
+                  expect(page.locator('#app-version')).to_contain_text('0.28.20')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -112,8 +112,8 @@ jobs:
                   native_page = browser.new_page(viewport={'width':412,'height':915})
                   native_page.add_init_script("""
                     localStorage.setItem('cena.connection.v1',JSON.stringify({apiBase:'local'}));
-                    localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt14846026',type:'movie',name:'Sisu',year:'2022',status:'watchlist'}]));
-                    window.traktBatches=[];window.stremioAuthorized=false;
+                    localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt14846026',type:'movie',name:'Sisu',year:'2022',status:'watchlist',backdrop:'https://images.metahub.space/background/medium/tt14846026/img'}]));
+                    window.storyArtworkRequests=[];window.traktBatches=[];window.stremioAuthorized=false;
                     window.stremioRows=[
                       {id:'tt14846026',type:'movie',name:'Sisu',removed:false,temp:false},
                       {id:'tt0172495',type:'movie',name:'Gladiator',year:'2000',removed:false,temp:false},
@@ -126,7 +126,8 @@ jobs:
                       disconnectStremio:()=>window.CenaStremioResult({connected:false,pairing:false,library:[]}),cancelStremioReading:()=>{},
                       configureTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[]}),
                       connectTrakt:()=>window.CenaTraktResult({configured:true,connected:false,pending:[],userCode:'CENA-CODE',verificationUrl:'https://trakt.tv/activate'}),
-                      loadStoryArtwork:(requestId)=>setTimeout(()=>{
+                      loadStoryArtwork:(requestId,raw)=>setTimeout(()=>{
+                        window.storyArtworkRequests.push(JSON.parse(raw).urls);
                         if(window.failStoryArtwork){window.CenaStoryArtworkResult({requestId,status:'unavailable'});return;}
                         const canvas=document.createElement('canvas');canvas.width=300;canvas.height=450;const ctx=canvas.getContext('2d');ctx.fillStyle='#1b6587';ctx.fillRect(0,0,300,450);ctx.fillStyle='#e7b878';ctx.fillRect(40,70,180,250);
                         window.CenaStoryArtworkResult({requestId,status:'ok',image:canvas.toDataURL('image/jpeg'),sourceUrl:'https://images.metahub.space/poster/medium/tt14846026/img'});
@@ -166,6 +167,7 @@ jobs:
                   import struct
                   png=base64.b64decode(native_page.evaluate('window.savedStory'))
                   assert png[:8]==b'\x89PNG\r\n\x1a\n' and struct.unpack('>II',png[16:24])==(1080,1920)
+                  assert all('/background/' not in url for urls in native_page.evaluate('window.storyArtworkRequests') for url in urls)
                   Path('qa/CENA-Story.png').write_bytes(png)
                   native_page.locator('#share-story').click()
                   native_page.wait_for_function('window.sharedStory && window.sharedStory.length > 100')
@@ -539,7 +541,7 @@ jobs:
                   expect(nuvio_page.locator('#main .hero')).to_have_count(0)
                   expect(nuvio_page.locator('#main .notice')).to_have_count(0)
                   order=nuvio_page.evaluate("Array.from(document.querySelectorAll('#main section')).map(e=>e.id).filter(Boolean)")
-                  assert [x for x in order if x!='home-calendar'][:4]==['nuvio-home','series-home','home-recommendations','recent-history']
+                  assert [x for x in order if x!='home-calendar'][:5]==['nuvio-home','home-watchlist','series-home','home-recommendations','recent-history']
                   triangle=nuvio_page.locator('.brand-triangle').bounding_box()
                   assert triangle['height']>=25 and triangle['width']>=23
                   assert nuvio_page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'No horizontal page overflow'
