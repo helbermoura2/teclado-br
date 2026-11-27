@@ -219,5 +219,10 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
   #main[data-screen="scan"] .scan-search-panel{animation:none!important;transition:none!important}
 }
 
-.brand .brand-triangle picture{display:block;width:100%;height:100%;mix-blend-mode:screen}
-.brand .brand-triangle picture img{filter:none}
+.brand .brand-triangle picture,.capture-emblem picture{
+ display:block;width:100%;aspect-ratio:1;
+ mask-image:radial-gradient(circle closest-side,#000 62%,transparent 100%);
+}
+.brand .brand-triangle picture img,.capture-emblem picture img{display:block;width:100%;height:100%;object-fit:contain;filter:none}
+.brand .brand-triangle:has(picture){filter:none}
+.brand .brand-triangle picture,.capture-emblem picture{mix-blend-mode:screen}
