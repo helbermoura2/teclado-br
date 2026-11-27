@@ -1,10 +1,10 @@
-name: HBX beta 16 - OpenRouter, modelos offline e ícone
+name: HBX beta 17 - correção da IA offline
 # Scoped to HBX beta test branch. No schedules or workflow artifacts uploads.
 # The official 0.9.1 release and beta7 remain untouched.
 on:
   push:
     branches:
-      - feat/hbx-openrouter-offline-models-beta16-20261112
+      - fix/offline-answer-beta17
     paths:
       - .github/workflows/teclado-hbx-beta16.yml
   workflow_dispatch:
@@ -13,12 +13,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: teclado-br-beta-092-hbx16
+  group: teclado-br-beta-092-hbx17
   cancel-in-progress: false
 
 jobs:
   beta:
-    if: github.repository == 'helbermoura2/teclado-br' && github.ref == 'refs/heads/feat/hbx-openrouter-offline-models-beta16-20261112'
+    if: github.repository == 'helbermoura2/teclado-br' && github.ref == 'refs/heads/fix/offline-answer-beta17'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -32,7 +32,7 @@ jobs:
           python3 - <<'PY'
           import json, pathlib
           lock = json.loads(pathlib.Path("heliboard/upstream.json").read_text())
-          assert lock["trial_version"] == "0.9.2-beta.16-hbx", lock["trial_version"]
+          assert lock["trial_version"] == "0.9.2-beta.17-hbx", lock["trial_version"]
           assert lock["commit"] == "f8ec91a982835911cc224fa99434c3396d4cd562"
           print("Build beta aprovado para a versão 0.9.2, sem merge na main.")
           PY
@@ -79,7 +79,7 @@ jobs:
         run: |
           python3 heliboard/prepare.py heli-source
           mkdir -p beta-package
-          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.16-fontes.tar.gz -C heli-source .
+          tar --exclude=.git --exclude=build --exclude=.gradle --exclude=ai-build --exclude='*.gguf' -czf beta-package/teclado-br-heli-0.9.2-beta.17-fontes.tar.gz -C heli-source .
 
       - name: Reutilizar motor de IA offline compilado
         id: native-cache
@@ -249,20 +249,20 @@ jobs:
           set -euo pipefail
           apk=(heli-source/app/build/outputs/apk/debugNoMinify/*.apk)
           test -f "${apk[0]}"
-          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.16.apk
-          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.16.apk teclado-br-heli-0.9.2-beta.16-fontes.tar.gz > sha256-0.9.2-beta.16.txt)
+          cp "${apk[0]}" beta-package/teclado-br-heli-0.9.2-beta.17.apk
+          (cd beta-package && sha256sum teclado-br-heli-0.9.2-beta.17.apk teclado-br-heli-0.9.2-beta.17-fontes.tar.gz > sha256-0.9.2-beta.17.txt)
           echo "## Teclado BR 0.9.2 beta" >> "$GITHUB_STEP_SUMMARY"
           echo "APK compilado, testes JVM passaram e certificado verificado." >> "$GITHUB_STEP_SUMMARY"
           echo "Gemini, atualizador e fallback foram compilados; teste de API real depende da chave do usuário." >> "$GITHUB_STEP_SUMMARY"
           python3 - <<'PY'
           import hashlib, json, pathlib
-          package=pathlib.Path('beta-package/teclado-br-heli-0.9.2-beta.16.apk')
+          package=pathlib.Path('beta-package/teclado-br-heli-0.9.2-beta.17.apk')
           data={
             "schema":"teclado-br-updates-v1","enabled":True,
             "packageName":"br.com.tecladobr.heli.debug",
-            "versionCode":9017,"versionName":"0.9.2-beta.16-hbx",
-            "apkUrl":"https://github.com/helbermoura2/teclado-br/releases/download/heli-0.9.2-beta.16/teclado-br-heli-0.9.2-beta.16.apk",
-            "releaseUrl":"https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.2-beta.16",
+            "versionCode":9018,"versionName":"0.9.2-beta.17-hbx",
+            "apkUrl":"https://github.com/helbermoura2/teclado-br/releases/download/heli-0.9.2-beta.17/teclado-br-heli-0.9.2-beta.17.apk",
+            "releaseUrl":"https://github.com/helbermoura2/teclado-br/releases/tag/heli-0.9.2-beta.17",
             "sha256":hashlib.sha256(package.read_bytes()).hexdigest(),
             "signerSha256":pathlib.Path('heliboard/signing-cert.sha256').read_text().strip(),
             "sizeBytes":package.stat().st_size,
@@ -279,14 +279,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag="heli-0.9.2-beta.16"
+          tag="heli-0.9.2-beta.17"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::error::A beta já existe. Não sobrescrever APK publicado; usar uma nova versão beta."
             exit 1
           fi
           cat > beta-package/NOTAS.txt <<'NOTAS'
-          HBX · Helber Board X AI — beta 16 de testes.
-          Ícone adaptativo Android com o logo enviado pelo usuário.
+          HBX · Helber Board X AI — beta 17 de testes.
+          A revisão offline aguarda a resposta final antes de habilitar a aplicação.
+          A revisão orienta o modelo a pontuar perguntas diretas e separar o vocativo.
           Usa Gemini 3.6 e OpenRouter (openrouter/free ou Qwen3 32B free).
           Groq desativado: credencial antiga preservada e não utilizada.
           Chaves Google e OpenRouter cifradas e armazenadas separadamente.
@@ -301,11 +302,11 @@ jobs:
           Chaves e prompts pessoais nunca são inseridos nos testes do GitHub.
           NOTAS
           gh release create "$tag" --target "$GITHUB_SHA" \
-            --prerelease --title 'Teclado BR 0.9.2 beta 16 — teste sem emulador' \
+            --prerelease --title 'Teclado BR 0.9.2 beta 17 — teste sem emulador' \
             --notes-file beta-package/NOTAS.txt \
-            beta-package/teclado-br-heli-0.9.2-beta.16.apk \
-            beta-package/teclado-br-heli-0.9.2-beta.16-fontes.tar.gz \
-            beta-package/sha256-0.9.2-beta.16.txt \
+            beta-package/teclado-br-heli-0.9.2-beta.17.apk \
+            beta-package/teclado-br-heli-0.9.2-beta.17-fontes.tar.gz \
+            beta-package/sha256-0.9.2-beta.17.txt \
             beta-package/teclado-br-update.json
           echo "### Prévia publicada" >> "$GITHUB_STEP_SUMMARY"
           echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

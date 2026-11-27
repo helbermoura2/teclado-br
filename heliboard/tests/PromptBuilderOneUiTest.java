@@ -43,4 +43,30 @@ public final class PromptBuilderOneUiTest {
         assertTrue(p.contains("Preserve rigorosamente o sentido, nomes próprios, números, datas"));
         assertTrue(p.contains("Se não houver erro, devolva exatamente o texto original."));
     }
+    @Test public void proofreadingUsesQuestionMarksAndVocativeCommas() {
+        String prompt=PromptBuilder.build("Ortografia e gramática","","","Ola Helber você está bem");
+        assertTrue(prompt.contains("ponto de interrogação em perguntas diretas"));
+        assertTrue(prompt.contains("Separe o vocativo com vírgula"));
+    }
+
+    @Test public void offlineResultOnlyContainsTheFinalAnswer() {
+        String answer="Olá, Helber, você está bem?";
+        assertEquals(answer,OfflineOutput.finalText("S\n"+answer));
+        assertEquals(answer,OfflineOutput.finalText("S\n<|channel>thought\nAnalysis<channel|>"+answer));
+        assertEquals(answer,OfflineOutput.finalText("S\n<think>Analysis</think>\n"+answer));
+    }
+
+    @Test public void offlineResultRejectsIncompleteAndAmbiguousOutput() {
+        for(String response:new String[]{
+            "T\nOlá, Helber", "S\n<|channel>thought\nAnalysis",
+            "S\nAnalysis<channel|>Olá!", "S\n<think>Analysis</think>"
+        }) {
+            try {
+                OfflineOutput.finalText(response);
+                fail("A saída incompleta não pode ser aplicada");
+            } catch(IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("texto final completo"));
+            }
+        }
+    }
 }

@@ -50,6 +50,8 @@ public final class PromptBuilder {
                     "negações e informações factuais. Não reescreva por estilo, não acrescente frases, "+
                     "não complete informação ausente e não troque palavras válidas por sinônimos. "+
                     "Preserve gírias e informalidade quando forem intencionais. "+
+                    "Use ponto de interrogação em perguntas diretas, mesmo quando o original estiver sem pontuação. "+
+                    "Separe o vocativo com vírgula. Exemplo: Ola Ana voce está bem → Olá, Ana, você está bem? "+
                     "Se não houver erro, devolva exatamente o texto original.";
         }
         return command+"\n\n<texto_para_editar>\n"+source+"\n</texto_para_editar>\nDevolva somente o texto final.";

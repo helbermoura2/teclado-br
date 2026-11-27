@@ -19,12 +19,9 @@ public final class OfflineEngine implements InferenceRouter.Backend {
         OfflineNative.reset();
         loaded=true;
         InferenceRouter.check(cancelled);
-        byte[] bytes=OfflineNative.generate(OfflineNative.utf8(ModelStore.model(context).getAbsolutePath()),OfflineNative.utf8(prompt),p-> {
-            if(!cancelled.getAsBoolean())partial.accept(new String(p,StandardCharsets.UTF_8));
-        },limit);
+        byte[] bytes=OfflineNative.generate(OfflineNative.utf8(ModelStore.model(context).getAbsolutePath()),OfflineNative.utf8(prompt),ignored -> {},limit);
         InferenceRouter.check(cancelled);
-        String result=new String(bytes,StandardCharsets.UTF_8);
-        if(result.length()<2)throw new IllegalStateException("O modelo não produziu uma resposta.");
-        return new InferenceResult(result.substring(2),"Offline · "+ModelStore.description(context),result.startsWith("T\n"));
+        String result=OfflineOutput.finalText(new String(bytes,StandardCharsets.UTF_8));
+        return new InferenceResult(result,"Offline · "+ModelStore.description(context),false);
     }
 }
