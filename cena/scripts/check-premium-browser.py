@@ -24,7 +24,8 @@ try:
   assert page.evaluate("savedMain===document.querySelector('#main').firstElementChild"), 'Active tab must preserve its content'
   page.evaluate('window.CenaNuvioResult({connected:true,active:true,scope:"nuvio-a",profileName:"Helber",profileId:1,watchedCount:104,recent:[],watched:[],series:[]})')
   page.locator('nav [data-tab="profile"]').click()
-  assert 'Seu histórico, com mais detalhes' in page.locator('#history-stats').inner_text()
+  assert page.locator('#stats-source').input_value() == 'Nuvio'
+  assert 'Dados do Nuvio' in page.locator('#history-stats').inner_text()
   assert not errors,errors
   print('Premium: CSS servido, 320/390/768px, cinco ícones, aba preservada e estatísticas sem totais fictícios verificados.')
   b.close()
