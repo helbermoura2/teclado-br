@@ -397,7 +397,12 @@ window.CenaTraktResult = state => {
 };
 main.addEventListener('click', event => {
   const card = event.target.closest?.('button.poster-card[data-id]');
-  if (card) showDetail([...searchResults,...discoveryResults,...highlightsResults,...similarResults,...nuvioResults,...seriesResults,...collectionResults,...recentHistoryResults,...items].find(item => item.id === card.dataset.id));
+  if (!card) return;
+  const capture = card.closest('#result-grid')?.dataset.capture === 'true';
+  const pool = capture ? searchResults : [...searchResults,...discoveryResults,...highlightsResults,...similarResults,...nuvioResults,...seriesResults,...collectionResults,...recentHistoryResults,...items];
+  const item = pool.find(row => row.id === card.dataset.id);
+  if (!item) return;
+  showDetail(item,false,capture ? {reading: prepareCoverReading({},cameraLines,cameraReading).title || coverTitlePhrase(cameraLines)} : null);
 });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const titleType = item => item.type === 'series' ? 'Série' : 'Filme';
@@ -662,7 +667,7 @@ function renderCaptureMatches(target,response,coverLines){
       if (field) field.value = searchResults[0].originalName || searchResults[0].name;
     }
     const assisted = searchResults.some(item => item.suggested) || ['assisted','vision'].includes(response.mode);
-    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} ${searchResults.length===1?'título':'títulos'}</span></div>${assisted && searchResults.length ? `<p class="muted">${response.mode==='vision'?'O Gemini analisou a imagem e conferi os nomes no catálogo.':'Conferi variações do texto e pistas da capa.'} Confira a imagem e o ano antes de adicionar.</p>` : ''}${searchResults.length ? `<div id="result-grid">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
+    target.innerHTML = `<div class="section-heading"><h2>${assisted ? 'Possíveis correspondências' : 'Resultados'}</h2><span class="count">${searchResults.length} ${searchResults.length===1?'título':'títulos'}</span></div>${assisted && searchResults.length ? `<p class="muted">${response.mode==='vision'?'O Gemini analisou a imagem e conferi os nomes no catálogo.':'Conferi variações do texto e pistas da capa.'} Confira a imagem e o ano antes de adicionar.</p>` : ''}${searchResults.length ? `<div id="result-grid" data-capture="${Boolean(coverLines)}">${grid(searchResults)}</div>` : '<div class="empty"><p>Nenhum título encontrado. Tente o nome original ou ajuste o texto da capa.</p></div>'}`;
 
     wireImages();
 }
@@ -794,7 +799,7 @@ window.CenaVisualResult = result => {
   }
 };
 
-async function save(item, status = 'watchlist') {
+async function save(item, status = 'watchlist', capture = null) {
   if (busy) return false;
   busy = true;
   try {
@@ -805,7 +810,7 @@ async function save(item, status = 'watchlist') {
     items = result.items;
     sendTraktInventory(); queueTrakt(item, status === 'watchlist' ? 'add' : 'remove');
     toast(status === 'watched' ? 'Marcado como assistido.' : apiBase === 'local' ? 'Adicionado à lista neste aparelho.' : 'Adicionado! Sua lista no servidor foi atualizada.');
-    showDetail(item); refreshCurrentView();return true;
+    showDetail(item,false,capture); refreshCurrentView();return true;
   } catch (error) { toast(error.message);return false; }
   finally { busy = false; }
 }
@@ -818,15 +823,48 @@ async function remove(item) {
   } catch (error) { toast(error.message); }
   finally { busy = false; }
 }
-function showDetail(item, enriched = false) {
+function showDetail(item, enriched = false, capture = null) {
   if (!item) return;
   localAI.cancel();similarTicket++;
   detailItem = item;
   if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
-  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)} · ${escape(item.genre)}</span></div></div><div class="detail-body"><button class="primary wide" id="add-title">${saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir'}</button><div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp">${escape(item.description || 'Sem sinopse disponível.')}</p><button class="link-button" id="synopsis-expand" aria-expanded="false">Ler sinopse completa</button><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
-  $('#add-title').onclick = () => saved?.status === 'watchlist' ? toast('Este título já está na sua lista.') : save(item);
-  if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched');
+  const traktReady = apiBase === 'local' && traktState.connected && typeof window.CenaAndroid?.queueTrakt === 'function';
+  const synopsis = capture ? item.portugueseSynopsis || 'Sinopse em português indisponível para este título.' : item.description || 'Sem sinopse disponível.';
+  const captureReview = capture ? `<section class="capture-review" aria-label="Resultado da captura">
+    <h3>Por que este título?</h3><p>${capture.reading ? `Texto usado na busca <strong>${escape(capture.reading)}</strong>. ` : ''}${item.aiAssisted ? 'A análise da imagem sugeriu este título para conferência no catálogo.' : 'Este título apareceu na busca pelas pistas da capa.'} Confira o ano e o cartaz.</p>
+    <h3>A identificação está correta?</h3><div class="actions"><button class="secondary" id="capture-correct" aria-pressed="${Boolean(capture.confirmed)}">Correto</button><button class="secondary" id="capture-wrong">Errado</button></div>
+    <p class="muted" id="capture-verdict" role="status">${capture.confirmed ? 'Identificação confirmada neste resultado.' : ''}</p>
+  </section>` : '';
+  const addLabel = capture && traktReady ? (saved?.status === 'watchlist' ? 'Enviar ao Nuvio via Trakt' : 'Adicionar ao Nuvio via Trakt') : saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir';
+  const syncHint = capture ? `<p class="muted capture-sync-tip">${traktReady ? 'O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.' : 'Para levar a lista ao Nuvio, conecte o Trakt e selecione-o como fonte da biblioteca do player.'}</p>` : '';
+  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div><div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body">${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp">${escape(synopsis)}</p><button class="link-button" id="synopsis-expand" aria-expanded="false">Ler sinopse completa</button><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
+  $('#add-title').onclick = () => {
+    if(saved?.status !== 'watchlist') return save(item,'watchlist',capture);
+    if(capture && traktReady){queueTrakt(item,'add');toast('Envio para a lista do Trakt solicitado.');return;}
+    toast('Este título já está na sua lista.');
+  };
+  if(capture){
+    $('#capture-correct').onclick = event => {
+      capture.confirmed=true;
+      event.currentTarget.setAttribute('aria-pressed','true');
+      $('#capture-verdict').textContent='Identificação confirmada neste resultado.';
+    };
+    $('#capture-wrong').onclick = () => {
+      const results = $('#result-grid[data-capture="true"]');
+      if(results){
+        searchResults=searchResults.filter(row=>row.id!==item.id||row.type!==item.type);
+        results.innerHTML=searchResults.length ? grid(searchResults) : '<p class="muted">Nenhuma outra opção. Ajuste o título ou escolha outra imagem.</p>';
+        const count=$('#search-results .count');
+        if(count)count.textContent=`${searchResults.length} ${searchResults.length===1?'título':'títulos'}`;
+        wireImages();
+      }
+      $('#detail').close();
+      (results?.querySelector('button') || $('#scan-query'))?.focus();
+      toast('Correspondência descartada.');
+    };
+  }
+  if ($('#mark-status')) $('#mark-status').onclick = () => save(item, saved.status === 'watched' ? 'watchlist' : 'watched', capture);
   if ($('#remove-title')) $('#remove-title').onclick = () => remove(item);
   $('#share-title').onclick = () => story(item);
   $('#rate-title').onclick=async()=>{await story(item);$('#story-rating')?.focus();};
@@ -841,11 +879,11 @@ function showDetail(item, enriched = false) {
   wireImages();
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
   if (!enriched) getTitleDetails(item).then(details => {
-    if ($('#detail').open && detailItem?.id === item.id) {
+    if ($('#detail').open && detailItem === item) {
       if($('#story-canvas')||$('#similar-panel')?.childNodes.length||document.activeElement?.closest('#title-collections,#title-feedback')) { const status=$('#detail-loading'); if(status) status.textContent=''; }
-      else showDetail(details, true);
+      else showDetail(details, true, capture);
     }
-  }).catch(() => { const status = $('#detail-loading'); if (status && detailItem?.id === item.id) status.textContent = 'Não consegui carregar a ficha. Tente abrir o filme novamente.'; });
+  }).catch(() => { const status = $('#detail-loading'); if (status && detailItem === item) status.textContent = 'Não consegui carregar a ficha. Tente abrir o filme novamente.'; });
 }
 async function copy(text) {
   try { await navigator.clipboard.writeText(text); toast('Link copiado.'); }

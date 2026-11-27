@@ -16,8 +16,8 @@ android {
         ndk { abiFilters += cenaAbi }
         minSdk = 26
         targetSdk = 35
-        versionCode = 77
-        versionName = "0.28.10"
+        versionCode = 78
+        versionName = "0.28.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     System.getenv("CENA_KEYSTORE_PATH")?.let { path ->
