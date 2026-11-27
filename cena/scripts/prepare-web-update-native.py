@@ -21,6 +21,8 @@ new=(root/'android/app/build.gradle.kts').read_text()
 def normalize(text):
  # These Android SDK dependencies are packaged by Gradle, outside libcenallm.so.
  text=re.sub(r'^    implementation\("com\.google\.mlkit:(?:language-id:17\.0\.6|translate:17\.0\.3)"\)\n','',text,flags=re.M)
+ text=text.replace('manifestPlaceholders["cenaAppLabel"] = if (cenaEdition == "next") "CENA IA Novo" else "CENA IA"',
+                   'manifestPlaceholders["cenaAppLabel"] = "CENA IA"')
  return re.sub(r'versionName = "[0-9.]+"','versionName = "VERSION"',re.sub(r'versionCode = \d+','versionCode = CODE',text))
 assert normalize(old)==normalize(new),'Unexpected changes in Android build inputs'
 apk=Path(sys.argv[1]);assert hashlib.sha256(apk.read_bytes()).hexdigest()=='2f3a7530f38e50aae0adc81cde829756a3ab089451eef1ca1202fe84283258ce'

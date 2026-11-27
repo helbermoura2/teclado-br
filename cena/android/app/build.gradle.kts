@@ -12,7 +12,7 @@ android {
     compileSdk = 35
     defaultConfig {
         applicationId = if (cenaEdition == "next") "app.cena.mobile.next" else "app.cena.mobile"
-        manifestPlaceholders["cenaAppLabel"] = if (cenaEdition == "next") "CENA IA Novo" else "CENA IA"
+        manifestPlaceholders["cenaAppLabel"] = "CENA IA"
         ndk { abiFilters += cenaAbi }
         minSdk = 26
         targetSdk = 35
