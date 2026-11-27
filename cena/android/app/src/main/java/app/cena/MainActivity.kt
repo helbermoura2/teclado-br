@@ -223,8 +223,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.rgb(16, 16, 23)) }
-        web = WebView(this)
+        val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
+        web = WebView(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         root.addView(web, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
