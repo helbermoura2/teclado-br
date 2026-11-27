@@ -7,22 +7,36 @@ const valid=item=>/^tt\d{5,12}$/.test(item?.id||'')&&['movie','series'].includes
 const norm=value=>String(value||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
 export const similarThemes=narrativeTopics;
 const core=['greek epic','president','samurai','zombie','vampire','time travel','martial arts','heist','space','gangster','hijack'];
+const politicalThemes=['diplomacy','political intrigue'];
+function sharesPoliticalPlot(seedThemes,shared){
+ return politicalThemes.some(topic=>seedThemes.includes(topic))&&politicalThemes.some(topic=>shared.includes(topic));
+}
+// Lookup leads for political series. The catalog must return matching identities and usable plot evidence.
+const politicalSeries=[
+ ['tt3501074','Madam Secretary'],['tt1526318','Borgen'],['tt0200276','The West Wing'],
+ ['tt7493974','Bodyguard'],['tt13918776','The Night Agent'],
+];
 export function rankSimilar(seed,candidates,{existing=[],includeSaved=true,limit=5,now=Date.now(),query=''}={}){
  if(!valid(seed))return [];
  const criteria=parseSimilarityRequest(query),seedThemes=narrativeTopics(seed),primary=core.find(topic=>seedThemes.includes(topic)&&!criteria.excluded.includes(topic));
- const seedAction=(seed.genres||[]).some(value=>['action','acao'].includes(norm(value)));
+ const seedGenres=(seed.genres||[]).map(norm);
+ const seedAction=seedGenres.some(value=>['action','acao'].includes(value));
  const rows=rankRecommendations(includeSaved?[seed]:[seed,...existing],candidates,{seeds:[{...seed,status:'watched'}],notes:{},limit:1000,now});
  const seedWords=new Set(norm(storyText(seed)).match(/[a-z]{5,}/g)||[]),stop=new Set(['their','after','which','about','there','where','while','before','during','other','would','being','people','story','young','family','years','filme','historia']);
  return rows.filter(row=>row.type===seed.type&&fitsSimilarityRequest(row,criteria)).flatMap(row=>{
   if(seedAction&&!criteria.genres.length&&!criteria.excludedGenres.includes('Action')&&!fitsSimilarityRequest(row,{...criteria,genres:['Action']}))return [];
-  const shared=narrativeTopics(row).filter(topic=>seedThemes.includes(topic)),explicit=criteria.required;
-  if(!explicit.length&&primary&&!shared.includes(primary))return [];
+  const rowThemes=narrativeTopics(row),shared=rowThemes.filter(topic=>seedThemes.includes(topic)),explicit=criteria.required;
+  const relatedPolitics=seed.type==='series'&&sharesPoliticalPlot(seedThemes,rowThemes);
+  if(!explicit.length&&primary&&!shared.includes(primary)&&!(primary==='president'&&relatedPolitics))return [];
   const overlap=[...new Set(norm(storyText(row)).match(/[a-z]{5,}/g)||[])].filter(word=>seedWords.has(word)&&!stop.has(word));
-  if(!explicit.length&&!shared.length&&overlap.length<2)return [];
-  const proofs=[...new Set([...explicit,...shared])].map(topic=>({topic,label:topicLabel(topic),quote:evidenceFor(row,topic)})).filter(row=>row.quote);
+  if(!explicit.length&&!shared.length&&!relatedPolitics&&overlap.length<2)return [];
+  const proofs=[...new Set([...explicit,...shared,...(relatedPolitics?rowThemes.filter(topic=>politicalThemes.includes(topic)):[])])].map(topic=>({topic,label:topicLabel(topic),quote:evidenceFor(row,topic)})).filter(row=>row.quote);
   if(!storyText(row).trim())return [];
   const reason=proofs.length?`Enredo: ${proofs.slice(0,3).map(proof=>proof.label).join(', ')}.`:'Elementos da sinopse em comum: '+overlap.slice(0,3).join(', ')+'.';
-  return [{...row,similarEvidence:proofs,recommendationReason:reason,affinity:(explicit.length*2)+(shared.includes('president')?4:0)+shared.length*.8+Math.min(overlap.length,5)*.1+row.affinity*.25+(/^\d{4}$/.test(String(row.year))?.5:0)}];
+  const genreMatches=(row.genres||[]).map(norm).filter(genre=>seedGenres.includes(genre)).length;
+  const politicalAffinity=relatedPolitics?Math.min(genreMatches,2)*.65+.4:0;
+  const comedyPenalty=relatedPolitics&&!seedGenres.includes('comedy')&&!seedGenres.includes('comedia')&&(row.genres||[]).some(genre=>['comedy','comedia'].includes(norm(genre)))?1:0;
+  return [{...row,similarEvidence:proofs,recommendationReason:reason,affinity:(explicit.length*2)+(shared.includes('president')?4:0)+politicalAffinity-comedyPenalty+shared.length*.8+Math.min(overlap.length,5)*.1+row.affinity*.25+(/^\d{4}$/.test(String(row.year))?.5:0)}];
  }).sort((a,b)=>b.affinity-a.affinity||a.providerOrder-b.providerOrder).slice(0,limit);
 }
 function catalogItem(meta,type){return {id:meta.imdb_id||meta.id,type:meta.type||type,name:meta.name,originalName:meta.name,year:String(meta.releaseInfo||meta.year||'').slice(0,4),released:meta.released||'',poster:trustedArtwork(meta.poster),genres:Array.isArray(meta.genres)?meta.genres:[],plot:meta.description||'',description:meta.description||'',imdbRating:meta.imdbRating??null,imdbRatingAt:Date.now(),cast:meta.cast||[],directors:Array.isArray(meta.director)?meta.director:meta.director?[meta.director]:[],source:'Cinemeta',sourceUrl:`https://www.imdb.com/title/${meta.imdb_id||meta.id}/`};}
@@ -40,21 +54,33 @@ export class SimilarEngine {
   let rich=seed;try{const info=await this.details(seed);if(info.id===seed.id&&info.type===seed.type)rich={...seed,...info};}catch{}
   const criteria=parseSimilarityRequest(query),seedTopics=narrativeTopics(rich),themes=[...new Set([...criteria.required,...seedTopics])];
   const preferred=(Array.isArray(rich.genres)?rich.genres:[]).slice(0,2),queries=[...new Set([...themes.flatMap(topic=>themeQueries[topic]||[topic]),...criteria.terms])].slice(0,8);
-  const crossQueries=themes.includes('president')?['White House Down','Caçada ao Presidente','London Has Fallen','Angel Has Fallen']:queries.slice(0,2);
+  const crossQueries=seed.type==='movie'&&themes.includes('president')?['White House Down','Caçada ao Presidente','London Has Fallen','Angel Has Fallen']:queries.slice(0,2);
   const cacheKey=key(seed)+':'+norm(query),cached=this.pools.get(cacheKey),thematic=themes.length>0;
   if(!force&&cached&&Date.now()-cached.at<15*60000)return finishResult(rich,[...existing,...cached.pool],{existing,includeSaved,query,criteria,thematic,partial:cached.partial});
   const requests=[this.engine.catalog(force,preferred),...queries.map(query=>this.fetcher(`https://v3-cinemeta.strem.io/catalog/${seed.type}/top/search=${encodeURIComponent(query)}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}}).then(async response=>{if(!response.ok)throw Error('Busca indisponível');return (await response.json()).metas||[];})),...crossQueries.map(query=>this.search(query))];
-  const replies=await Promise.allSettled(requests);
+  const political=seed.type==='series'&&politicalThemes.some(theme=>themes.includes(theme));
+  const lookupPolitical=async ([id,name])=>{
+   const response=await this.fetcher(`https://v3-cinemeta.strem.io/meta/series/${id}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});
+   if(!response.ok)throw Error('Metadados indisponíveis');
+   const {meta}=await response.json();
+   if(!meta||(meta.imdb_id||meta.id)!==id||meta.type!=='series')return [];
+   return [{...catalogItem(meta,'series'),name:meta.name||name}];
+  };
+  const [replies,leads]=await Promise.all([
+   Promise.allSettled(requests),
+   Promise.allSettled(political?politicalSeries.map(lookupPolitical):[]),
+  ]);
   let focused=[],focusedRemainder=[];for(let i=1;i<replies.length;i++){const result=replies[i];if(result.status==='fulfilled'){const query=i<=queries.length?queries[i-1]:crossQueries[i-queries.length-1];const rows=[...(i<=queries.length?result.value.map(meta=>catalogItem(meta,seed.type)):result.value)];rows.sort((a,b)=>Number(norm(b.name)===norm(query))-Number(norm(a.name)===norm(query)));focused.push(...rows.slice(0,4));focusedRemainder.push(...rows.slice(4));}}
   focused.push(...focusedRemainder);
-  let pool=[...focused,...(replies[0].status==='fulfilled'?replies[0].value.items:[]),...existing];
+  const verified=leads.flatMap(reply=>reply.status==='fulfilled'?reply.value:[]);
+  let pool=[...verified,...focused,...(replies[0].status==='fulfilled'?replies[0].value.items:[]),...existing];
   const unique=new Map();for(const item of pool)if(valid(item)&&item.type===seed.type){const id=key(item),previous=unique.get(id);if(!previous||storyText(item).length>storyText(previous).length)unique.set(id,{...previous,...item});}
   pool=[...unique.values()].filter(item=>key(item)!==key(seed));
-  if(!pool.length&&replies.every(reply=>reply.status==='rejected'))throw Error('Não consegui consultar opções semelhantes agora. Confira a internet e tente novamente.');
+  if(!pool.length&&[...replies,...leads].every(reply=>reply.status==='rejected'))throw Error('Não consegui consultar opções semelhantes agora. Confira a internet e tente novamente.');
   // Search results are enriched first; three concurrent requests keep small phones responsive.
   const focusedKeys=new Set(focused.map(key));const needs=pool.filter(item=>focusedKeys.has(key(item))||!storyText(item).trim()).slice(0,30);let cursor=0;
   await Promise.all(Array.from({length:3},async()=>{while(cursor<needs.length){const item=needs[cursor++];try{const info=await this.details(item);if(info.id===item.id&&info.type===item.type)Object.assign(item,info);}catch{}}}));
-  const partial=replies.some(reply=>reply.status==='rejected');if(this.pools.size>=4)this.pools.delete(this.pools.keys().next().value);this.pools.set(cacheKey,{at:Date.now(),pool,partial});
+  const partial=[...replies,...leads].some(reply=>reply.status==='rejected');if(this.pools.size>=4)this.pools.delete(this.pools.keys().next().value);this.pools.set(cacheKey,{at:Date.now(),pool,partial});
   return finishResult(rich,pool,{existing,includeSaved,query,criteria,thematic,partial});
  }
 }

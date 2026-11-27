@@ -75,3 +75,19 @@ test('metadata enrichment reaches later thematic searches even when the first qu
  const engine=new SimilarEngine({storage:{getItem:()=>null,setItem:()=>{}},engine:{catalog:async()=>({items:[]})},search:async()=>[],fetcher:async url=>({ok:true,json:async()=>({metas:url.includes('search=Troy')?flood:url.includes('search=Clash%20of%20the%20Titans')?[{id:'tt0800320',name:'Clash of the Titans',genres:['Action']}]:[]})}),details:async item=>item.id==='tt0800320'?{...item,description:'Perseus battles monsters in Greek mythology.'}:item});
  const result=await engine.find(seed);assert.ok(result.items.some(item=>item.id==='tt0800320'));
 });
+
+test('The Diplomat finds political series when broad search and catalog lack candidates',async()=>{
+ const seed={id:'tt17491088',type:'series',name:'The Diplomat',description:'In the midst of an international crisis, Kate Wyler, a career diplomat, lands in a high-profile job.'};
+ const known={tt3501074:{name:'Madam Secretary',description:'A political drama about the Secretary of State.'},tt1526318:{name:'Borgen',description:"A political drama about a prime minister's rise to power."}};
+ const fetcher=async url=>{
+  const id=url.match(/meta\/series\/(tt\d+)\.json$/)?.[1];
+  const meta=known[id];
+  return {ok:true,json:async()=>meta?{meta:{...meta,id,type:'series'}}:id?{meta:{id:'tt0000001',type:'series',name:'Wrong identity',description:known.tt1526318.description}}:{metas:[]}};
+ };
+ const engine=new SimilarEngine({fetcher,search:async()=>[],details:async item=>item,engine:{catalog:async()=>({items:[]})}});
+ const result=await engine.find(seed);
+ assert.deepEqual(result.items.map(item=>item.id),['tt3501074','tt1526318']);
+ assert.ok(result.items.every(item=>item.similarEvidence.length>0));
+ const focused=await engine.find(seed,{query:'diplomacia e relações internacionais'});
+ assert.deepEqual(focused.items.map(item=>item.id),['tt3501074']);
+});
