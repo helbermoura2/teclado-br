@@ -4,7 +4,7 @@ import {createTitleAliasResolver} from './title-aliases.js';
 import {recentWatches} from './recent-watches.js';
 import {createOnlineAI} from './online-ai.js';
 import {availabilityRows} from './availability.js';
-import {profileCollection,yearlyHistory,personalRatings} from './profile-stats.js';
+import {profileCollection,yearlyHistory,personalRatings,watchedGenres} from './profile-stats.js';
 import {NuvioSeriesEngine} from './nuvio-series.js';
 import {seriesUniverse,seriesCards,nextEpisodeEntries,combineContinuity,traktPausedEntries} from './series-continuity.js';
 import {mountVisionModel} from './vision-model-panel.js';
@@ -23,7 +23,7 @@ import {renderNuvioPanel} from './nuvio-panel.js';
 import {RatingsResolver,imdbLabel} from './ratings.js';
 import {SimilarEngine,buildLocalSelectionPrompt,validateLocalSelection} from './similar.js';
 import {createLocalAI} from './local-ai.js';
-import {RecommendationEngine} from './recommendations.js';
+import {RecommendationEngine,genreLabel} from './recommendations.js';
 import {seriesSummary} from './series-view.js';
 import {receiveStoryArtwork} from './story-artwork.js';
 import {createStremioPanel} from './stremio-panel.js';
@@ -198,12 +198,36 @@ function renderHistoryStats(){
  };
  const periodLabel=historyYear==='all'?'Desde o início':historyYear==='unknown'?'Registros sem data':historyYear;
  const thisYear=years.find(row=>row.year===new Date().getFullYear());
- const overview=`<section class="stats-overview"><header class="stats-section-heading"><h2>Histórico assistido</h2><span>${escape(periodLabel)}</span></header>${cards}<p class="muted">${source==='Nuvio'?'Nuvio · filmes e episódios distintos.':`Trakt · duração conhecida em ${Number(stats.timedPlays)||0} de ${Number(stats.plays)||0} reproduções.`}</p></section>`;
- const annual=historyYear==='all'&&thisYear?`<section class="stats-year"><header class="stats-section-heading"><h2>Este ano</h2><span>${thisYear.year}</span></header><div class="stats-year-strip"><div><strong>${thisYear.movies.toLocaleString('pt-BR')}</strong><span>Filmes</span></div><div><strong>${thisYear.episodes.toLocaleString('pt-BR')}</strong><span>Episódios</span></div><div><strong>${thisYear.plays.toLocaleString('pt-BR')}</strong><span>${source==='Nuvio'?'Itens assistidos':'Reproduções'}</span></div></div></section>`:'';
+ const count=value=>(Number(value)||0).toLocaleString('pt-BR');
+ const playLabel=source==='Nuvio'?'Itens assistidos':'Reproduções';
+ const overview=`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(source)} · ${escape(periodLabel)}</span><h2>Sua atividade</h2><strong class="stats-dashboard-total">${count(stats.plays)}</strong><span class="stats-dashboard-label">${playLabel}</span><dl class="stats-dashboard-kpis"><div><dt>Filmes</dt><dd>${count(stats.movies)}</dd></div><div><dt>Séries</dt><dd>${count(stats.series)}</dd></div><div><dt>Episódios</dt><dd>${count(stats.episodes)}</dd></div></dl>${source==='Trakt'&&stats.timedPlays?`<p class="muted">${Math.floor(minutes/60)}h ${minutes%60}min estimados em ${count(stats.timedPlays)} reproduções com duração</p>`:''}</section>`;
+ const annual=historyYear==='all'&&thisYear?`<section class="stats-dashboard-section"><header class="stats-section-heading"><h2>Este ano</h2><span>${thisYear.year}</span></header><dl class="stats-dashboard-kpis"><div><dt>Filmes</dt><dd>${count(thisYear.movies)}</dd></div><div><dt>Episódios</dt><dd>${count(thisYear.episodes)}</dd></div><div><dt>${playLabel}</dt><dd>${count(thisYear.plays)}</dd></div></dl></section>`:'';
+ const genreSection=type=>{
+  const {classified,total,rows}=watchedGenres(dates.media||[],items,historyYear,type,genreLabel);
+  return `<section class="stats-dashboard-section"><h2>Gêneros mais assistidos</h2>${rows.length?`<ul class="stats-genres">${rows.map(([genre,value])=>`<li><span>${escape(genre)}</span><meter min="0" max="${classified}" value="${value}" aria-label="${escape(genre)}"></meter><strong>${count(value)}</strong></li>`).join('')}</ul><p class="muted">${count(classified)} de ${count(total)} títulos identificados têm gênero no catálogo. Um título pode contar em mais de um gênero.</p>`:'<p class="muted">Ainda não há gêneros disponíveis para os títulos assistidos neste período.</p>'}</section>`;
+ };
+ const feedback=readFeedback(storage);
+ const byKey=new Map(items.map(item=>[`${item.type}:${item.id}`,item]));
+ const favorites=Object.entries(feedback).filter(([key,row])=>row?.value==='like'&&/^(movie|series):tt[0-9]{5,12}$/.test(key))
+  .sort(([,a],[,b])=>b.at-a.at).map(([key,{item}])=>byKey.get(key)||item).filter(item=>item?.id&&item.name);
+ const favoriteShelf=type=>{
+  const rows=favorites.filter(item=>item.type===type).slice(0,12);
+  const title=type==='movie'?'Filmes favoritos':'Séries favoritas';
+  return `<section class="stats-dashboard-section"><h2>${title}</h2>${rows.length?`<div class="stats-poster-shelf">${rows.map((item,index)=>`<button class="poster-card" data-stats-favorite="${index}" data-stats-type="${type}" type="button">${poster(item,'',false,false)}<strong>${escape(item.name)}</strong></button>`).join('')}</div>`:'<p class="muted">Marque “Gostei” na ficha de um título para ele aparecer aqui.</p>'}</section>`;
+ };
+ const weekdaySection=type=>{
+  const values=stats.weekdays?.[type];
+  if(!Array.isArray(values)||values.length!==7||!values.some(value=>value>0))return '';
+  const days=['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+  const peak=Math.max(...values);
+  const unit=type==='movies'?'filmes':'episódios';
+  return `<section class="stats-dashboard-section"><h2>Atividade por dia da semana</h2><div class="stats-weekdays">${values.map((value,index)=>`<div aria-label="${days[index]}, ${count(value)} ${unit}"><strong>${count(value)}</strong><div class="profile-bar" data-bar-height="${value?Math.max(3,Math.round(value/peak*100)):0}"></div><small>${days[index].slice(0,3)}</small></div>`).join('')}</div><p class="muted">${source==='Nuvio'?`Total de ${unit} distintos em cada dia da semana.`:'Reproduções registradas com data.'}</p></section>`;
+ };
+ const activity=(metric,label)=>`<section class="stats-dashboard-section"><h2>${label}</h2>${chart(metric,label)}</section>`;
  let content='';
- if(profileStatsTab==='overview')content=historyPending?historyEmpty:`${overview}${annual}<h2>${source==='Nuvio'?'Itens assistidos por ano':'Evolução das reproduções'}</h2>${chart('plays',source==='Nuvio'?'Itens assistidos por ano':'Reproduções por ano')}`;
- if(profileStatsTab==='movies')content=historyPending?historyEmpty:`<section class="profile-hero"><span>FILMES · ${escape(periodLabel)}</span><strong>${Number(stats.movies)||0}</strong><p>Filmes diferentes no período selecionado.</p></section><h2>Filmes diferentes por ano</h2>${chart('movies','Filmes por ano')}`;
- if(profileStatsTab==='series')content=historyPending?historyEmpty:`<section class="profile-hero"><span>SÉRIES · ${escape(periodLabel)}</span><strong>${Number(stats.episodes)||0}</strong><p>Episódios diferentes em ${Number(stats.series)||0} série(s) no período.</p></section><h2>Episódios diferentes por ano</h2>${chart('episodes','Episódios por ano')}`;
+ if(profileStatsTab==='overview')content=`${historyPending?historyEmpty:`${overview}${annual}${genreSection()}`}${favoriteShelf('movie')}${favoriteShelf('series')}${historyPending?'':activity('plays',source==='Nuvio'?'Itens assistidos por ano':'Reproduções por ano')}`;
+ if(profileStatsTab==='movies')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Filmes assistidos</h2><strong class="stats-dashboard-total">${count(stats.movies)}</strong><span class="stats-dashboard-label">Filmes diferentes</span></section>${weekdaySection('movies')}${genreSection('movie')}${activity('movies','Filmes diferentes por ano')}`;
+ if(profileStatsTab==='series')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Séries assistidas</h2><dl class="stats-dashboard-kpis"><div><dt>Séries</dt><dd>${count(stats.series)}</dd></div><div><dt>Episódios</dt><dd>${count(stats.episodes)}</dd></div></dl></section>${weekdaySection('episodes')}${genreSection('series')}${activity('episodes','Episódios diferentes por ano')}`;
  if(profileStatsTab==='library')content=`<div class="profile-hero"><span>SUA COLEÇÃO NESTE APARELHO</span><strong>${collection.total} ${collection.total===1?'título':'títulos'}</strong><div><span>${collection.movies} filmes</span><span>${collection.series} séries</span><span>${collection.watchlist} para assistir</span></div></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">A coleção inclui títulos salvos para assistir. Os números do histórico seguem a fonte selecionada.</p>`;
  if(profileStatsTab==='library'&&!collection.total&&nuvioState.active)content=`<div class="profile-hero"><span>SUA ATIVIDADE CONECTADA</span><strong>Nuvio</strong><p>${Number(nuvioState.watchedCount)||0} registros recebidos${nuvioState.profileName?' · '+escape(nuvioState.profileName):''}.</p></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">Sua coleção reúne os títulos que você salva no CENA. Os registros recebidos do Nuvio podem incluir episódios e não equivalem ao total de filmes assistidos.</p>`;
  if(profileStatsTab==='time')content=`<div class="profile-hero"><span>TEMPO DE VISUALIZAÇÃO ESTIMADO</span><strong>${Math.floor(minutes/60)}h ${minutes%60}min</strong><p>Duração disponível em ${stats.timedPlays||0} de ${stats.plays||0} registros.</p></div><h2>Reproduções por ano</h2>${chart('plays','Reproduções por ano')}<p class="muted">O gráfico usa o ano em que você assistiu. O tempo soma a duração informada dos títulos e não mede o tempo real na tela. Datas no fuso ${escape(historyState.timezone||'local')}.</p>${cards}`;
@@ -211,6 +235,8 @@ function renderHistoryStats(){
  if(profileStatsTab==='ratings')content=`<div class="profile-hero"><span>SUAS NOTAS NO CENA</span><strong>${ratings.average===null?'Sem notas':ratings.average.toLocaleString('pt-BR',{maximumFractionDigits:2})+' / 10'}</strong><p>${ratings.count} ${ratings.count===1?'avaliação salva':'avaliações salvas'} nos Stories deste aparelho.</p></div><h2>Distribuição das notas</h2>${ratings.count?`<div class="profile-chart"><div class="profile-bars">${ratings.distribution.map(row=>`<div class="profile-bar-column"><span>${row.count||''}</span><div class="profile-bar" data-bar-height="${Math.max(row.count?3:0,Math.round(100*row.count/Math.max(1,...ratings.distribution.map(x=>x.count))))}"></div><small>${row.rating}</small></div>`).join('')}</div></div><p class="muted">Para o gráfico, notas decimais são agrupadas no inteiro mais próximo. A média usa a nota original.</p>`:'<p class="muted">Adicione uma nota ao criar um Story para começar.</p>'}<p class="muted">Essas são suas notas locais; avaliações do Trakt ainda não são importadas.</p>`;
  if(profileStatsTab==='platforms')content='<div class="profile-empty"><strong>Plataformas assistidas</strong><p>O histórico atual não informa em qual serviço cada reprodução aconteceu. Os logotipos das capas mostram disponibilidade atual e não determinam onde você assistiu.</p></div>';
  target.innerHTML=`<div class="profile-stat-tabs" role="tablist" aria-label="Categorias de estatísticas">${tabs.map(([id,label])=>`<button role="tab" aria-selected="${profileStatsTab===id}" class="chip ${profileStatsTab===id?'selected':''}" data-profile-stats="${id}">${label}</button>`).join('')}</div>${content}${source==='Trakt'&&historyState.coverage==='partial'?'<p class="notice">Histórico parcial: os totais podem aumentar após uma importação completa.</p>':''}${source==='Trakt'&&historyState.unmatched?`<p class="muted">${Number(historyState.unmatched)} registro(s) sem correspondência IMDb continuam no histórico.</p>`:''}`;
+ for(const button of target.querySelectorAll('[data-stats-favorite]'))button.onclick=()=>showDetail(favorites.filter(item=>item.type===button.dataset.statsType)[Number(button.dataset.statsFavorite)]);
+ if(historyMode==='stats')wireImages();
  for(const bar of target.querySelectorAll('[data-bar-height]'))bar.style.height=Number(bar.dataset.barHeight)*.82+'px';
  const period=$('#viewing-period');
  const wasHidden=period?.hidden;

@@ -8,3 +8,21 @@ export function personalRatings(notes={}){
  const rows=Object.entries(notes).flatMap(([key,note])=>{const raw=String(note?.rating??'').trim();if(!/^(?:10(?:[.,]0{1,2})?|[0-9](?:[.,]\d{1,2})?)$/.test(raw)||! /^(movie|series):tt\d{5,12}$/.test(key))return [];const rating=Number(raw.replace(',','.'));return [{key,rating}];});
  return {count:rows.length,average:rows.length?rows.reduce((sum,row)=>sum+row.rating,0)/rows.length:null,distribution:Array.from({length:11},(_,rating)=>({rating,count:rows.filter(row=>Math.round(row.rating)===rating).length}))};
 }
+
+export function watchedGenres(media, items, period, type, label){
+ const names=new Map(items.map(item=>[`${item.type}:${item.id}`,item.genres]));
+ const counts=new Map(),seen=new Set();
+ let classified=0;
+ for(const title of media){
+  if(type&&title.type!==type)continue;
+  if(period==='unknown'&&!title.unknownDates)continue;
+  if(period!=='all'&&period!=='unknown'&&!title.years?.includes(Number(period)))continue;
+  const key=`${title.type}:${title.id}`;
+  if(seen.has(key))continue;
+  seen.add(key);
+  const genres=new Set((names.get(key)||[]).filter(value=>typeof value==='string'&&value.trim()).map(value=>label(value.trim())));
+  if(genres.size)classified++;
+  for(const genre of genres)counts.set(genre,(counts.get(genre)||0)+1);
+ }
+ return {classified,total:seen.size,rows:[...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR')).slice(0,6)};
+}

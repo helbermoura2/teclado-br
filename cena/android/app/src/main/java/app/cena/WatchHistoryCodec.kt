@@ -60,7 +60,13 @@ object WatchHistoryCodec {
  fun summary(rows:List<JSONObject>,zone:ZoneId=ZoneId.systemDefault()):JSONObject {
   fun stats(events:List<JSONObject>):JSONObject {
    val movies=events.filter{it.optString("kind")=="movie"};val episodes=events.filter{it.optString("kind")=="episode"}
-   return JSONObject().put("plays",events.size).put("movies",movies.filter{!it.optString("mediaKey").contains(":unknown:")}.map{it.optString("mediaKey")}.toSet().size).put("moviePlays",movies.size).put("series",episodes.filter{!it.optString("mediaKey").contains(":unknown:")}.map{it.optString("mediaKey")}.toSet().size).put("episodes",episodes.filter{!it.optString("episodeKey").startsWith("unknown-episode:")}.map{it.optString("episodeKey")}.toSet().size).put("episodePlays",episodes.size).put("estimatedMinutes",events.sumOf{it.optInt("runtimeMinutes").toLong()}).put("timedPlays",events.count{it.optInt("runtimeMinutes")>0}).put("unknownDates",events.count{it.optString("datePrecision")!="exact"})
+   val weekdays=events.mapNotNull{row->
+    if(row.optString("datePrecision")!="exact"||row.isNull("watchedMs"))null
+    else Instant.ofEpochMilli(row.optLong("watchedMs")).atZone(zone).dayOfWeek.value to row.optString("kind")
+   }.groupingBy{it}.eachCount()
+   val activity=JSONObject().put("movies",JSONArray((1..7).map{weekdays[it to "movie"]?:0}))
+    .put("episodes",JSONArray((1..7).map{weekdays[it to "episode"]?:0}))
+   return JSONObject().put("weekdays",activity).put("plays",events.size).put("movies",movies.filter{!it.optString("mediaKey").contains(":unknown:")}.map{it.optString("mediaKey")}.toSet().size).put("moviePlays",movies.size).put("series",episodes.filter{!it.optString("mediaKey").contains(":unknown:")}.map{it.optString("mediaKey")}.toSet().size).put("episodes",episodes.filter{!it.optString("episodeKey").startsWith("unknown-episode:")}.map{it.optString("episodeKey")}.toSet().size).put("episodePlays",episodes.size).put("estimatedMinutes",events.sumOf{it.optInt("runtimeMinutes").toLong()}).put("timedPlays",events.count{it.optInt("runtimeMinutes")>0}).put("unknownDates",events.count{it.optString("datePrecision")!="exact"})
   }
   fun year(row:JSONObject):Int?=try{if(row.optString("datePrecision")=="exact")Instant.ofEpochMilli(row.optLong("watchedMs")).atZone(zone).year else null}catch(_:Exception){null}
   val years=JSONArray();for((year,events)in rows.groupBy{year(it)}.filterKeys{it!=null}.toSortedMap(compareByDescending{it?:0}))years.put(stats(events).put("year",year))

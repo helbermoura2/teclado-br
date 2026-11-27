@@ -14,7 +14,7 @@ assert len(comparison['files'])<300
 for item in comparison['files']:
  name=item['filename']
  if name.startswith('cena/android/')or name in ('cena/scripts/build-local-ai.sh','cena/scripts/trim-native.sh','cena/scripts/prepare-vision-model.py'):
-  allowed={'cena/android/app/build.gradle.kts','cena/android/app/src/main/java/app/cena/MainActivity.kt','cena/android/app/src/main/java/app/cena/NuvioRepository.kt','cena/android/app/src/main/res/values/styles.xml','cena/android/app/src/main/java/app/cena/CoverOcr.kt','cena/android/app/src/main/java/app/cena/StreamingProviders.kt','cena/android/app/src/androidTest/java/app/cena/StreamingPolicyTest.kt','cena/android/app/src/androidTest/java/app/cena/CoverLayoutTest.kt'}
+  allowed={'cena/android/app/build.gradle.kts','cena/android/app/src/main/java/app/cena/MainActivity.kt','cena/android/app/src/main/java/app/cena/NuvioRepository.kt','cena/android/app/src/main/java/app/cena/WatchHistoryCodec.kt','cena/android/app/src/main/res/values/styles.xml','cena/android/app/src/main/java/app/cena/CoverOcr.kt','cena/android/app/src/main/java/app/cena/StreamingProviders.kt','cena/android/app/src/androidTest/java/app/cena/StreamingPolicyTest.kt','cena/android/app/src/androidTest/java/app/cena/CoverLayoutTest.kt'}
   assert name in allowed,'Inference or other native input changed; use the complete native workflow: '+name
 old=base64.b64decode(api('contents/cena/android/app/build.gradle.kts?ref='+baseline)['content']).decode()
 new=(root/'android/app/build.gradle.kts').read_text()
