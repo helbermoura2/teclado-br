@@ -243,3 +243,16 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 .detail-summary p{margin:0 0 8px}
 .detail-summary #synopsis-status:empty{display:none}
 .detail-summary button{margin-right:12px}
+
+#history-stats h2,#viewing-period h2{margin:20px 0 10px}
+#history-stats .profile-stat-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;padding:3px 3px 9px}
+#history-stats .profile-stat-tabs button{flex:none;white-space:nowrap}
+.stats-overview{padding:18px;border:1px solid #b18ddd35;border-radius:20px;background:radial-gradient(ellipse at top right,#42265760,transparent 70%),#101015}
+.stats-overview h2{font-family:var(--heading-font);font-size:clamp(25px,7vw,38px)}
+.stats-overview .eyebrow,.stats-overview p:last-child{margin:0}
+.stats-overview .history-stat-grid{margin:12px 0}
+#history-stats .profile-chart{overflow-x:auto;padding-bottom:8px}
+#history-stats .profile-bar-column{min-width:42px}
+#viewing-period:not([hidden]){margin-top:24px}
+.recap-canvas{display:block;width:min(100%,320px);height:auto;margin:16px auto;border-radius:12px;border:1px solid #b18ddd35}
+#recap-preview>button{margin-top:8px}
