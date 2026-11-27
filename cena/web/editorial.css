@@ -218,3 +218,6 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
   #main[data-screen="scan"] .scan-studio,
   #main[data-screen="scan"] .scan-search-panel{animation:none!important;transition:none!important}
 }
+
+.brand .brand-triangle picture{display:block;width:100%;height:100%;mix-blend-mode:screen}
+.brand .brand-triangle picture img{filter:none}
