@@ -1,4 +1,4 @@
-import subprocess,time,shutil,os,tempfile
+import subprocess,time,shutil,os,tempfile,json
 from playwright.sync_api import sync_playwright,expect
 p=subprocess.Popen(['node','server/index.mjs'],env=dict(os.environ,DATA_DIR=tempfile.mkdtemp()),stdout=subprocess.DEVNULL)
 try:
@@ -33,5 +33,21 @@ try:
    except Exception as e:print(selector,str(e)[-1400:]);print(page.locator(selector).evaluate('(e)=>{const r=e.getBoundingClientRect();return [r.toJSON(),document.elementsFromPoint(r.x+r.width/2,r.y+r.height/2).map(n=>n.tagName+"#"+n.id+"."+n.className)]}'))
   page.locator('#jump-history').click();page.locator('#backup-export').click(timeout=3000)
   assert page.evaluate('calls')==['nuvio','trakt','backup'];assert not errors,errors;print('Cliques de desconectar Nuvio/Trakt e exportar backup verificados.')
+  page.route('https://v3-cinemeta.strem.io/meta/series/tt0185906.json',lambda r:r.fulfill(status=200,content_type='application/json',body=json.dumps({'meta':{'id':'tt0185906','type':'series','name':'Band of Brothers','videos':[{'season':1,'episode':1,'title':'Currahee','released':'2001-09-09'},{'season':1,'episode':2,'title':'Day of Days','released':'2001-09-09'},{'season':2,'episode':1,'title':'Fixture','released':'2001-09-09'}]}})))
+  page.evaluate("""localStorage.setItem('cena.local.items.v1',JSON.stringify([{id:'tt0185906',type:'series',name:'Band of Brothers',status:'watchlist',poster:'https://image.tmdb.org/t/p/w500/wrong.jpg'}]));""")
+  page.reload(wait_until='domcontentloaded')
+  page.locator('nav [data-tab="library"]').click()
+  page.locator('.poster-card[data-id="tt0185906"]').click(timeout=5000)
+  page.locator('#episode-manager summary').click()
+  expect(page.locator('#episode-season')).to_be_visible(timeout=12000)
+  expect(page.locator('#episode-season option')).to_have_count(2)
+  page.locator('[data-episode="1"]').click()
+  expect(page.locator('[data-episode="1"]')).to_have_attribute('aria-pressed','true')
+  page.locator('#episode-season').select_option('2')
+  expect(page.locator('[data-episode="1"]')).to_have_attribute('aria-pressed','false')
+  page.locator('#episode-season').select_option('1')
+  expect(page.locator('[data-episode="1"]')).to_have_attribute('aria-pressed','true')
+  assert page.evaluate("Object.keys(JSON.parse(localStorage.getItem('cena.manual-episodes.v1'))).length")==1
+  assert not errors,errors
   b.close()
 finally:p.terminate();p.wait()
