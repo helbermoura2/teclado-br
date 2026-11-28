@@ -27,7 +27,7 @@ import {RecommendationEngine,genreLabel} from './recommendations.js';
 import {seriesSummary} from './series-view.js';
 import {receiveStoryArtwork} from './story-artwork.js';
 import {createStremioPanel} from './stremio-panel.js';
-import { ArtworkResolver, trustedArtwork } from './artwork.js';
+import { ArtworkResolver, trustedArtwork, titleArtwork } from './artwork.js';
 import { applyTraktState, traktItemLabel } from './trakt-state.js';
 import { getTitleDetails } from './search-public.js';
 import { createLocalApi } from './local-api.js';
@@ -279,18 +279,19 @@ function renderHistoryStats(loadMetadata=true){
  };
  const actorList=type=>{
   const titles=watchedTitles(dates.media||[],statsItems,historyYear,type);
-  const actors=castRanking(titles);
+  const clean=name=>String(name).replace(/&(?:apos|#39|#x27);/gi,"'").replace(/&amp;/gi,'&').replace(/&quot;/gi,'"');
+   const actors=castRanking(titles.map(row=>({...row,item:{...row.item,cast:(row.item.cast||[]).map(clean)}})));
   if(!actors.length)return '<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><p class="muted">Aparecem quando os títulos assistidos têm elenco cadastrado no catálogo local.</p></section>';
-  return `<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><ol class="stats-ranking">${actors.map(({name,count:total})=>`<li><span>${escape(name)}</span><strong>${count(total)} ${total===1?'título':'títulos'}</strong><button class="chip" data-favorite-actor="${escape(name)}" aria-label="Favoritar ${escape(name)}" aria-pressed="${favoriteActors.includes(name)}">${favoriteActors.includes(name)?'♥':'♡'}</button></li>`).join('')}</ol><p class="muted">Contagem de títulos assistidos com elenco disponível.</p></section>`;
+  return `<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><ol class="stats-ranking stats-actors">${actors.map(({name,count:total},rank)=>`<li><span class="stats-actor-rank">${rank+1}</span><div class="stats-actor-copy"><span>${escape(name)}</span><strong>${count(total)} ${total===1?'título':'títulos'}</strong></div><button class="chip" data-favorite-actor="${escape(name)}" aria-label="Favoritar ${escape(name)}" aria-pressed="${favoriteActors.includes(name)}">${favoriteActors.includes(name)?'♥':'♡'}</button></li>`).join('')}</ol><p class="muted">Contagem de títulos assistidos com elenco disponível.</p></section>`;
  };
  const topTitles=(type,metric,label)=>{
   const rows=watchedTitles(dates.media||[],statsItems,historyYear,type).filter(row=>row[metric]>0&&row.item.name)
    .sort((a,b)=>b[metric]-a[metric]||a.item.name.localeCompare(b.item.name,'pt-BR')).slice(0,10);
   if(!rows.length)return '';
-  return `<section class="stats-dashboard-section"><h2>${label}</h2><ol class="stats-ranking">${rows.map(row=>{
+  return `<section class="stats-dashboard-section"><h2>${label}</h2><ol class="stats-ranking stats-title-ranking">${rows.map((row,rank)=>{
    const index=detailItems.push(row.item)-1;
    const value=row[metric];
-   return `<li><button class="link-button" data-stats-title="${index}">${escape(row.item.name)}</button><strong>${metric==='minutes'?`${Math.floor(value/60)}h ${value%60}min`:count(value)+(type==='series'?' ep.':'×')}</strong></li>`;
+   return `<li><button class="stats-title-row" data-stats-title="${index}"><span class="stats-rank-number">${rank+1}</span><div class="stats-rank-art">${poster(row.item,'',false,false)}</div><div class="stats-rank-copy"><strong>${escape(row.item.name)}</strong><meter min="0" max="${rows[0][metric]}" value="${value}"></meter></div><strong class="stats-rank-value">${metric==='minutes'?`${Math.floor(value/60)}h ${value%60}min`:count(value)+(type==='series'?' ep.':'×')}</strong></button></li>`;
   }).join('')}</ol></section>`;
  };
  const detailActivity=type=>{
@@ -525,6 +526,7 @@ const artworkModels = new Map();
 const artworkObserved = new WeakSet();
 const artworkLoading = new WeakSet();
 function persistArtwork(item, url) {
+  if(url&&!titleArtwork(item,url))return;
   if(apiBase==='local') {
     const saved=items.find(row=>row.id===item.id && row.type===item.type);
     if(saved && saved.poster!==url) { saved.poster=url; try {storage.setItem('cena.local.items.v1',JSON.stringify(items));}catch{} }
@@ -628,7 +630,7 @@ function seriesBadges(item){
 }
 function poster(item, badge = '', showRating = false, showStreaming = true) {
   const key=`${item.type}:${item.id}`;artworkModels.set(key,item);
-  const image=artworkResolver.peek(item)||trustedArtwork(item.poster);
+  const image=artworkResolver.peek(item)||titleArtwork(item,item.poster);
   return `<div class="poster-art" data-artwork-key="${escape(key)}">${image?`<img src="${escape(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}${showStreaming?streamBadge(key):''}</div>`;
 }
 function viewingStatus(item,row,activity){
@@ -844,6 +846,7 @@ function renderSeriesSections(){
    if($('#see-series'))$('#see-series').onclick=()=>{discoveryMode='series';setTab('discover');};
   }
   const section=$('#series-discovery');if(section)section.innerHTML=seriesContent();
+  refreshEpisodeManager();
   const details=$('#series-detail-state');if(details){const state=seriesState.items?.find(row=>row.id===detailItem?.id);if(detailItem?.type==='series'&&traktState.connected){const summary=seriesSummary(state);details.innerHTML=`<div class="notice"><strong>${escape(summary.headline)}</strong><p>${escape(summary.detail)}</p>${state?.error?'<p>Consulta pendente. Os dados anteriores foram preservados.</p>':''}</div>`;}else details.innerHTML='';}
   for(const button of document.querySelectorAll('[data-series-refresh]'))button.onclick=()=>{if(typeof window.CenaAndroid?.refreshSeries==='function'){window.CenaAndroid.refreshSeries();refreshNuvioEpisodes();toast('Consulta de episódios solicitada.');}else toast('A consulta de episódios usa a conexão Trakt no APK Android.');};
   for(const button of document.querySelectorAll('[data-series-id]'))button.onclick=()=>showDetail(seriesResults.find(item=>item.id===button.dataset.seriesId));
@@ -1238,11 +1241,56 @@ function mountDirectSend(after,item){
  }
  details.append(status);after.after(details);
 }
+const manualEpisodeKey='cena.manual-episodes.v1';
+let episodeView=null,episodeRequest=0;
+const episodePending=new Map();
+function episodeScope(){return 'n:'+String(nuvioState.active?nuvioState.scope||'':'')+'|t:'+String(traktState.connected?traktState.account||traktState.username||'':'');}
+function manualEpisodes(){try{return JSON.parse(storage.getItem(manualEpisodeKey)||'{}')||{};}catch{return {};}}
+function episodeIdentity(item,episode){return episodeScope()+'|'+item.id+'|'+episode.season+':'+episode.episode;}
+function remoteEpisodeSources(item,episode){
+ const key=episode.season+':'+episode.episode,out=[];
+ if(nuvioState.active&&(nuvioState.series||[]).some(show=>show.id===item.id&&(show.seen||[]).includes(key)))out.push('Nuvio');
+ if(traktState.connected&&(traktState.progress||[]).some(show=>show.id===item.id&&(show.seen||[]).includes(key)))out.push('Trakt');
+ if(traktState.connected&&(recentHistoryRows||[]).some(row=>row.id===item.id&&row.kind==='episode'&&Number(row.season)===episode.season&&Number(row.episode)===episode.episode)&&!out.includes('Trakt'))out.push('Trakt');
+ return out;
+}
+function mountEpisodeManager(item){
+ const target=$('#episode-manager');if(!target)return;
+ const same=episodeView?.id===item.id&&episodeView?.scope===episodeScope();
+ if(!same)episodeView={id:item.id,scope:episodeScope(),item,videos:null,season:null,open:false,loading:false,error:''};
+ else episodeView.item=item;
+ refreshEpisodeManager();
+}
+function refreshEpisodeManager(){
+ const target=$('#episode-manager'),view=episodeView;
+ if(!target||!view||detailItem?.id!==view.id)return;
+ if(view.scope!==episodeScope()){mountEpisodeManager(detailItem);return;}
+ const old=target.querySelector('details');if(old)view.open=old.open;
+ const all=manualEpisodes(),videos=view.videos||[];
+ const seasons=[...new Set(videos.map(e=>e.season))];
+ if(!seasons.includes(view.season))view.season=seasons.find(s=>s>0)||seasons[0];
+ const seen=e=>remoteEpisodeSources(view.item,e).length||Boolean(all[episodeIdentity(view.item,e)]);
+ const rows=videos.filter(e=>e.season===view.season);
+ const count=videos.filter(seen).length;
+ target.innerHTML=`<details class="episode-manager" ${view.open?'open':''}><summary><span><strong>Temporadas e episódios</strong><small>${videos.length?count+' de '+videos.length+' marcados como vistos':'Veja e marque episódios individualmente'}</small></span><span aria-hidden="true">›</span></summary><div class="episode-manager-body">${view.loading?'<p role="status">Carregando episódios…</p>':view.error?'<p class="error">'+escape(view.error)+'</p><button id="episode-retry" class="secondary">Tentar novamente</button>':videos.length?`<label for="episode-season">Temporada</label><select id="episode-season">${seasons.map(s=>`<option value="${s}" ${s===view.season?'selected':''}>${s===0?'Especiais':'Temporada '+s}</option>`).join('')}</select><p class="muted">${rows.filter(seen).length} de ${rows.length} episódios vistos nesta temporada. Marcação local não altera o histórico remoto sem sua confirmação.</p><div class="episode-list">${rows.map(e=>{const key=episodeIdentity(view.item,e),record=all[key],sources=remoteEpisodeSources(view.item,e),future=Date.parse(e.released)>Date.now(),busy=episodePending.has(key);return `<article class="episode-row"><div class="episode-main"><span class="episode-number">E${String(e.episode).padStart(2,'0')}</span><div><strong>${escape(e.title||'Episódio '+e.episode)}</strong><small>${escape([...sources,...(record?['CENA']:[])].join(' + ')|| (future?'Ainda não lançado':'Não marcado'))}</small></div><button class="episode-check" data-episode="${e.episode}" aria-pressed="${Boolean(record||sources.length)}" ${busy||future||sources.length?'disabled':''}>${record||sources.length?'✓':'Marcar visto'}</button></div>${record?`<div class="episode-sync-actions">${nuvioState.active&&nuvioState.scope&&typeof window.CenaAndroid?.markNuvioEpisode==='function'&&!sources.includes('Nuvio')&&!record.nuvio?'<button class="secondary" data-send-episode="'+e.episode+'" data-destination="Nuvio" '+(busy?'disabled':'')+'>Enviar ao Nuvio</button>':''}${traktState.connected&&traktState.account&&typeof window.CenaAndroid?.markTraktEpisode==='function'&&!sources.includes('Trakt')&&!record.trakt?'<button class="secondary" data-send-episode="'+e.episode+'" data-destination="Trakt" '+(busy?'disabled':'')+'>Enviar ao Trakt</button>':''}<small role="status">${escape(record.message||'Salvo neste aparelho')}</small></div>`:''}</article>`;}).join('')}</div>`:'<p>Abra para consultar o catálogo.</p>'}</div></details>`;
+ const details=target.querySelector('details');details.ontoggle=()=>{view.open=details.open;if(view.open&&!view.videos&&!view.loading&&!view.error)loadEpisodeCatalog(view);};
+ const retry=target.querySelector('#episode-retry');if(retry)retry.onclick=()=>loadEpisodeCatalog(view);
+ const season=target.querySelector('#episode-season');if(season)season.onchange=()=>{view.season=Number(season.value);refreshEpisodeManager();};
+ for(const button of target.querySelectorAll('[data-episode]'))button.onclick=()=>{const e=rows.find(e=>e.episode===Number(button.dataset.episode)),key=episodeIdentity(view.item,e),data=manualEpisodes();if(data[key])delete data[key];else data[key]={at:Date.now()};storage.setItem(manualEpisodeKey,JSON.stringify(data));refreshEpisodeManager();toast(data[key]?'Episódio marcado no CENA.':'Marcação local removida.');};
+ for(const button of target.querySelectorAll('[data-send-episode]'))button.onclick=()=>{const e=rows.find(e=>e.episode===Number(button.dataset.sendEpisode)),key=episodeIdentity(view.item,e),dest=button.dataset.destination;const request=++episodeRequest;episodePending.set(key,{request,dest});refreshEpisodeManager();const payload=JSON.stringify({id:view.id,name:view.item.name,season:e.season,episode:e.episode,scope:dest==='Nuvio'?nuvioState.scope:traktState.account});if(dest==='Nuvio')window.CenaAndroid.markNuvioEpisode(request,payload);else window.CenaAndroid.markTraktEpisode(request,payload);};
+}
+async function loadEpisodeCatalog(view){
+ view.loading=true;view.error='';refreshEpisodeManager();
+ try{const catalog=await nuvioSeriesEngine.catalog(view.id);const unique=new Map();for(const row of catalog.videos){const season=Number(row.season),episode=Number(row.episode);if(Number.isInteger(season)&&season>=0&&Number.isInteger(episode)&&episode>0)unique.set(season+':'+episode,{...row,season,episode});}view.videos=[...unique.values()].sort((a,b)=>a.season-b.season||a.episode-b.episode);if(!view.videos.length)throw Error('Catálogo sem episódios confirmados.');}catch{view.error='Não consegui consultar os episódios. Confira a conexão e tente novamente.';}finally{view.loading=false;if(episodeView===view)refreshEpisodeManager();}
+}
+window.CenaManualEpisodeResult=result=>{
+ for(const [key,pending] of episodePending){if(pending.request!==result.requestId)continue;episodePending.delete(key);const data=manualEpisodes(),record=data[key];if(record){if(result.ok)record[pending.dest.toLowerCase()]=true;record.message=result.ok?'Confirmado no '+pending.dest:result.error||'Envio não confirmado. Tente novamente.';storage.setItem(manualEpisodeKey,JSON.stringify(data));}refreshEpisodeManager();break;}
+};
 function showDetail(item, enriched = false, capture = null) {
   if (!item) return;
   localAI.cancel();similarTicket++;
   detailItem = item;
-  if(trustedArtwork(item.poster))persistArtwork(item,item.poster);
+  if(titleArtwork(item,item.poster))persistArtwork(item,item.poster);
   const saved = items.find(i => i.id === item.id);
   const traktReady = apiBase === 'local' && traktState.connected && typeof window.CenaAndroid?.queueTrakt === 'function';
 
@@ -1255,7 +1303,7 @@ function showDetail(item, enriched = false, capture = null) {
   const viaTrakt=capture&&traktReady&&!directSendAvailable;
   const addLabel=viaTrakt?(saved?.status==='watchlist'?'Enviar ao Nuvio via Trakt':'Adicionar ao Nuvio via Trakt'):saved?.status==='watchlist'?'✓ Está na minha lista':'+ Quero assistir';
   const syncHint=viaTrakt?`<p class="muted capture-sync-tip">O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.</p>`:'';
-  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div>${viewingRibbon(item)}<div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body"><section class="detail-summary" aria-label="Sinopse"><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp" hidden></p><p class="muted" id="synopsis-status" role="status"></p><button class="link-button" id="synopsis-expand" aria-expanded="false" hidden>Ler sinopse completa</button><button class="link-button" id="synopsis-retry" hidden>Tentar traduzir novamente</button></section>${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
+  $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div>${viewingRibbon(item)}<div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body"><section class="detail-summary" aria-label="Sinopse"><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp" hidden></p><p class="muted" id="synopsis-status" role="status"></p><button class="link-button" id="synopsis-expand" aria-expanded="false" hidden>Ler sinopse completa</button><button class="link-button" id="synopsis-retry" hidden>Tentar traduzir novamente</button></section>${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div>${item.type==='series'?'<section id="episode-manager" class="detail-section"></section>':''}<p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved&&item.type!=='series' ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
   mountDirectSend($('#add-title'),item);
   $('#add-title').onclick = () => {
     if(saved?.status !== 'watchlist') return save(item,'watchlist',capture);
@@ -1290,19 +1338,19 @@ function showDetail(item, enriched = false, capture = null) {
   $('#share-title').onclick = () => story(item);
   $('#rate-title').onclick=async()=>{await story(item);$('#story-rating')?.focus();};
 
-  const backdrop=$('#detail-backdrop');if(trustedArtwork(item.poster)){const image=new Image();image.src=item.poster;image.alt='';backdrop.append(image);}
+  const backdrop=$('#detail-backdrop');if(titleArtwork(item,item.poster)){const image=new Image();image.src=titleArtwork(item,item.poster);image.alt='';backdrop.append(image);}
   mountTitleCollections($('#title-collections'),{storage,item,toast});
   mountFeedback($('#title-feedback'),{storage,item,toast,onSeen:async value=>{if(value.type==='series')throw Error('Para séries, registre os episódios no player ou use os controles de progresso.');if(!await save(value,'watched'))throw Error('Não consegui marcar este filme. Tente novamente.');},onChange:()=>{const values=readFeedback(storage);discoveryResults=discoveryResults.filter(row=>!['dislike','seen'].includes(values[row.type+':'+row.id]?.value));discoveryInfo=null;discoveryFingerprint='';if(tab==='discover')renderRecommendations();if(tab==='home')renderHomeRecommendations();}});
 
   $('#similar-titles').onclick=()=>findSimilar(item);
-  renderSeriesSections();renderTitleHistory(item);
+  renderSeriesSections();renderTitleHistory(item);if(item.type==='series')mountEpisodeManager(item);
   if(typeof window.CenaAndroid?.historyState==='function')window.CenaAndroid.historyState();
   wireImages();
   if (!$('#detail').open) { $('#detail').showModal(); $('#detail').scrollTop = 0; }
   mountSynopsis(item,!enriched);
   if (!enriched) getTitleDetails(item).then(details => {
     if ($('#detail').open && detailItem === item) {
-      if($('#story-canvas')||$('#similar-panel')?.childNodes.length||document.activeElement?.closest('#title-collections,#title-feedback')) { const status=$('#detail-loading'); if(status) status.textContent=''; mountSynopsis(details); }
+      if($('#story-canvas')||$('#similar-panel')?.childNodes.length||$('#episode-manager details[open]')||document.activeElement?.closest('#title-collections,#title-feedback,#episode-manager')) { const status=$('#detail-loading'); if(status) status.textContent=''; mountSynopsis(details); }
       else showDetail(details, true, capture);
     }
   }).catch(() => { const status = $('#detail-loading'); if (status && detailItem === item) {status.textContent = 'Não consegui carregar a ficha completa.';mountSynopsis(item);} });

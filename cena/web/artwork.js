@@ -2,6 +2,17 @@ const safeId = item => /^tt\d{5,12}$/.test(item?.id || '') && ['movie','series']
 export function trustedArtwork(value) {
   try { const url=new URL(value); return url.protocol==='https:' && !url.username && !url.password && ['upload.wikimedia.org','image.tmdb.org','images.metahub.space','m.media-amazon.com'].includes(url.hostname) ? url.href : ''; } catch { return ''; }
 }
+export function titleArtwork(item,value){
+ const url=trustedArtwork(value);if(!url)return '';
+ const parsed=new URL(url);
+ const embedded=parsed.pathname.match(/tt[0-9]{5,12}/g);
+ if(embedded&&embedded.some(id=>id!==item.id))return '';
+ // A Wikipedia page thumbnail need not depict the show itself.
+ if(parsed.hostname==='upload.wikimedia.org')return '';
+ // Repair known contaminated poster regardless of old cache provenance.
+ if(item.id==='tt0185906'&&parsed.hostname!=='images.metahub.space')return '';
+ return url;
+}
 export async function catalogArtwork(item, fetcher=fetch) {
   if(!safeId(item)) return '';
   const response=await fetcher(`https://v3-cinemeta.strem.io/meta/${item.type}/${item.id}.json`,{signal:AbortSignal.timeout(10000),headers:{Accept:'application/json'}});
@@ -61,7 +72,7 @@ export class ArtworkResolver {
     if(!this.cache || Array.isArray(this.cache) || typeof this.cache!=='object')this.cache={};
   }
   key(item){return `${item.type}:${item.id}`;}
-  peek(item){const cached=this.cache[this.key(item)];return cached && this.now()-cached.at<14*86400000 ? trustedArtwork(cached.poster):'';}
+  peek(item){const cached=this.cache[this.key(item)];return cached && this.now()-cached.at<14*86400000 ? titleArtwork(item,cached.poster):'';}
   retry(){this.failures.clear();}
   remember(item,poster){
     this.cache[this.key(item)]={poster,at:this.now()};
@@ -91,11 +102,11 @@ export class ArtworkResolver {
   }
   async find(item){
     const tried=new Set();
-    const attempt=async value=>{const url=trustedArtwork(value);if(!url||tried.has(url))return '';tried.add(url);return await this.probe(url)?url:'';};
+    const attempt=async value=>{const url=titleArtwork(item,value);if(!url||tried.has(url))return '';tried.add(url);return await this.probe(url)?url:'';};
     for(const candidate of [this.peek(item),item.poster]) {const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}}
     let catalog='';try{catalog=await catalogArtwork(item,this.fetcher);}catch{}
     for(const candidate of [catalog,`https://images.metahub.space/poster/medium/${item.id}/img`]) {const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}}
-    for(const lookup of [searchCatalogArtwork,regionalArtwork]){
+    for(const lookup of [searchCatalogArtwork]){
       let candidate='';try{candidate=await lookup(item,this.fetcher);}catch{}
       const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}
     }

@@ -379,6 +379,18 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun connectNuvio(){nuvioTask{nuvio.begin()}}
         @JavascriptInterface fun refreshNuvioProfiles(){nuvioTask{nuvio.profiles()}}
         @JavascriptInterface fun selectNuvioProfile(id:Int){nuvioTask{nuvio.selectProfile(id);NuvioWorker.schedule(applicationContext)}}
+        private fun emitManualEpisode(requestId:Int,result:JSONObject){
+            result.put("requestId",requestId)
+            runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaManualEpisodeResult && window.CenaManualEpisodeResult($result)",null)}
+        }
+        @JavascriptInterface fun markNuvioEpisode(requestId:Int,raw:String){
+            if(requestId<=0||raw.length>2000)return
+            nuvioTask{val result=try{nuvio.markEpisode(raw)}catch(_:Exception){JSONObject().put("ok",false).put("error","Não consegui confirmar no Nuvio. Marcação local preservada.")};emitManualEpisode(requestId,result)}
+        }
+        @JavascriptInterface fun markTraktEpisode(requestId:Int,raw:String){
+            if(requestId<=0||raw.length>2000)return
+            traktTask{val result=try{trakt.markEpisode(raw)}catch(_:Exception){JSONObject().put("ok",false).put("error","Não consegui confirmar no Trakt. Marcação local preservada.")};emitManualEpisode(requestId,result);if(result.optBoolean("ok")){trakt.sync(true);WatchHistoryWorker.schedule(applicationContext,true);seriesTask(true)}}
+        }
         private fun emitNuvioCopy(requestId:Int,result:JSONObject){
             result.put("requestId",requestId)
             runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaNuvioCopyResult && window.CenaNuvioCopyResult($result)",null)}

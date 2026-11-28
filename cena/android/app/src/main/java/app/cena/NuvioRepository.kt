@@ -123,6 +123,21 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
   if(!complete)failure("Não consegui conferir todo o histórico do Nuvio.")
   return library to watched
  }
+ fun markEpisode(raw:String):JSONObject=synchronized(lock){
+  val item=JSONObject(raw);val id=item.getString("id");val season=item.getInt("season");val episode=item.getInt("episode")
+  require(validCopyId(id)&&season>0&&episode>0)
+  val a=auth.read();val profile=a.optInt("profile")
+  check(a.optBoolean("active")&&profile>0&&scope(a,profile)==item.optString("scope"))
+  val jwt=token(a);val key=copyKey(id,"series",season,episode)
+  if(key !in readCopyDestination(profile,jwt).second){
+   val client=inventory.getString("libraryClientId",null)?:("cena-"+java.util.UUID.randomUUID()).also{inventory.edit().putString("libraryClientId",it).apply()}
+   val row=JSONObject().put("content_id",id).put("content_type","series").put("title",item.optString("name",id).take(200)).put("season",season).put("episode",episode).put("watched_at",now())
+   val args=JSONObject().put("p_profile_id",profile).put("p_origin_client_id",client).put("p_items",JSONArray().put(row))
+   checkReply(transport.request("/rest/v1/rpc/sync_push_watched_items",args,jwt))
+   check(key in readCopyDestination(profile,jwt).second){"O Nuvio ainda não confirmou o episódio."}
+  }
+  sync(true);JSONObject().put("ok",true)
+ }
  fun previewCopy(status:JSONObject,owner:JSONObject,events:JSONArray):JSONObject=synchronized(lock){
   copyPlan=null
   val source=copySource(status,owner)

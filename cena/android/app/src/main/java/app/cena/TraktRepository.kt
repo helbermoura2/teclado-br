@@ -179,6 +179,24 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         require(raw.length() <= 2000)
         val s = load(); s.put("inventory",JSONArray(records(raw).filter(::valid).map { JSONObject().put("id",it.getString("id")).put("type",it.getString("type")) })); save(s)
     }
+    fun markEpisode(raw:String):JSONObject=synchronized(lock){
+        val item=JSONObject(raw);val id=item.getString("id");val season=item.getInt("season");val episode=item.getInt("episode")
+        require(imdb.matches(id)&&season>0&&episode>0)
+        val s=load();check(connected(s)&&s.optString("account").isNotBlank()&&s.optString("account")==item.optString("scope"))
+        val user=JSONObject(api(s,"GET","/users/settings").body).getJSONObject("user").getJSONObject("ids").getString("slug")
+        check(user==item.optString("scope"))
+        fun seen():Boolean{
+            val progress=JSONObject(api(s,"GET","/shows/$id/progress/watched?hidden=false&specials=false&count_specials=false").body)
+            return records(progress.optJSONArray("seasons")).any{row->row.optInt("number")==season&&records(row.optJSONArray("episodes")).any{it.optInt("number")==episode&&it.optBoolean("completed")}}
+        }
+        if(!seen()){
+            val ep=JSONObject().put("number",episode).put("watched_at",java.time.Instant.ofEpochMilli(now()).toString())
+            val show=JSONObject().put("ids",JSONObject().put("imdb",id)).put("seasons",JSONArray().put(JSONObject().put("number",season).put("episodes",JSONArray().put(ep))))
+            api(s,"POST","/sync/history",JSONObject().put("shows",JSONArray().put(show)))
+            check(seen()){"O Trakt ainda não confirmou o episódio."}
+        }
+        JSONObject().put("ok",true)
+    }
     fun enqueue(raw: JSONObject) = synchronized(lock) {
         require(valid(raw) && raw.optString("action") in setOf("add","remove"))
         val s=load(); if(!connected(s)) return@synchronized
@@ -237,8 +255,9 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
             for(row in all(s,"/sync/watched/shows")) {
                 val imdbId=row.optJSONObject("show")?.optJSONObject("ids")?.optString("imdb") ?: continue
                 if(!imdb.matches(imdbId)) continue
-                val completed=records(row.optJSONArray("seasons")).filter { it.optInt("number") > 0 }.sumOf { season -> records(season.optJSONArray("episodes")).count { it.optInt("plays") > 0 } }
-                progress.add(JSONObject().put("id",imdbId).put("type","series").put("name",row.optJSONObject("show")?.optString("title",imdbId)?:imdbId).put("year",row.optJSONObject("show")?.opt("year")?:"").put("episodes",completed).put("watchedAt",row.optString("last_watched_at")))
+                val seen=records(row.optJSONArray("seasons")).filter { it.optInt("number") > 0 }.flatMap { season -> records(season.optJSONArray("episodes")).filter{it.optInt("plays")>0}.map{"${season.optInt("number")}:${it.optInt("number")}"} }
+                val completed=seen.size
+                progress.add(JSONObject().put("id",imdbId).put("type","series").put("name",row.optJSONObject("show")?.optString("title",imdbId)?:imdbId).put("year",row.optJSONObject("show")?.opt("year")?:"").put("episodes",completed).put("seen",JSONArray(seen)).put("watchedAt",row.optString("last_watched_at")))
             }
             s.put("watchlist",JSONArray(remote)).put("watched",JSONArray(watched)).put("progress",JSONArray(progress)).put("lastSync",now()).put("error",if(s.optBoolean("blocked")) s.optString("queueError") else "").put("failures",0).put("retryAt",0); save(s)
             // Playback is independent from next-episode progress. A failure here must not erase completed watches.

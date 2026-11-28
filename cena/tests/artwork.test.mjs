@@ -61,3 +61,13 @@ test('a new visible card keeps a shared queued image request alive when the prev
   const visible=resolver.resolve(item,{shouldLoad:()=>true});release();
   const values=await Promise.all([first,old,visible]);assert.ok(values.every(value=>value===poster));assert.equal(calls,2);
 });
+
+test('contaminated Band of Brothers artwork and mismatching IMDb URLs are rejected',async()=>{
+ const {titleArtwork}=await import('../web/artwork.js');const show={id:'tt0185906',type:'series',name:'Band of Brothers'};
+ assert.equal(titleArtwork(show,'https://image.tmdb.org/t/p/w500/wrong.jpg'),'');
+ assert.equal(titleArtwork(show,'https://images.metahub.space/poster/medium/tt9999999/img'),'');
+ const correct='https://images.metahub.space/poster/medium/tt0185906/img';
+ assert.equal(titleArtwork(show,correct),correct);
+ const resolver=new ArtworkResolver({storage:storage(),fetcher:async()=>response({...show,poster:'https://image.tmdb.org/t/p/w500/wrong.jpg'}),probe:async()=>true});
+ assert.equal(await resolver.resolve({...show,poster:'https://image.tmdb.org/t/p/w500/wrong.jpg'}),correct);
+});
