@@ -299,15 +299,15 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 .stats-weekdays strong{font-variant-numeric:tabular-nums}
 .stats-weekdays small{color:#d2bbdf;font-size:10px}
 
-#nuvio-home .resume-rail:not(.expanded){grid-auto-columns:clamp(166px,51%,260px)}
-#nuvio-home .resume-art{position:relative;aspect-ratio:5/4;height:auto}
+#nuvio-home .resume-rail:not(.expanded){grid-auto-columns:min(calc((100% - 12px)/2),260px);scroll-snap-type:x mandatory}
+#nuvio-home .resume-rail:not(.expanded) .resume-art{position:relative;aspect-ratio:5/4;height:auto}
 #nuvio-home .resume-art .poster-art{height:100%;width:100%;aspect-ratio:auto}
 #nuvio-home .resume-art .poster-art img{object-position:center 27%}
 #nuvio-home .resume-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
 #nuvio-home .resume-art .resume-play{z-index:2}
 #nuvio-home .resume-card{border-color:#aa83dc30;background:linear-gradient(145deg,#1e1727,#121219 70%)}
 #nuvio-home .resume-copy{padding:12px 13px 14px}
-#nuvio-home .resume-copy strong{font-size:14px;line-height:1.3}
+#nuvio-home .resume-copy strong{font-size:14px;line-height:1.3;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
 #nuvio-home .resume-copy progress{height:4px}
 #home-watchlist .poster-rail{grid-auto-columns:clamp(100px,32%,180px)}
 #main[data-screen=home] .capture-hero{grid-template-columns:minmax(0,1fr) minmax(54px,22%);padding:16px;border-radius:19px}
