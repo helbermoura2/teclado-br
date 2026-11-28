@@ -26,3 +26,27 @@ export function watchedGenres(media, items, period, type, label){
  }
  return {classified,total:seen.size,rows:[...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'pt-BR')).slice(0,6)};
 }
+
+export function watchedTitles(media, items, period, type){
+ const catalog=new Map(items.map(item=>[`${item.type}:${item.id}`,item]));
+ return media.flatMap(row=>{
+  if(type&&row.type!==type)return [];
+  const stats=period==='all'?row:row.periods?.[period];
+  if(!(Number(stats?.plays)>0))return [];
+  const item=catalog.get(`${row.type}:${row.id}`)||row;
+  return [{item,plays:Number(stats.plays),episodes:Number(stats.episodes)||0,minutes:Number(stats.minutes)||0}];
+ });
+}
+
+export function castRanking(titles){
+ const names=new Map();
+ for(const {item} of titles){
+  const cast=new Map((Array.isArray(item.cast)?item.cast:[]).filter(name=>typeof name==='string'&&name.trim()).map(name=>[name.trim().toLocaleLowerCase('pt-BR'),name.trim()]));
+  for(const [key,name] of cast){
+   const row=names.get(key)||{name,count:0};
+   row.count++;
+   names.set(key,row);
+  }
+ }
+ return [...names.values()].sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'pt-BR')).slice(0,12);
+}

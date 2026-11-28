@@ -149,7 +149,8 @@ internal object NuvioCodec {
   val unknown=WatchTotals()
   val years=sortedMapOf<Int,WatchTotals>(compareByDescending{it})
   val media=linkedMapOf<Pair<String,String>,JSONObject>()
-  val mediaYears=mutableMapOf<Pair<String,String>,MutableSet<Int>>()
+  val titlePeriods=mutableMapOf<Pair<String,String>,MutableMap<String,WatchTotals>>()
+  val days=sortedMapOf<java.time.LocalDate,WatchTotals>()
   val timezone=java.time.ZoneId.systemDefault()
   for(index in 0 until watched.length()){
    val row=watched.optJSONObject(index)?:continue
@@ -157,20 +158,36 @@ internal object NuvioCodec {
    totals.add(row)
    val date=try{row.optLong("watchedAt").takeIf{it>0}?.let{java.time.Instant.ofEpochMilli(it).atZone(timezone)}}catch(_:java.time.DateTimeException){null}
    val key=row.optString("type") to row.optString("id")
-   val title=media.getOrPut(key){JSONObject().put("type",key.first).put("id",key.second)}
+   val title=media.getOrPut(key){JSONObject().put("type",key.first).put("id",key.second).put("name",row.optString("name"))}
+   val periods=titlePeriods.getOrPut(key){linkedMapOf()}
+   periods.getOrPut("all"){WatchTotals()}.add(row)
    if(date!=null&&date.year in 1..9999){
+    days.getOrPut(date.toLocalDate()){WatchTotals()}.add(row)
+    periods.getOrPut(date.year.toString()){WatchTotals()}.add(row)
     val annual=years.getOrPut(date.year){WatchTotals()}
     annual.add(row)
     annual.addWeekday(date.dayOfWeek.value,row)
     totals.addWeekday(date.dayOfWeek.value,row)
-    mediaYears.getOrPut(key){sortedSetOf()}.add(date.year)
+
    }else{
     unknown.add(row)
+    periods.getOrPut("unknown"){WatchTotals()}.add(row)
     title.put("unknownDates",true)
    }
   }
-  for((key,title) in media)title.put("years",JSONArray(mediaYears[key].orEmpty()))
-  return JSONObject().put("media",JSONArray(media.values)).put("origin","Nuvio").put("totals",totals.json().put("unknownDates",unknown.json().optInt("plays")))
+  for((key,title) in media){
+   val periods=titlePeriods.getValue(key)
+   val all=periods.getValue("all")
+   title.put("plays",all.movies.size+all.episodes.size).put("episodes",all.episodes.size)
+    .put("years",JSONArray(periods.keys.mapNotNull{it.toIntOrNull()}.sorted()))
+    .put("periods",JSONObject(periods.filterKeys{it!="all"}.mapValues{(_,value)->
+     JSONObject().put("plays",value.movies.size+value.episodes.size).put("episodes",value.episodes.size)
+    }))
+  }
+  val activity=JSONArray(days.map{(day,value)->JSONObject().put("date",day.toString())
+   .put("movies",JSONObject().put("plays",value.movies.size))
+   .put("series",JSONObject().put("plays",value.episodes.size))})
+  return JSONObject().put("activity",activity).put("media",JSONArray(media.values)).put("origin","Nuvio").put("totals",totals.json().put("unknownDates",unknown.json().optInt("plays")))
    .put("unknown",unknown.json()).put("years",JSONArray(years.map{(year,counts)->counts.json().put("year",year)}))
  }
  private fun base(row:JSONObject):JSONObject? {

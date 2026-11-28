@@ -4,7 +4,7 @@ import {createTitleAliasResolver} from './title-aliases.js';
 import {recentWatches} from './recent-watches.js';
 import {createOnlineAI} from './online-ai.js';
 import {availabilityRows} from './availability.js';
-import {profileCollection,yearlyHistory,personalRatings,watchedGenres} from './profile-stats.js';
+import {profileCollection,yearlyHistory,personalRatings,watchedGenres,watchedTitles,castRanking} from './profile-stats.js';
 import {NuvioSeriesEngine} from './nuvio-series.js';
 import {seriesUniverse,seriesCards,nextEpisodeEntries,combineContinuity,traktPausedEntries} from './series-continuity.js';
 import {mountVisionModel} from './vision-model-panel.js';
@@ -223,11 +223,65 @@ function renderHistoryStats(){
   const unit=type==='movies'?'filmes':'episódios';
   return `<section class="stats-dashboard-section"><h2>Atividade por dia da semana</h2><div class="stats-weekdays">${values.map((value,index)=>`<div aria-label="${days[index]}, ${count(value)} ${unit}"><strong>${count(value)}</strong><div class="profile-bar" data-bar-height="${value?Math.max(3,Math.round(value/peak*100)):0}"></div><small>${days[index].slice(0,3)}</small></div>`).join('')}</div><p class="muted">${source==='Nuvio'?`Total de ${unit} distintos em cada dia da semana.`:'Reproduções registradas com data.'}</p></section>`;
  };
+ const detailItems=[];
+ const actorKey='cena.stats.favorite-cast.v1';
+ let favoriteActors=[];
+ try{const saved=JSON.parse(storage.getItem(actorKey)||'[]');if(Array.isArray(saved))favoriteActors=saved.filter(name=>typeof name==='string');}catch{}
+ const actorFavorites=()=>`<section class="stats-dashboard-section"><h2>Atores favoritos</h2>${favoriteActors.length?`<div class="chips">${favoriteActors.map(name=>`<button class="chip selected" data-favorite-actor="${escape(name)}" aria-pressed="true">${escape(name)} · Remover</button>`).join('')}</div>`:'<p class="muted">Use o coração ao lado de um nome em Atores mais vistos.</p>'}</section>`;
+ const savedShelf=type=>{
+  const rows=items.filter(item=>item.type===type).slice(0,12);
+  if(!rows.length)return '';
+  return `<section class="stats-dashboard-section"><h2>${type==='movie'?'Meus filmes':'Minhas séries'}</h2><div class="stats-poster-shelf">${rows.map(item=>{
+   const index=detailItems.push(item)-1;
+   return `<button class="poster-card" data-stats-title="${index}">${poster(item,'',false,false)}<strong>${escape(item.name)}</strong>${viewingRibbon(item)}</button>`;
+  }).join('')}</div></section>`;
+ };
+ const actorList=type=>{
+  const titles=watchedTitles(dates.media||[],items,historyYear,type);
+  const actors=castRanking(titles);
+  if(!actors.length)return '<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><p class="muted">Aparecem quando os títulos assistidos têm elenco cadastrado no catálogo local.</p></section>';
+  return `<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><ol class="stats-ranking">${actors.map(({name,count:total})=>`<li><span>${escape(name)}</span><strong>${count(total)} ${total===1?'título':'títulos'}</strong><button class="chip" data-favorite-actor="${escape(name)}" aria-label="Favoritar ${escape(name)}" aria-pressed="${favoriteActors.includes(name)}">${favoriteActors.includes(name)?'♥':'♡'}</button></li>`).join('')}</ol><p class="muted">Contagem de títulos assistidos com elenco disponível.</p></section>`;
+ };
+ const topTitles=(type,metric,label)=>{
+  const rows=watchedTitles(dates.media||[],items,historyYear,type).filter(row=>row[metric]>0&&row.item.name)
+   .sort((a,b)=>b[metric]-a[metric]||a.item.name.localeCompare(b.item.name,'pt-BR')).slice(0,10);
+  if(!rows.length)return '';
+  return `<section class="stats-dashboard-section"><h2>${label}</h2><ol class="stats-ranking">${rows.map(row=>{
+   const index=detailItems.push(row.item)-1;
+   const value=row[metric];
+   return `<li><button class="link-button" data-stats-title="${index}">${escape(row.item.name)}</button><strong>${metric==='minutes'?`${Math.floor(value/60)}h ${value%60}min`:count(value)+(type==='series'?' ep.':'×')}</strong></li>`;
+  }).join('')}</ol></section>`;
+ };
+ const detailActivity=type=>{
+  const rows=dates.activity;
+  if(!Array.isArray(rows)||historyYear==='unknown')return '';
+  const today=new Date(),key=date=>[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');
+  const weekStart=new Date(today.getFullYear(),today.getMonth(),today.getDate()-((today.getDay()+6)%7));
+  const monthStart=new Date(today.getFullYear(),today.getMonth(),1);
+  const matching=rows.filter(row=>row.date<=key(today)&&(historyYear==='all'||row.date.startsWith(historyYear+'-')));
+  const sum=(start,metric)=>matching.filter(row=>row.date>=key(start)).reduce((total,row)=>total+(Number(row[type]?.[metric])||0),0);
+  const timed=matching.some(row=>row[type]?.minutes>0);
+  const metric=timed?'minutes':'plays';
+  const values=new Map();
+  for(const row of matching){const month=row.date.slice(0,7);values.set(month,(values.get(month)||0)+(Number(row[type]?.[metric])||0));}
+  const months=[...values].slice(-12);
+  const top=Math.max(1,...months.map(([,value])=>value));
+  const format=value=>timed?`${Math.floor(value/60)}h ${value%60}min`:count(value);
+  return `<section class="stats-dashboard-section"><h2>Atividade no tempo</h2>${historyYear==='all'||Number(historyYear)===today.getFullYear()?`<dl class="stats-dashboard-kpis"><div><dt>Esta semana</dt><dd>${count(sum(weekStart,'plays'))}</dd></div><div><dt>Este mês</dt><dd>${count(sum(monthStart,'plays'))}</dd></div>${timed?`<div><dt>Tempo este mês</dt><dd>${format(sum(monthStart,'minutes'))}</dd></div>`:''}</dl>`:''}<p class="muted">${source==='Nuvio'?'Registros com data, somados por dia.':'Reproduções registradas com data.'} ${timed?'Tempo estimado pelas durações disponíveis.':''}</p>${months.length?`<div class="profile-chart" role="region" aria-label="Evolução mensal" tabindex="0"><div class="profile-bars">${months.map(([month,value])=>`<div class="profile-bar-column"><span>${format(value)}</span><div class="profile-bar" data-bar-height="${value?Math.max(3,Math.round(value/top*100)):0}"></div><small>${escape(month.slice(5)+'/'+month.slice(2,4))}</small></div>`).join('')}</div></div>`:''}</section>`;
+ };
+ const statusSection=type=>{
+  const totals=new Map();
+  for(const item of items.filter(item=>item.type===type)){
+   const state=viewingStatus(item);
+   totals.set(state.label,(totals.get(state.label)||0)+1);
+  }
+  return totals.size?`<section class="stats-dashboard-section"><h2>Distribuição por status</h2><ul class="stats-ranking">${[...totals].map(([label,total])=>`<li><span>${escape(label)}</span><strong>${count(total)}</strong></li>`).join('')}</ul><p class="muted">Situação atual dos títulos salvos no CENA.</p></section>`:'';
+ };
  const activity=(metric,label)=>`<section class="stats-dashboard-section"><h2>${label}</h2>${chart(metric,label)}</section>`;
  let content='';
- if(profileStatsTab==='overview')content=`${historyPending?historyEmpty:`${overview}${annual}${genreSection()}`}${favoriteShelf('movie')}${favoriteShelf('series')}${historyPending?'':activity('plays',source==='Nuvio'?'Itens assistidos por ano':'Reproduções por ano')}`;
- if(profileStatsTab==='movies')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Filmes assistidos</h2><strong class="stats-dashboard-total">${count(stats.movies)}</strong><span class="stats-dashboard-label">Filmes diferentes</span></section>${weekdaySection('movies')}${genreSection('movie')}${activity('movies','Filmes diferentes por ano')}`;
- if(profileStatsTab==='series')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Séries assistidas</h2><dl class="stats-dashboard-kpis"><div><dt>Séries</dt><dd>${count(stats.series)}</dd></div><div><dt>Episódios</dt><dd>${count(stats.episodes)}</dd></div></dl></section>${weekdaySection('episodes')}${genreSection('series')}${activity('episodes','Episódios diferentes por ano')}`;
+ if(profileStatsTab==='overview')content=`${historyPending?historyEmpty:`${overview}${annual}${genreSection()}`}${favoriteShelf('movie')}${favoriteShelf('series')}${actorFavorites()}${historyPending?'':actorList()}${savedShelf('movie')}${savedShelf('series')}${items.length?viewingLegend():''}${historyPending?'':activity('plays',source==='Nuvio'?'Itens assistidos por ano':'Reproduções por ano')}`;
+ if(profileStatsTab==='movies')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Filmes assistidos</h2><strong class="stats-dashboard-total">${count(stats.movies)}</strong><span class="stats-dashboard-label">Filmes diferentes</span></section>${detailActivity('movies')}${statusSection('movie')}${topTitles('movie','plays','Filmes mais vistos')}${actorList('movie')}${weekdaySection('movies')}${genreSection('movie')}${activity('movies','Filmes diferentes por ano')}`;
+ if(profileStatsTab==='series')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Séries assistidas</h2><dl class="stats-dashboard-kpis"><div><dt>Séries</dt><dd>${count(stats.series)}</dd></div><div><dt>Episódios</dt><dd>${count(stats.episodes)}</dd></div></dl></section>${detailActivity('series')}${statusSection('series')}${topTitles('series','minutes','Séries por tempo assistido')}${topTitles('series','episodes','Séries por episódios vistos')}${actorList('series')}${weekdaySection('episodes')}${genreSection('series')}${activity('episodes','Episódios diferentes por ano')}`;
  if(profileStatsTab==='library')content=`<div class="profile-hero"><span>SUA COLEÇÃO NESTE APARELHO</span><strong>${collection.total} ${collection.total===1?'título':'títulos'}</strong><div><span>${collection.movies} filmes</span><span>${collection.series} séries</span><span>${collection.watchlist} para assistir</span></div></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">A coleção inclui títulos salvos para assistir. Os números do histórico seguem a fonte selecionada.</p>`;
  if(profileStatsTab==='library'&&!collection.total&&nuvioState.active)content=`<div class="profile-hero"><span>SUA ATIVIDADE CONECTADA</span><strong>Nuvio</strong><p>${Number(nuvioState.watchedCount)||0} registros recebidos${nuvioState.profileName?' · '+escape(nuvioState.profileName):''}.</p></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">Sua coleção reúne os títulos que você salva no CENA. Os registros recebidos do Nuvio podem incluir episódios e não equivalem ao total de filmes assistidos.</p>`;
  if(profileStatsTab==='time')content=`<div class="profile-hero"><span>TEMPO DE VISUALIZAÇÃO ESTIMADO</span><strong>${Math.floor(minutes/60)}h ${minutes%60}min</strong><p>Duração disponível em ${stats.timedPlays||0} de ${stats.plays||0} registros.</p></div><h2>Reproduções por ano</h2>${chart('plays','Reproduções por ano')}<p class="muted">O gráfico usa o ano em que você assistiu. O tempo soma a duração informada dos títulos e não mede o tempo real na tela. Datas no fuso ${escape(historyState.timezone||'local')}.</p>${cards}`;
@@ -235,6 +289,12 @@ function renderHistoryStats(){
  if(profileStatsTab==='ratings')content=`<div class="profile-hero"><span>SUAS NOTAS NO CENA</span><strong>${ratings.average===null?'Sem notas':ratings.average.toLocaleString('pt-BR',{maximumFractionDigits:2})+' / 10'}</strong><p>${ratings.count} ${ratings.count===1?'avaliação salva':'avaliações salvas'} nos Stories deste aparelho.</p></div><h2>Distribuição das notas</h2>${ratings.count?`<div class="profile-chart"><div class="profile-bars">${ratings.distribution.map(row=>`<div class="profile-bar-column"><span>${row.count||''}</span><div class="profile-bar" data-bar-height="${Math.max(row.count?3:0,Math.round(100*row.count/Math.max(1,...ratings.distribution.map(x=>x.count))))}"></div><small>${row.rating}</small></div>`).join('')}</div></div><p class="muted">Para o gráfico, notas decimais são agrupadas no inteiro mais próximo. A média usa a nota original.</p>`:'<p class="muted">Adicione uma nota ao criar um Story para começar.</p>'}<p class="muted">Essas são suas notas locais; avaliações do Trakt ainda não são importadas.</p>`;
  if(profileStatsTab==='platforms')content='<div class="profile-empty"><strong>Plataformas assistidas</strong><p>O histórico atual não informa em qual serviço cada reprodução aconteceu. Os logotipos das capas mostram disponibilidade atual e não determinam onde você assistiu.</p></div>';
  target.innerHTML=`<div class="profile-stat-tabs" role="tablist" aria-label="Categorias de estatísticas">${tabs.map(([id,label])=>`<button role="tab" aria-selected="${profileStatsTab===id}" class="chip ${profileStatsTab===id?'selected':''}" data-profile-stats="${id}">${label}</button>`).join('')}</div>${content}${source==='Trakt'&&historyState.coverage==='partial'?'<p class="notice">Histórico parcial: os totais podem aumentar após uma importação completa.</p>':''}${source==='Trakt'&&historyState.unmatched?`<p class="muted">${Number(historyState.unmatched)} registro(s) sem correspondência IMDb continuam no histórico.</p>`:''}`;
+ for(const button of target.querySelectorAll('[data-favorite-actor]'))button.onclick=()=>{
+  const name=button.dataset.favoriteActor;
+  const updated=favoriteActors.includes(name)?favoriteActors.filter(value=>value!==name):[...favoriteActors,name];
+  storage.setItem(actorKey,JSON.stringify(updated));renderHistoryStats();
+ };
+ for(const button of target.querySelectorAll('[data-stats-title]'))button.onclick=()=>showDetail(detailItems[Number(button.dataset.statsTitle)]);
  for(const button of target.querySelectorAll('[data-stats-favorite]'))button.onclick=()=>showDetail(favorites.filter(item=>item.type===button.dataset.statsType)[Number(button.dataset.statsFavorite)]);
  if(historyMode==='stats')wireImages();
  for(const bar of target.querySelectorAll('[data-bar-height]'))bar.style.height=Number(bar.dataset.barHeight)*.82+'px';
@@ -510,11 +570,28 @@ function poster(item, badge = '', showRating = false, showStreaming = true) {
   const image=artworkResolver.peek(item)||trustedArtwork(item.poster);
   return `<div class="poster-art" data-artwork-key="${escape(key)}">${image?`<img src="${escape(image)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`:''}<span class="fallback">${escape(item.name)}</span>${badge ? `<span class="badge">${escape(badge)}</span>` : ''}${showRating?scoreMarkup(item):''}${showStreaming?streamBadge(key):''}</div>`;
 }
-function grid(rows,recommendation=false) {
+function viewingStatus(item,row){
+ if(row?.checkedAt&&!row.error){
+  if(row.available>0&&(row.completed>0||item.watchedEpisodes>0))return {color:'orange',label:'Em andamento'};
+  if(row.coverage!=='partial'&&row.aired>0&&row.available===0)return {color:'green',label:'Em dia'};
+ }
+ if(item.type==='movie'&&item.status==='watched')return {color:'green',label:'Assistido'};
+ if(item.type==='series'&&item.watchedEpisodes>0)return {color:'orange',label:'Em andamento'};
+ if(item.status==='watchlist')return {color:'purple',label:'Quero assistir'};
+ return {color:'gray',label:'Sem progresso'};
+}
+function viewingRibbon(item,row){
+ const {color,label}=viewingStatus(item,row);
+ return `<span class="viewing-ribbon" data-color="${color}">${label}</span>`;
+}
+function viewingLegend(){
+ return '<details class="viewing-legend"><summary>Legenda das barras</summary><ul><li data-color="green">Verde · Assistido ou em dia</li><li data-color="orange">Laranja · Em andamento</li><li data-color="purple">Roxo · Quero assistir</li><li data-color="gray">Cinza · Sem progresso registrado</li></ul></details>';
+}
+function grid(rows,recommendation=false,withProgress=false) {
   return `<div class="grid">${rows.map(item=>{
     const series=item.type==='series';
     const badge=item.status==='watched'?'✓ Assistido':item.watchedEpisodes?`${item.watchedEpisodes} episódios vistos`:'';
-    return `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item,badge,!series,!series)}<strong>${escape(item.name)}</strong>${historyBadge(item)}<small>${escape(item.year)} · ${titleType(item)}</small>${series?seriesBadges(item):''}${recommendation?`<p class="recommendation-reason">${escape(item.recommendationReason)}</p>`:''}</button>`;
+    return `<button class="poster-card" data-id="${escape(item.id)}" aria-label="Ver ${escape(item.name)}">${poster(item,withProgress?'':badge,!series,!series)}${withProgress?viewingRibbon(item):''}<strong>${escape(item.name)}</strong>${historyBadge(item)}<small>${escape(item.year)} · ${titleType(item)}</small>${series?seriesBadges(item):''}${recommendation?`<p class="recommendation-reason">${escape(item.recommendationReason)}</p>`:''}</button>`;
   }).join('')}</div>`;
 }
 function wireImages() {
@@ -598,7 +675,7 @@ function renderSync(){const target=$('#sync-summary');if(target)renderSyncSummar
 function libraryRows(){const rows=items.filter(i=>(filter==='all'||i.status===filter)&&(libraryType==='all'||i.type===libraryType));if(librarySort==='name')rows.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));else if(librarySort==='year')rows.sort((a,b)=>(Number(b.year)||0)-(Number(a.year)||0));return rows;}
 function library() {
   const rows = libraryRows();
-  main.innerHTML = `<div class="library-titlebar"><h1>Minha lista</h1><button class="secondary" id="open-collections">Minhas listas</button></div><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips library-status-filters"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Já assisti</button><button class="chip ${filter==='progress'?'selected':''}" data-filter="progress">Em andamento</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div>${filter==='progress'?'<section id="nuvio-library"></section>':''}<div id="library-saved" ${filter==='progress'?'hidden':''}><details class="library-filter-panel"><summary>Filtros e ordenação</summary><div class="library-controls"><label>Tipo <select id="library-type" aria-label="Tipo no catálogo"><option value="all">Filmes e séries</option><option value="movie">Filmes</option><option value="series">Séries</option></select></label><label>Ordenar <select id="library-sort" aria-label="Ordenar catálogo"><option value="saved">Ordem da lista</option><option value="name">Título A–Z</option><option value="year">Ano de lançamento</option></select></label></div></details><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} ${rows.length===1?'título':'títulos'}</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p><div id="library-grid">${rows.length ? grid(rows) : empty()}</div><div id="library-sync-notice">${notice()}</div></div>`;
+  main.innerHTML = `<div class="library-titlebar"><h1>Minha lista</h1><button class="secondary" id="open-collections">Minhas listas</button></div><form id="search-form" class="search-row"><input id="query" type="search" placeholder="Buscar filme ou série…" aria-label="Nome do filme ou série" minlength="2" maxlength="150" required><button class="primary" type="submit">Buscar</button></form><div class="chips library-status-filters"><button class="chip ${filter === 'watchlist' ? 'selected' : ''}" data-filter="watchlist">Quero assistir</button><button class="chip ${filter === 'watched' ? 'selected' : ''}" data-filter="watched">Já assisti</button><button class="chip ${filter==='progress'?'selected':''}" data-filter="progress">Em andamento</button><button class="chip ${filter === 'all' ? 'selected' : ''}" data-filter="all">Todos</button></div><div id="search-results"></div>${filter==='progress'?'<section id="nuvio-library"></section>':''}<div id="library-saved" ${filter==='progress'?'hidden':''}><details class="library-filter-panel"><summary>Filtros e ordenação</summary><div class="library-controls"><label>Tipo <select id="library-type" aria-label="Tipo no catálogo"><option value="all">Filmes e séries</option><option value="movie">Filmes</option><option value="series">Séries</option></select></label><label>Ordenar <select id="library-sort" aria-label="Ordenar catálogo"><option value="saved">Ordem da lista</option><option value="name">Título A–Z</option><option value="year">Ano de lançamento</option></select></label></div></details><div class="section-heading"><h2>${filter === 'watched' ? 'Já fizeram parte da sua história' : 'Na sua lista'}</h2><div class="actions"><span class="count" id="library-count">${rows.length} ${rows.length===1?'título':'títulos'}</span><button class="link-button" id="refresh-artwork">Atualizar capas</button></div></div><p id="artwork-progress" class="muted"></p>${viewingLegend()}<div id="library-grid">${rows.length ? grid(rows,false,true) : empty()}</div><div id="library-sync-notice">${notice()}</div></div>`;
   $('#library-type').value=libraryType;$('#library-sort').value=librarySort;$('#library-type').onchange=e=>{libraryType=e.target.value;patchLibrary();};$('#library-sort').onchange=e=>{librarySort=e.target.value;patchLibrary();};
   if($('#open-collections'))$('#open-collections').onclick=()=>setTab('collections');
   if($('#refresh-artwork')) $('#refresh-artwork').onclick=()=>{
@@ -631,11 +708,10 @@ function patchLibrary(){
     let next=list.firstElementChild;
     for(const row of rows){
       const key=`${row.type}:${row.id}`;let card=existing.get(key);artworkModels.set(key,row);
-      if(!card){const template=document.createElement('template');template.innerHTML=grid([row]);card=template.content.querySelector('.poster-card');}
+      if(!card){const template=document.createElement('template');template.innerHTML=grid([row],false,true);card=template.content.querySelector('.poster-card');}
       existing.delete(key);
-      const art=card.querySelector('.poster-art'),badge=row.status==='watched'?'✓ Assistido':row.watchedEpisodes?`${row.watchedEpisodes} episódios vistos`:'';
-      let badgeNode=art.querySelector('.badge');
-      if(badge){if(!badgeNode){badgeNode=document.createElement('span');badgeNode.className='badge';art.append(badgeNode);}badgeNode.textContent=badge;}else badgeNode?.remove();
+      const status=viewingStatus(row),ribbon=card.querySelector('.viewing-ribbon');
+      ribbon.dataset.color=status.color;ribbon.textContent=status.label;
       card.querySelector('strong').textContent=row.name;let years=card.querySelector('.watch-years');if(!years){years=document.createElement('span');years.className='watch-years';card.querySelector('strong').after(years);}years.textContent=historyYearLabel(row);card.querySelector('.fallback').textContent=row.name;card.querySelector('small').textContent=`${row.year||''} · ${titleType(row)}`;
       if(card!==next)list.insertBefore(card,next);next=card.nextElementSibling;
     }
@@ -662,7 +738,8 @@ function renderSeriesSections(){
   const position=window.scrollY;
   const homeSection=$('#series-home');if(homeSection){
    const rows=seriesRows();seriesResults=rows.map(row=>row.item);
-   homeSection.innerHTML=rows.length?`<div class="section-heading"><div><h2>${nuvioState.active?'Suas séries':'Próximos episódios'}</h2></div><button id="see-series">Ver todas</button></div><div class="poster-rail series-rail">${rows.slice(0,12).map(({item,headline,detail})=>`<button class="poster-card" data-series-id="${escape(item.id)}">${poster({...item,name:titleName(item)})}<span class="home-series-copy"><strong>${escape(titleName(item))}</strong><span class="series-status">${escape(headline)}</span><small>${escape(detail)}</small></span></button>`).join('')}</div>`:'';
+   homeSection.innerHTML=rows.length?`<div class="section-heading"><div><h2>${nuvioState.active?'Suas séries':'Próximos episódios'}</h2></div><button id="see-series">Ver todas</button></div><div class="poster-rail series-rail">${rows.slice(0,12).map(({item,headline,detail,state})=>`<button class="poster-card" data-series-id="${escape(item.id)}">${poster({...item,name:titleName(item)})}<span class="home-series-copy">${viewingRibbon(item,state)}<strong>${escape(titleName(item))}</strong><span class="series-status">${escape(headline)}</span><small>${escape(detail)}</small></span></button>`).join('')}</div>`:'';
+   if(rows.length)homeSection.insertAdjacentHTML('beforeend',viewingLegend());
    if($('#see-series'))$('#see-series').onclick=()=>{discoveryMode='series';setTab('discover');};
   }
   const section=$('#series-discovery');if(section)section.innerHTML=seriesContent();

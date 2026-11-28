@@ -68,13 +68,32 @@ object WatchHistoryCodec {
     .put("episodes",JSONArray((1..7).map{weekdays[it to "episode"]?:0}))
    return JSONObject().put("weekdays",activity).put("plays",events.size).put("movies",movies.filter{!it.optString("mediaKey").contains(":unknown:")}.map{it.optString("mediaKey")}.toSet().size).put("moviePlays",movies.size).put("series",episodes.filter{!it.optString("mediaKey").contains(":unknown:")}.map{it.optString("mediaKey")}.toSet().size).put("episodes",episodes.filter{!it.optString("episodeKey").startsWith("unknown-episode:")}.map{it.optString("episodeKey")}.toSet().size).put("episodePlays",episodes.size).put("estimatedMinutes",events.sumOf{it.optInt("runtimeMinutes").toLong()}).put("timedPlays",events.count{it.optInt("runtimeMinutes")>0}).put("unknownDates",events.count{it.optString("datePrecision")!="exact"})
   }
-  fun year(row:JSONObject):Int?=try{if(row.optString("datePrecision")=="exact")Instant.ofEpochMilli(row.optLong("watchedMs")).atZone(zone).year else null}catch(_:Exception){null}
-  val years=JSONArray();for((year,events)in rows.groupBy{year(it)}.filterKeys{it!=null}.toSortedMap(compareByDescending{it?:0}))years.put(stats(events).put("year",year))
-  val media=JSONArray();for((_,events)in rows.filter{it.optString("id").isNotBlank()}.groupBy{it.optString("mediaKey")}){
-   val first=events.first();val dates=events.filter{it.optString("datePrecision")=="exact"}.map{it.optLong("watchedMs")}.sorted()
-   media.put(JSONObject().put("id",first.getString("id")).put("type",first.getString("type")).put("name",first.optString("name")).put("year",first.opt("year")?:"").put("plays",events.size).put("episodes",events.filter{it.optString("kind")=="episode"}.map{it.optString("episodeKey")}.toSet().size)
-    .put("years",JSONArray(events.mapNotNull{year(it)}.distinct().sorted())).put("unknownDates",events.count{it.optString("datePrecision")!="exact"}).put("firstWatched",dates.firstOrNull()?:JSONObject.NULL).put("lastWatched",dates.lastOrNull()?:JSONObject.NULL))
+  fun date(row:JSONObject):LocalDate?=try{
+   if(row.optString("datePrecision")=="exact"&&!row.isNull("watchedMs"))Instant.ofEpochMilli(row.optLong("watchedMs")).atZone(zone).toLocalDate()else null
+  }catch(_:java.time.DateTimeException){null}
+  fun metrics(events:List<JSONObject>)=JSONObject().put("plays",events.size)
+   .put("episodes",events.filter{it.optString("kind")=="episode"&&!it.optString("episodeKey").startsWith("unknown-episode:")}.map{it.optString("episodeKey")}.toSet().size)
+   .put("minutes",events.sumOf{it.optInt("runtimeMinutes").toLong()})
+  val byDate=rows.groupBy{date(it)}
+  val years=JSONArray()
+  for((year,events) in rows.groupBy{date(it)?.year}.filterKeys{it!=null}.toSortedMap(compareByDescending{it?:0}))years.put(stats(events).put("year",year))
+  val activity=JSONArray()
+  for((day,events) in byDate.filterKeys{it!=null}.toSortedMap(compareBy<LocalDate?>{it})){
+   val films=events.filter{it.optString("kind")=="movie"}
+   val episodes=events.filter{it.optString("kind")=="episode"}
+   activity.put(JSONObject().put("date",day.toString()).put("movies",metrics(films)).put("series",metrics(episodes)))
   }
-  return JSONObject().put("totals",stats(rows)).put("years",years).put("unknown",stats(rows.filter{it.optString("datePrecision")!="exact"})).put("media",media).put("unmatched",rows.count{it.optString("id").isBlank()}).put("timezone",zone.id)
+  val media=JSONArray()
+  for((_,events) in rows.filter{it.optString("id").isNotBlank()}.groupBy{it.optString("mediaKey")}){
+   val first=events.first()
+   val groups=events.groupBy{date(it)?.year}
+   val periods=JSONObject()
+   for((year,viewings) in groups)periods.put(year?.toString()?:"unknown",metrics(viewings))
+   val dates=events.filter{date(it)!=null}.map{it.optLong("watchedMs")}.sorted()
+   media.put(metrics(events).put("id",first.getString("id")).put("type",first.getString("type")).put("name",first.optString("name")).put("year",first.opt("year")?:"")
+    .put("years",JSONArray(groups.keys.filterNotNull().sorted())).put("unknownDates",groups[null]?.size?:0)
+    .put("periods",periods).put("firstWatched",dates.firstOrNull()?:JSONObject.NULL).put("lastWatched",dates.lastOrNull()?:JSONObject.NULL))
+  }
+  return JSONObject().put("activity",activity).put("totals",stats(rows)).put("years",years).put("unknown",stats(rows.filter{it.optString("datePrecision")!="exact"})).put("media",media).put("unmatched",rows.count{it.optString("id").isBlank()}).put("timezone",zone.id)
  }
 }
