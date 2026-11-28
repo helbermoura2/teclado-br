@@ -299,7 +299,7 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 .stats-weekdays strong{font-variant-numeric:tabular-nums}
 .stats-weekdays small{color:#d2bbdf;font-size:10px}
 
-#nuvio-home .resume-rail:not(.expanded){grid-auto-columns:min(calc((100% - 12px)/2),260px);scroll-snap-type:x mandatory}
+#nuvio-home .resume-rail:not(.expanded){grid-auto-columns:min(calc((100% - 12px)/2),260px);scroll-snap-type:x proximity}
 #nuvio-home .resume-rail:not(.expanded) .resume-art{position:relative;aspect-ratio:5/4;height:auto}
 #nuvio-home .resume-art .poster-art{height:100%;width:100%;aspect-ratio:auto}
 #nuvio-home .resume-art .poster-art img{object-position:center 27%}
