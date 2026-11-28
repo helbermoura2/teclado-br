@@ -8,7 +8,7 @@ python3 - <<'PY'
 from pathlib import Path
 import re
 text=Path('/tmp/cena-regional-titles-android.txt').read_text()
-assert re.search(r'OK \(21 tests\)',text), 'Regional title policy and JavaScript bridge tests did not finish successfully'
+assert re.search(r'OK \(22 tests\)',text), 'Regional title policy and JavaScript bridge tests did not finish successfully'
 assert 'INSTRUMENTATION_FAILED' not in text and 'FAILURES!!!' not in text
 PY
 

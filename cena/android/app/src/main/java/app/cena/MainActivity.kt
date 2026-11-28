@@ -379,6 +379,41 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun connectNuvio(){nuvioTask{nuvio.begin()}}
         @JavascriptInterface fun refreshNuvioProfiles(){nuvioTask{nuvio.profiles()}}
         @JavascriptInterface fun selectNuvioProfile(id:Int){nuvioTask{nuvio.selectProfile(id);NuvioWorker.schedule(applicationContext)}}
+        private fun emitNuvioCopy(requestId:Int,result:JSONObject){
+            result.put("requestId",requestId)
+            runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaNuvioCopyResult && window.CenaNuvioCopyResult($result)",null)}
+        }
+        @JavascriptInterface fun previewNuvioCopy(requestId:Int){
+            if(requestId<=0)return
+            nuvioTask{
+                val result=try{
+                    val owner=trakt.historySnapshot()
+                    val status=trakt.status()
+                    val imported=history.status()
+                    check(imported.optLong("lastImport")>0&&!imported.optBoolean("importing")){"Conclua a importação do histórico do Trakt antes de gerar a prévia."}
+                    val events=history.export().getJSONArray("events")
+                    check(trakt.historySnapshot().optString("account")==owner.optString("account")){"A conta Trakt mudou. Gere a prévia novamente."}
+                    nuvio.previewCopy(status,owner,events).put("partial",imported.optString("coverage")!="complete")
+                }catch(error:Exception){JSONObject().put("ok",false).put("error",migrationError(error))}
+                emitNuvioCopy(requestId,result)
+            }
+        }
+        @JavascriptInterface fun applyNuvioCopy(requestId:Int,planId:String){
+            if(requestId<=0||!planId.matches(Regex("[0-9a-f-]{36}")))return
+            nuvioTask{
+                val result=try{
+                    val owner=trakt.historySnapshot()
+                    check(owner.optBoolean("connected")){"Conecte novamente o Trakt antes de copiar."}
+                    nuvio.applyCopy(planId,owner.optString("account"))
+                }catch(error:Exception){JSONObject().put("ok",false).put("error",migrationError(error))}
+                emitNuvioCopy(requestId,result)
+            }
+        }
+        private fun migrationError(error:Exception):String{
+            val message=error.message.orEmpty()
+            return message.takeIf{error is IllegalStateException&&listOf("Não consegui","Escolha","Conclua","A conta","Conecte","O Nuvio","A sessão").any{prefix->it.startsWith(prefix)}}
+                ?:"Não consegui concluir a cópia. Gere outra prévia para conferir o que falta."
+        }
         @JavascriptInterface fun sendNuvioLibraryTitle(requestId:Int,raw:String){
             if(requestId<=0||raw.length>4000)return
             nuvioTask{

@@ -10,7 +10,7 @@ class NuvioRepositoryTest {
  private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
  private class Fixture:NuvioTransport {
   var paged=false;val pages=mutableListOf<Int>();var clock=1700000000000L;var failProgress=false;var refreshes=0;val calls=mutableListOf<String>()
-  val library=mutableMapOf<Int,JSONArray>();var writes=0
+  val library=mutableMapOf<Int,JSONArray>();var writes=0;val copiedWatches=JSONArray();var watchedWrites=0
   override fun request(path:String,body:JSONObject?,token:String?):NuvioResponse {
    calls.add(path)
    val value=when(path){
@@ -18,10 +18,11 @@ class NuvioRepositoryTest {
     "/rest/v1/rpc/poll_tv_login_session"->"[{\"status\":\"approved\"}]"
     "/functions/v1/tv-logins-exchange","/auth/v1/token?grant_type=refresh_token"->{if(path.contains("refresh_token"))refreshes++;JSONObject().put("access_token","private-access-token-marker").put("refresh_token","private-refresh-token-marker").put("expires_in",3600).put("user",JSONObject().put("id","account-a").put("email","test@example.invalid")).toString()}
     "/rest/v1/rpc/sync_pull_profiles"->"[{\"profile_index\":1,\"name\":\"Pessoa A\"},{\"profile_index\":2,\"name\":\"Pessoa B\"}]"
-    "/rest/v1/rpc/sync_pull_watched_items"->{pages.add(body!!.optInt("p_page"));if(paged&&body.optInt("p_page")==1){val rows=JSONArray();for(index in 0 until 500)rows.put(JSONObject().put("content_id","tt${7000000+index}").put("content_type","movie"));rows.toString()}else if(paged){"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"}else if(body.optInt("p_profile_id")==1)"[{\"content_id\":\"tt1335975\",\"content_type\":\"movie\",\"title\":\"47 Ronin\",\"watched_at\":1700000000},{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"else"[]"}
+    "/rest/v1/rpc/sync_pull_watched_items"->{pages.add(body!!.optInt("p_page"));if(copiedWatches.length()>0&&body.optInt("p_profile_id")==1)copiedWatches.toString() else if(paged&&body.optInt("p_page")==1){val rows=JSONArray();for(index in 0 until 500)rows.put(JSONObject().put("content_id","tt${7000000+index}").put("content_type","movie"));rows.toString()}else if(paged){"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"}else if(body.optInt("p_profile_id")==1)"[{\"content_id\":\"tt1335975\",\"content_type\":\"movie\",\"title\":\"47 Ronin\",\"watched_at\":1700000000},{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"else"[]"}
     "/rest/v1/rpc/sync_pull_watch_progress"->{if(failProgress)return NuvioResponse(503,"private server details");if(body!!.optInt("p_profile_id")==1)"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":2,\"position\":600000,\"duration\":2400000}]"else"[]"}
     "/rest/v1/rpc/sync_pull_library"->(library[body!!.getInt("p_profile_id")]?:JSONArray()).toString()
     "/rest/v1/rpc/sync_push_library_items"->{writes++;library[body!!.getInt("p_profile_id")]=body.getJSONArray("p_items");""}
+    "/rest/v1/rpc/sync_push_watched_items"->{watchedWrites++;val items=body!!.getJSONArray("p_items");for(i in 0 until items.length())copiedWatches.put(items.getJSONObject(i));""}
     else->throw IllegalStateException("Unexpected endpoint $path")
    };return NuvioResponse(200,value)
   }
@@ -49,6 +50,25 @@ class NuvioRepositoryTest {
    assertEquals(1,f.writes)
    assertEquals("tt0903747",f.library.getValue(1).getJSONObject(0).getString("content_id"))
    assertFalse(f.library.containsKey(2))
+  }finally{repo.disconnect()}
+ }
+ @Test fun migrationPreviewsAndCopiesOnlyConfirmedMissingWatches(){
+  val f=Fixture();val repo=loggedIn(f)
+  try{
+   repo.selectProfile(1)
+   val source=JSONObject().put("connected",true).put("lastSync",f.clock)
+    .put("watchlist",JSONArray().put(JSONObject().put("id","tt0103947").put("type","movie").put("name","Hiroshima")))
+   val owner=JSONObject().put("connected",true).put("account","owner")
+   fun episode(number:Int)=JSONObject().put("id","tt0903747").put("kind","episode").put("season",1)
+    .put("episode",number).put("watchedMs",f.clock-1000).put("datePrecision","exact")
+   val movie=JSONObject().put("id","tt0103947").put("kind","movie").put("watchedMs",f.clock-1000).put("datePrecision","exact")
+   val plan=repo.previewCopy(source,owner,JSONArray().put(movie).put(episode(1)).put(episode(2)).put(episode(3)).put(episode(3)))
+   assertEquals(1,plan.getInt("titles"));assertEquals(1,plan.getInt("movies"));assertEquals(1,plan.getInt("episodes"))
+   assertEquals(1,plan.getInt("existing"));assertEquals(1,plan.getInt("skipped"))
+   assertEquals(0,f.writes);assertEquals(0,f.watchedWrites)
+   val result=repo.applyCopy(plan.getString("planId"),"owner")
+   assertTrue(result.getBoolean("ok"));assertEquals(1,f.writes);assertEquals(1,f.watchedWrites)
+   assertEquals(2,result.getInt("watched"));assertEquals(3,f.copiedWatches.getJSONObject(1).getInt("episode"))
   }finally{repo.disconnect()}
  }
  @Test fun transientFailuresPreserveTheLastCompleteHistoryAndRefreshTokens(){

@@ -87,6 +87,121 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
  fun sendLibraryTitle(raw:String):JSONObject=try{addToLibrary(raw)}catch(error:Exception){
   JSONObject().put("ok",false).put("error",safeError(error))
  }
+ private data class CopyPlan(val id:String,val scope:String,val source:String,
+  val titles:Map<String,JSONObject>,val watches:Map<String,JSONObject>,
+  val alreadyPresent:Int,val skipped:Int)
+ private var copyPlan:CopyPlan?=null
+ private fun copyKey(id:String,type:String,season:Int=0,episode:Int=0)="$type:$id:$season:$episode"
+ private fun rows(array:JSONArray?)=(0 until (array?.length()?:0)).mapNotNull{array?.optJSONObject(it)}
+ private fun validCopyId(id:String)=id.matches(Regex("tt[0-9]{5,12}"))
+ private fun copySource(status:JSONObject,historyAccount:JSONObject):String{
+  if(!status.optBoolean("connected")||status.optLong("lastSync")<=0)
+   failure("Não consegui encontrar a lista sincronizada do Trakt. Atualize a conta primeiro.")
+  val account=historyAccount.optString("account")
+  if(!historyAccount.optBoolean("connected")||account.isBlank())
+   failure("Não consegui identificar o histórico do Trakt. Importe o histórico primeiro.")
+  return account
+ }
+ private fun readCopyDestination(profile:Int,jwt:String):Pair<Set<String>,Set<String>>{
+  val library=mutableSetOf<String>();val watched=mutableSetOf<String>()
+  var complete=false
+  for(offset in 0 until 20000 step 100){
+   val page=rpc("sync_pull_library",JSONObject().put("p_profile_id",profile).put("p_limit",100).put("p_offset",offset),jwt)
+   for(row in rows(page))library.add(copyKey(row.optString("content_id"),row.optString("content_type")))
+   if(page.length()<100){complete=true;break}
+  }
+  if(!complete)failure("Não consegui conferir toda a biblioteca do Nuvio.")
+  complete=false
+  for(index in 1..40){
+   val page=rpc("sync_pull_watched_items",JSONObject().put("p_profile_id",profile).put("p_page",index).put("p_page_size",500),jwt)
+   for(raw in rows(page)){
+    val row=NuvioCodec.watched(raw)?:continue
+    watched.add(copyKey(row.optString("id"),row.optString("type"),row.optInt("season"),row.optInt("episode")))
+   }
+   if(page.length()<500){complete=true;break}
+  }
+  if(!complete)failure("Não consegui conferir todo o histórico do Nuvio.")
+  return library to watched
+ }
+ fun previewCopy(status:JSONObject,owner:JSONObject,events:JSONArray):JSONObject=synchronized(lock){
+  copyPlan=null
+  val source=copySource(status,owner)
+  val a=auth.read();val profile=a.optInt("profile")
+  if(!a.optBoolean("active")||profile<=0)failure("Escolha um perfil do Nuvio antes de copiar.")
+  val jwt=token(a)
+  val (library,watched)=readCopyDestination(profile,jwt)
+  val playing=rows(rpc("sync_pull_watch_progress",JSONObject().put("p_profile_id",profile),jwt))
+   .mapNotNull(NuvioCodec::progress).filter{it.optLong("position")>0&&it.optLong("position")<it.optLong("duration")}
+   .map{copyKey(it.optString("id"),it.optString("type"),it.optInt("season"),it.optInt("episode"))}.toSet()
+  val titles=linkedMapOf<String,JSONObject>();val watches=linkedMapOf<String,JSONObject>()
+  val already=mutableSetOf<String>();var skipped=0
+  for(row in rows(status.optJSONArray("watchlist"))){
+   val id=row.optString("id");val type=row.optString("type")
+   if(!validCopyId(id)||type !in listOf("movie","series")){skipped++;continue}
+   val key=copyKey(id,type)
+   if(key in library)already.add("library:$key") else titles[key]=row
+  }
+  for(row in rows(events)){
+   val id=row.optString("id")
+   val type=when(row.optString("kind")){"movie"->"movie";"episode"->"series";else->""}
+   val season=if(type=="movie")0 else row.optInt("season",-1)
+   val episode=if(type=="movie")0 else row.optInt("episode",-1)
+   val at=row.optLong("watchedMs")
+   if(!validCopyId(id)||type.isBlank()||type=="series"&&(season<1||episode<1)||
+    row.optString("datePrecision")!="exact"||at<=0||at>now()){skipped++;continue}
+   val key=copyKey(id,type,season,episode)
+   if(key in watched){already.add("watched:$key");continue}
+   if(key in playing){skipped++;continue}
+   if(at<=(watches[key]?.optLong("watched_at")?:0))continue
+   watches[key]=JSONObject().put("content_id",id).put("content_type",type)
+    .put("title",row.optString("name",id).take(200))
+    .put("season",if(type=="series")season else JSONObject.NULL)
+    .put("episode",if(type=="series")episode else JSONObject.NULL).put("watched_at",at)
+  }
+  val plan=CopyPlan(java.util.UUID.randomUUID().toString(),scope(a,profile),source,titles,watches,already.size,skipped)
+  copyPlan=plan
+  JSONObject().put("ok",true).put("planId",plan.id).put("profile",a.optString("profileName"))
+   .put("titles",titles.size).put("movies",watches.values.count{it.optString("content_type")=="movie"})
+   .put("episodes",watches.values.count{it.optString("content_type")=="series"})
+   .put("existing",plan.alreadyPresent).put("skipped",plan.skipped)
+ }
+ fun applyCopy(planId:String,source:String):JSONObject=synchronized(lock){
+  val plan=copyPlan
+  copyPlan=null
+  val a=auth.read();val profile=a.optInt("profile")
+  if(plan==null||plan.id!=planId||plan.source!=source||!a.optBoolean("active")||plan.scope!=scope(a,profile))
+   failure("Escolha novamente as contas e gere uma nova prévia para copiar.")
+  val jwt=token(a)
+  val (library,watched)=readCopyDestination(profile,jwt)
+  val playing=rows(rpc("sync_pull_watch_progress",JSONObject().put("p_profile_id",profile),jwt))
+   .mapNotNull(NuvioCodec::progress).filter{it.optLong("position")>0&&it.optLong("position")<it.optLong("duration")}
+   .map{copyKey(it.optString("id"),it.optString("type"),it.optInt("season"),it.optInt("episode"))}.toSet()
+  val client=inventory.getString("libraryClientId",null)?:("cena-"+java.util.UUID.randomUUID()).also{
+   inventory.edit().putString("libraryClientId",it).apply()
+  }
+  fun push(rpcName:String,values:List<JSONObject>){
+   for(batch in values.chunked(50)){
+    val args=JSONObject().put("p_profile_id",profile).put("p_origin_client_id",client).put("p_items",JSONArray(batch))
+    checkReply(transport.request("/rest/v1/rpc/$rpcName",args,jwt))
+   }
+  }
+  push("sync_push_library_items",plan.titles.filterKeys{it !in library}.values.map{item->
+   val id=item.getString("id")
+   JSONObject().put("content_id",id).put("content_type",item.getString("type"))
+    .put("name",item.optString("name",id).take(200)).put("poster_shape","POSTER")
+    .put("poster","https://images.metahub.space/poster/medium/$id/img").put("background",JSONObject.NULL)
+    .put("description",JSONObject.NULL).put("release_info",item.optString("year").take(30))
+    .put("imdb_rating",JSONObject.NULL).put("genres",JSONArray()).put("addon_base_url",JSONObject.NULL).put("added_at",now())
+  })
+  val intended=plan.watches.filterKeys{it !in playing||it in watched}
+  push("sync_push_watched_items",intended.filterKeys{it !in watched}.values.toList())
+  val (finalLibrary,finalWatched)=readCopyDestination(profile,jwt)
+  if(!finalLibrary.containsAll(plan.titles.keys)||!finalWatched.containsAll(intended.keys))
+   failure("Não consegui confirmar toda a cópia. Gere outra prévia para retomar os itens faltantes.")
+  sync(true)
+  JSONObject().put("ok",true).put("titles",plan.titles.size).put("watched",intended.size)
+   .put("skipped",plan.skipped+plan.watches.size-intended.size)
+ }
  fun status():JSONObject=synchronized(lock){
   val a=auth.read();val d=data.read();val connected=a.optString("access").isNotBlank();val selected=a.optInt("profile",0);val active=connected&&a.optBoolean("active")&&selected>0
   val known=mutableSetOf<String>();try{val list=JSONArray(inventory.getString("items","[]"));for(i in 0 until list.length()){val row=list.optJSONObject(i)?:continue;known.add(row.optString("type")+":"+row.optString("id"))}}catch(_:Exception){}

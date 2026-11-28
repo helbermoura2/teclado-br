@@ -476,7 +476,7 @@ async function findSimilar(seed,includeSaved=true,query=''){
 window.CenaNuvioResult=state=>{
  if(!libraryReady){deferredNuvioState=state;return;}
  if(JSON.stringify(state)===JSON.stringify(nuvioState))return;
- const previousScope=nuvioState.scope;nuvioState=state;if(previousScope!==state.scope)nuvioSeriesRows=[];refreshNuvioEpisodes();renderSync();const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
+ const previousScope=nuvioState.scope;nuvioState=state;if(previousScope!==state.scope)copyPreview=null;mountNuvioCopy($('#nuvio-copy'));if(previousScope!==state.scope)nuvioSeriesRows=[];refreshNuvioEpisodes();renderSync();const merged=applyNuvioState(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
  if(changed&&apiBase==='local'){items=merged;storage.setItem('cena.local.items.v1',JSON.stringify(items));}
  if(tab==='connect'&&!document.querySelector('#nuvio-profile:focus')){const panel=$('#nuvio-panel');renderNuvioPanel(panel,state,window.CenaAndroid);}
  if(!$('#detail').open){if(tab==='library'&&changed)patchLibrary();else if(tab==='home'&&changed){const y=window.scrollY;home();window.scrollTo(0,y);}}
@@ -1129,6 +1129,38 @@ function finishLibrarySend(service,result){
 }
 window.CenaNuvioLibraryResult=result=>finishLibrarySend('Nuvio',result);
 window.CenaStremioLibraryResult=result=>finishLibrarySend('Stremio',result);
+let copyRequest=0,copyBusy=false,copyPreview=null,copyMessage='';
+function mountNuvioCopy(target){
+ const bridge=window.CenaAndroid;
+ if(!target||typeof bridge?.previewNuvioCopy!=='function'||typeof bridge.applyNuvioCopy!=='function'){if(target)target.hidden=true;return;}
+ const ready=traktState.connected&&nuvioState.active&&Boolean(nuvioState.scope);
+ const preview=copyPreview;
+ target.innerHTML=`<h2>Copiar do Trakt para o Nuvio</h2><p>Copie a lista Quero assistir e as marcações de filmes e episódios vistos para o perfil Nuvio selecionado.</p>
+ ${ready?'':'<p class="muted">Conecte o Trakt e selecione um perfil do Nuvio para usar a cópia.</p>'}
+ <button class="secondary" id="nuvio-copy-preview" ${ready&&!copyBusy?'':'disabled'}>Gerar prévia</button>
+ ${preview?`<p>Perfil de destino: <strong>${escape(preview.profile||'Nuvio')}</strong></p>
+ <ul><li>${Number(preview.titles)} títulos para adicionar à biblioteca</li><li>${Number(preview.movies)} filmes a marcar como vistos</li>
+ <li>${Number(preview.episodes)} episódios a marcar como vistos</li><li>${Number(preview.existing)} itens já presentes · ${Number(preview.skipped)} registros pulados</li></ul>
+ ${preview.partial?'<p class="notice">O histórico importado do Trakt tem cobertura parcial ou não confirmada.</p>':''}
+ <button class="primary" id="nuvio-copy-confirm" ${ready&&!copyBusy&&(preview.titles||preview.movies||preview.episodes)?'':'disabled'}>Confirmar cópia</button>`:''}
+ <p class="muted" role="status">${escape(copyMessage)}</p>`;
+ target.querySelector('#nuvio-copy-preview').onclick=()=>{
+  copyPreview=null;copyBusy=true;copyMessage='Conferindo a biblioteca e o histórico…';
+  mountNuvioCopy(target);bridge.previewNuvioCopy(++copyRequest);
+ };
+ const confirm=target.querySelector('#nuvio-copy-confirm');
+ if(confirm)confirm.onclick=()=>{
+  copyBusy=true;copyPreview=null;copyMessage='Copiando para o perfil Nuvio…';
+  mountNuvioCopy(target);bridge.applyNuvioCopy(++copyRequest,preview.planId);
+ };
+}
+window.CenaNuvioCopyResult=result=>{
+ if(result.requestId!==copyRequest)return;
+ copyBusy=false;
+ copyPreview=result.ok&&result.planId?result:null;
+ copyMessage=result.ok?(result.planId?'Confira os números antes de confirmar.':result.titles+' títulos e '+result.watched+' marcações confirmados no Nuvio. '+result.skipped+' registros pulados.'):result.error;
+ mountNuvioCopy($('#nuvio-copy'));
+};
 function mountDirectSend(after,item){
  const bridge=window.CenaAndroid;
  const destinations=[
@@ -1310,10 +1342,11 @@ function localConnection() {
     <div class="panel"><h2>Trakt como ponte</h2><p>Adicione no CENA → receba em Quero assistir no Trakt → abra a biblioteca Trakt do Nuvio no celular ou na TV.</p>
     <p>Use a mesma conta Trakt nos dois Nuvios e selecione Trakt como fonte da biblioteca. Ative também o registro do que assistir no Trakt.</p></div>
     <div class="panel" id="sync-summary"></div><div class="panel" id="vision-model-panel"></div><div class="panel" id="trakt-panel"></div>
-    <section class="panel"><h2>Memória das capturas</h2><p>O CENA guarda o título lido e o filme confirmado neste aparelho.</p><button class="secondary" id="clear-capture-memory" ${captureMemory.size()?'':'disabled'}>Apagar confirmações locais</button><p class="muted" id="capture-memory-status" role="status"></p></section><div class="panel" id="nuvio-panel"></div><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div><div class="panel" id="online-ai-panel"></div>
+    <section class="panel"><h2>Memória das capturas</h2><p>O CENA guarda o título lido e o filme confirmado neste aparelho.</p><button class="secondary" id="clear-capture-memory" ${captureMemory.size()?'':'disabled'}>Apagar confirmações locais</button><p class="muted" id="capture-memory-status" role="status"></p></section><div class="panel" id="nuvio-panel"></div><section class="panel" id="nuvio-copy"></section><div class="panel" id="stremio-panel"></div><div class="panel" id="local-ai-panel"></div><div class="panel" id="online-ai-panel"></div>
     <div class="panel"><h2>✓ Já assistido</h2><p>Quando o Nuvio registrar um filme como assistido no Trakt, o CENA recebe esse histórico na próxima sincronização. Abrir um filme não marca como assistido.</p><p>Para séries, mostramos os episódios vistos: um episódio não marca a série inteira como concluída.</p><p class="muted">A consulta automática em segundo plano é programada a cada 12 horas e retomada ao abrir o CENA. O Android pode adiá-la para economizar bateria. As novidades aparecem em Suas séries, no Início e em Descobrir.</p></div>
     <div class="panel"><h2>Stories</h2><p>Abra o filme → Criar Story → escolha a frase → Compartilhar ou Salvar imagem. No Instagram, escolha Stories e conclua a publicação.</p></div>
     <details class="panel"><summary>Catálogo remoto opcional</summary><p>Esta opção cria outra lista num servidor próprio. Não envia automaticamente sua lista local nem substitui a biblioteca Trakt.</p><form id="local-server-form"><input id="local-server-url" type="url" placeholder="https://seu-servidor.exemplo" required><button class="secondary" type="submit">Conectar servidor</button></form></details>`;
+  mountNuvioCopy($('#nuvio-copy'));
   const updatePanel=$('#update-panel');
   $('#jump-history').onclick=()=>{historyMedia='';historyDedicated=false;historyMode='history';setTab('profile');$('.profile-sync').open=true;$('.profile-tools').open=true;};
   for(const box of main.querySelectorAll('[data-home-section]'))box.onchange=()=>{
