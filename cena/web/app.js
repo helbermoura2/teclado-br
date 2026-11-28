@@ -91,7 +91,8 @@ const stremioPanel=createStremioPanel({
     if(sendToTrakt&&typeof window.CenaAndroid?.queueTraktBatch==='function')window.CenaAndroid.queueTraktBatch(JSON.stringify(result.added.map(({id,type})=>({id,type,action:'add'}))));
   }
 });
-window.CenaStremioResult=state=>stremioPanel.update(state);
+let stremioConnection={};
+window.CenaStremioResult=state=>{stremioConnection=state;stremioPanel.update(state);};
 
 function historyBadge(item){return `<span class="watch-years">${escape(historyYearLabel(item))}</span>`;}
 window.CenaHistoryResult=state=>{
@@ -1050,14 +1051,49 @@ function mountSynopsis(item, awaitingDetails=false) {
   retry.click();
 }
 
-let nuvioLibraryRequest=0,nuvioLibraryPending=null;
-window.CenaNuvioLibraryResult=result=>{
- const pending=nuvioLibraryPending;
- if(!pending||pending.id!==result.requestId)return;
- nuvioLibraryPending=null;
+let librarySendRequest=0,librarySendPending=null;
+function finishLibrarySend(service,result){
+ const pending=librarySendPending;
+ if(!pending||pending.service!==service||pending.id!==result.requestId)return;
+ librarySendPending=null;
  if(pending.button.isConnected)pending.button.disabled=false;
- toast(result.ok?(result.existing?'Já está na biblioteca do Nuvio.':'Adicionado à biblioteca do Nuvio.'):result.error||'Não consegui confirmar o envio ao Nuvio.');
-};
+ const message=result.ok?(result.existing?'Já está na biblioteca':'Adicionado à biblioteca')+' do '+service+'.':result.error||'Não consegui confirmar o envio ao '+service+'.';
+ if(pending.status.isConnected)pending.status.textContent=message;
+ toast(message);
+}
+window.CenaNuvioLibraryResult=result=>finishLibrarySend('Nuvio',result);
+window.CenaStremioLibraryResult=result=>finishLibrarySend('Stremio',result);
+function mountDirectSend(after,item){
+ const bridge=window.CenaAndroid;
+ const destinations=[
+  {name:'Nuvio',scope:nuvioState.active?nuvioState.scope:'',label:nuvioState.profileName,send:bridge?.sendNuvioLibraryTitle},
+  {name:'Stremio',scope:stremioConnection.connected?stremioConnection.scope:'',label:stremioConnection.account,send:bridge?.sendStremioLibraryTitle},
+ ].filter(option=>typeof option.send==='function');
+ if(!destinations.length||!/^tt[0-9]{5,12}$/.test(item.id))return;
+ const details=document.createElement('details');
+ details.className='direct-send';
+ const summary=document.createElement('summary');
+ summary.textContent='Mandar direto';
+ const status=document.createElement('p');
+ status.className='muted';status.setAttribute('role','status');
+ details.append(summary);
+ for(const destination of destinations){
+  const button=document.createElement('button');
+  button.type='button';button.className='secondary';
+  button.textContent=destination.scope?(destination.label?destination.name+' · '+destination.label:destination.name):'Conectar '+destination.name;
+  button.onclick=()=>{
+   if(!destination.scope){$('#detail').close();setTab('connect');$(destination.name==='Nuvio'?'#nuvio-panel':'#stremio-panel')?.scrollIntoView();return;}
+   if(librarySendPending){toast('Aguarde o envio anterior.');return;}
+   const id=++librarySendRequest;
+   button.disabled=true;status.textContent='Enviando ao '+destination.name+'…';
+   librarySendPending={id,service:destination.name,button,status};
+   try{destination.send.call(bridge,id,JSON.stringify({id:item.id,type:item.type,name:String(item.name||'').slice(0,200),year:String(item.year||'').slice(0,30),scope:destination.scope}));}
+   catch{finishLibrarySend(destination.name,{requestId:id,ok:false});}
+  };
+  details.append(button);
+ }
+ details.append(status);after.after(details);
+}
 function showDetail(item, enriched = false, capture = null) {
   if (!item) return;
   localAI.cancel();similarTicket++;
@@ -1071,25 +1107,15 @@ function showDetail(item, enriched = false, capture = null) {
     <h3>A identificação está correta?</h3><div class="actions"><button class="secondary" id="capture-correct" aria-pressed="${Boolean(capture.confirmed)}">Correto</button><button class="secondary" id="capture-wrong">Errado</button></div>
     <p class="muted" id="capture-verdict" role="status">${capture.remembered ? 'Confirmação guardada neste aparelho.' : capture.confirmed ? 'Identificação confirmada neste resultado.' : ''}</p>
   </section>` : '';
-  const nuvioDestinationScope=nuvioState.scope;
-  const directNuvio=nuvioState.active&&nuvioDestinationScope&&/^tt[0-9]{5,12}$/.test(item.id)&&typeof window.CenaAndroid?.sendNuvioLibraryTitle==='function';
-  const addLabel = capture && !directNuvio && traktReady ? (saved?.status === 'watchlist' ? 'Enviar ao Nuvio via Trakt' : 'Adicionar ao Nuvio via Trakt') : saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir';
-  const syncHint = directNuvio ? `<p class="muted capture-sync-tip">Destino direto · Nuvio${nuvioState.profileName?' · '+escape(nuvioState.profileName):''}</p>` : capture ? `<p class="muted capture-sync-tip">${traktReady ? 'O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.' : 'Para levar a lista ao Nuvio, conecte o Trakt e selecione-o como fonte da biblioteca do player.'}</p>` : '';
+  const directSendAvailable=typeof window.CenaAndroid?.sendNuvioLibraryTitle==='function'||typeof window.CenaAndroid?.sendStremioLibraryTitle==='function';
+  const viaTrakt=capture&&traktReady&&!directSendAvailable;
+  const addLabel=viaTrakt?(saved?.status==='watchlist'?'Enviar ao Nuvio via Trakt':'Adicionar ao Nuvio via Trakt'):saved?.status==='watchlist'?'✓ Está na minha lista':'+ Quero assistir';
+  const syncHint=viaTrakt?`<p class="muted capture-sync-tip">O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.</p>`:'';
   $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div>${viewingRibbon(item)}<div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body"><section class="detail-summary" aria-label="Sinopse"><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp" hidden></p><p class="muted" id="synopsis-status" role="status"></p><button class="link-button" id="synopsis-expand" aria-expanded="false" hidden>Ler sinopse completa</button><button class="link-button" id="synopsis-retry" hidden>Tentar traduzir novamente</button></section>${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
-  if(directNuvio){
-   const button=document.createElement('button');
-   button.className='secondary wide';button.type='button';button.textContent='Enviar direto ao Nuvio';
-   $('#add-title').after(button);
-   button.onclick=()=>{
-    if(nuvioLibraryPending){toast('Aguarde o envio anterior ao Nuvio.');return;}
-    const id=++nuvioLibraryRequest,scope=nuvioDestinationScope;
-    button.disabled=true;nuvioLibraryPending={id,button};
-    window.CenaAndroid.sendNuvioLibraryTitle(id,JSON.stringify({id:item.id,type:item.type,name:item.name,year:item.year,scope}));
-   };
-  }
+  mountDirectSend($('#add-title'),item);
   $('#add-title').onclick = () => {
     if(saved?.status !== 'watchlist') return save(item,'watchlist',capture);
-    if(capture && traktReady&&!directNuvio){queueTrakt(item,'add');toast('Envio para a lista do Trakt solicitado.');return;}
+    if(viaTrakt){queueTrakt(item,'add');toast('Envio para a lista do Trakt solicitado.');return;}
     toast('Este título já está na sua lista.');
   };
   if(capture){

@@ -16,7 +16,7 @@ class StremioHttp : StremioTransport {
         val address=when {
             method=="GET" && path=="/link/create" -> "https://link.stremio.com/api/v2/create?type=Create"
             method=="GET" && path.startsWith("/link/read?code=") -> "https://link.stremio.com/api/v2/read?type=Read&code="+Uri.encode(path.substringAfter("code="))
-            method=="POST" && path in setOf("/getUser","/datastoreMeta","/datastoreGet") -> "https://api.strem.io/api$path"
+            method=="POST" && path in setOf("/getUser","/datastoreMeta","/datastoreGet","/datastorePut") -> "https://api.strem.io/api$path"
             else -> throw IllegalArgumentException("Operação Stremio não permitida.")
         }
         val connection=(URL(address).openConnection() as HttpURLConnection).apply {
@@ -49,9 +49,14 @@ class StremioRepository(context:Context,private val transport:StremioTransport=S
     private fun save(state:JSONObject)=vault.write(state)
     fun cancelReading(){cancelled.set(true)}
     private fun clearPair(state:JSONObject){for(key in listOf("pairCode","pairLink","publicCode","pairExpires","nextPoll"))state.remove(key)}
+    private fun sessionScope(state:JSONObject):String{
+        val key=state.optString("authKey")
+        return if(key.isBlank())"" else java.security.MessageDigest.getInstance("SHA-256")
+            .digest(key.toByteArray(Charsets.UTF_8)).take(12).joinToString(""){"%02x".format(it)}
+    }
     fun status():JSONObject=synchronized(lock){
         val state=load()
-        JSONObject().put("connected",state.optString("authKey").isNotBlank()).put("account",state.optString("account"))
+        JSONObject().put("connected",state.optString("authKey").isNotBlank()).put("account",state.optString("account")).put("scope",sessionScope(state))
             .put("pairing",state.optString("pairCode").isNotBlank())
             .put("reading",state.optBoolean("reading")).put("processed",state.optInt("processed")).put("total",state.optInt("total"))
             .put("lastRead",state.optLong("lastRead")).put("error",state.optString("error")).put("warning",state.optString("warning"))
@@ -88,7 +93,7 @@ class StremioRepository(context:Context,private val transport:StremioTransport=S
         if(failure!=null){
             val message=failure.optString("message").lowercase()
             if(message.contains("not authorized") || message.contains("invalid auth") || message.contains("invalid session")){state.remove("authKey");state.remove("account");save(state);error("Sua sessão Stremio precisa ser autorizada novamente.")}
-            error("O Stremio recusou a leitura (erro ${failure.optLong("code")}). Tente novamente.")
+            error("O Stremio recusou a operação (erro ${failure.optLong("code")}). Tente novamente.")
         }
         return envelope.opt("result") ?: error("O Stremio não confirmou o resultado da consulta.")
     }
@@ -117,6 +122,42 @@ class StremioRepository(context:Context,private val transport:StremioTransport=S
             }
         }catch(_:Exception){state.put("error","Ainda não consegui confirmar a autorização. Confira a internet e volte após autorizar no navegador.")}
         save(state)
+    }
+    fun sendLibraryTitle(raw:String):JSONObject=synchronized(lock){
+        try{
+            val item=JSONObject(raw)
+            val state=load()
+            val scope=sessionScope(state)
+            check(scope.isNotEmpty()&&scope==item.optString("scope")){"Conecte novamente a conta Stremio antes de enviar."}
+            val id=item.getString("id")
+            val type=item.getString("type")
+            val name=item.getString("name").trim().take(200)
+            require(id.matches(Regex("tt[0-9]{5,12}"))&&type in setOf("movie","series")&&name.isNotBlank())
+            fun readTitle():JSONObject?{
+                val params=JSONObject().put("collection","libraryItem").put("ids",JSONArray().put(id)).put("all",false)
+                val rows=api(state,"/datastoreGet",params) as? JSONArray ?: error("A biblioteca do Stremio voltou em formato inesperado.")
+                return (0 until rows.length()).mapNotNull{rows.optJSONObject(it)}.firstOrNull{it.optString("_id")==id}
+            }
+            fun active(row:JSONObject?)=row!=null&&row.optString("type")==type&&!row.optBoolean("removed",true)&&!row.optBoolean("temp",true)
+            val previous=readTitle()
+            check(previous==null||previous.optString("type")==type){"O tipo do título na biblioteca Stremio é diferente."}
+            val existing=active(previous)
+            if(!existing){
+                val date=java.time.Instant.ofEpochMilli(now()).toString()
+                val progress=JSONObject().put("timeWatched",0).put("timeOffset",0).put("overallTimeWatched",0)
+                    .put("timesWatched",0).put("flaggedWatched",0).put("duration",0).put("noNotif",false)
+                val entry=previous?:JSONObject().put("_id",id).put("name",name).put("type",type)
+                    .put("poster","https://images.metahub.space/poster/medium/$id/img").put("posterShape","poster")
+                    .put("_ctime",date).put("state",progress).put("behaviorHints",JSONObject())
+                entry.put("removed",false).put("temp",false).put("_mtime",date)
+                api(state,"/datastorePut",JSONObject().put("collection","libraryItem").put("changes",JSONArray().put(entry)))
+                check(active(readTitle())){"Não consegui confirmar o título na biblioteca do Stremio."}
+            }
+            JSONObject().put("ok",true).put("existing",existing)
+        }catch(error:Exception){
+            val message=if(error is IllegalStateException)error.message else null
+            JSONObject().put("ok",false).put("error",message?:"Não consegui enviar ao Stremio. Tente novamente.")
+        }
     }
     fun readLibrary()=synchronized(lock){
         val state=load();check(state.optString("authKey").isNotBlank()){ "Conecte o Stremio primeiro." }

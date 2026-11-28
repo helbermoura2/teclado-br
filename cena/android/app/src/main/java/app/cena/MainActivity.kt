@@ -423,6 +423,13 @@ class MainActivity : ComponentActivity() {
             }}catch(_:java.util.concurrent.RejectedExecutionException){}
         }
 
+        @JavascriptInterface fun sendStremioLibraryTitle(requestId:Int,raw:String){
+            if(requestId<=0||raw.length>4000)return
+            stremioTask{
+                val result=stremio.sendLibraryTitle(raw).put("requestId",requestId)
+                runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaStremioLibraryResult && window.CenaStremioLibraryResult($result)",null)}
+            }
+        }
         @JavascriptInterface fun stremioState() {stremioTask {}}
         @JavascriptInterface fun connectStremio() {stremioTask {stremio.beginLink()}}
         @JavascriptInterface fun openStremioAuthorization() {stremioTask {

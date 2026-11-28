@@ -41,7 +41,7 @@ class StremioRepositoryTest {
         val state=repo.status().toString();assertTrue(repo.status().getBoolean("connected"));assertFalse(state.contains("private-stremio-session-test"));assertFalse(repo.status().has("pairCode"));assertFalse(repo.status().has("pairLink"))
         val sealed=context.getSharedPreferences("cena.stremio.v1",Context.MODE_PRIVATE).getString("sealed","")!!
         assertFalse(sealed.contains("private-stremio-session-test"));assertEquals("keep-existing-trakt",TraktVault(context).read().getString("isolationMarker"))
-        try{StremioHttp().request("POST","/datastorePut",JSONObject());fail("Writes must be unreachable")}catch(_:IllegalArgumentException){}
+        try{StremioHttp().request("GET","/datastorePut",null);fail("Only authenticated POST is supported for library writes")}catch(_:IllegalArgumentException){}
         repo.disconnect();assertEquals("keep-existing-trakt",TraktVault(context).read().getString("isolationMarker"))
     }
     @Test fun everyIndexPageIsReadAndRemovedAndTemporaryRecordsAreExcluded(){
@@ -71,6 +71,29 @@ class StremioRepositoryTest {
         }},{clock})
         login(repo);repo.readLibrary();assertEquals("kitsu:123",repo.status().getJSONArray("library").getJSONObject(0).getString("id"));assertTrue(repo.status().getString("warning").contains("1 registro"))
         repo.disconnect();assertFalse(repo.status().getBoolean("connected"));assertEquals(0,repo.status().getJSONArray("library").length());assertEquals(listOf("/datastoreMeta","/datastoreGet"),calls)
+    }
+    @Test fun explicitSendConfirmsTheTitleAndPreservesExistingProgress(){
+        var stored:JSONObject?=null
+        var writes=0
+        val repo=StremioRepository(context,fake{_,path,body->when(path){
+            "/datastoreGet"->ok(JSONArray().apply{stored?.let{put(it)}})
+            "/datastorePut"->{writes++;stored=body!!.getJSONArray("changes").getJSONObject(0);ok(true)}
+            else->throw AssertionError("Unexpected operation")
+        }},{clock})
+        login(repo)
+        val title=JSONObject().put("id","tt0903747").put("type","series").put("name","Breaking Bad")
+            .put("scope",repo.status().getString("scope"))
+        assertFalse(repo.sendLibraryTitle(JSONObject(title.toString()).put("scope","wrong").toString()).getBoolean("ok"))
+        assertTrue(repo.sendLibraryTitle(title.toString()).getBoolean("ok"))
+        assertEquals("tt0903747",stored!!.getString("_id"))
+        stored!!.getJSONObject("state").put("timeOffset",123)
+        assertTrue(repo.sendLibraryTitle(title.toString()).getBoolean("existing"))
+        assertEquals(1,writes)
+        assertEquals(123,stored!!.getJSONObject("state").getInt("timeOffset"))
+        stored!!.put("removed",true)
+        assertTrue(repo.sendLibraryTitle(title.toString()).getBoolean("ok"))
+        assertEquals(2,writes)
+        assertEquals(123,stored!!.getJSONObject("state").getInt("timeOffset"))
     }
     @Test fun authorizationIsNotAcceptedWhenTheAccountCannotBeValidated(){
         val delegate=fake()

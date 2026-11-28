@@ -329,3 +329,9 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 .stats-ranking li+li{border-top:1px solid var(--line)}
 .stats-ranking li strong{flex:none;color:#dec4f5;font-variant-numeric:tabular-nums}
 .stats-ranking .link-button{padding:0;text-align:left}
+
+.direct-send{width:100%;margin:8px 0 14px;padding:10px;border:1px solid var(--line);border-radius:13px}
+.direct-send summary{cursor:pointer;font-weight:700;padding:5px}
+.direct-send button{display:block;width:100%;margin-top:8px;text-align:left}
+.direct-send p{margin:8px 0 0}
+.direct-send p:empty{display:none}

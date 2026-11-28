@@ -11,10 +11,11 @@ Operações nativas permitidas:
 - POST https://api.strem.io/api/getUser
 - POST https://api.strem.io/api/datastoreMeta, collection libraryItem
 - POST https://api.strem.io/api/datastoreGet, collection libraryItem, ids em lotes de 100, all false
+- POST https://api.strem.io/api/datastorePut, collection libraryItem, somente para envio explícito de um título
 
 O teste anônimo real de 02/11/2026 confirmou create HTTP 200 e read antes da autorização HTTP 200 com error 101, "Invalid or expired token". Esse erro é também a resposta de espera, portanto não deve encerrar a tentativa automaticamente; o cliente para de consultar após dez minutos e permite gerar outro link. Não presumimos que dez minutos seja o prazo contratual do servidor.
 
-A autorização abre exclusivamente um link HTTPS em link.stremio.com no navegador externo. Não há login, senha ou token no WebView. A sessão tem poder mais amplo no provedor: só a implementação CENA é limitada a leitura. A confirmação getUser precisa funcionar antes de aceitar a sessão. Chaves e links ficam em cofre AES-GCM/Android Keystore separado do Trakt; os nomes e aliases existentes do Trakt permanecem idênticos.
+A autorização abre exclusivamente um link HTTPS em link.stremio.com no navegador externo. Não há login, senha ou token no WebView. A sessão tem poder mais amplo no provedor: o CENA escreve somente quando o usuário escolhe Stremio no menu Mandar direto. A confirmação getUser precisa funcionar antes de aceitar a sessão. Chaves e links ficam em cofre AES-GCM/Android Keystore separado do Trakt; os nomes e aliases existentes do Trakt permanecem idênticos.
 
 A tela recebe somente conta mascarada, estado, progresso e registros leves da biblioteca. Seleção e importação ficam locais, por par tipo/IMDb exato. O importador não substitui registros existentes, não infere histórico e não faz escrita Stremio. Enviar ao Trakt é uma opção explícita, desmarcada por padrão, limitada aos novos selecionados.
 
