@@ -335,3 +335,9 @@ dialog{width:calc(100% - 20px);max-width:640px;max-height:92dvh;border:1px solid
 .direct-send button{display:block;width:100%;margin-top:8px;text-align:left}
 .direct-send p{margin:8px 0 0}
 .direct-send p:empty{display:none}
+
+.viewing-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.viewing-week button{display:grid;justify-items:center;gap:3px;min-height:58px;padding:6px 0}
+.viewing-week button span:last-child{font-size:8px;color:#97e5b5}
+#home-viewing .section-heading strong{font-size:12px;color:#d3b6f0}
+#home-viewing .stats-ranking:empty{display:none}

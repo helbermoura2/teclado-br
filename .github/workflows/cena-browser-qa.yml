@@ -71,7 +71,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.28.25')
+                  expect(page.locator('#app-version')).to_contain_text('0.28.26')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -541,7 +541,7 @@ jobs:
                   expect(nuvio_page.locator('#main .hero')).to_have_count(0)
                   expect(nuvio_page.locator('#main .notice')).to_have_count(0)
                   order=nuvio_page.evaluate("Array.from(document.querySelectorAll('#main section')).map(e=>e.id).filter(Boolean)")
-                  assert [x for x in order if x!='home-calendar'][:6]==['home-capture','nuvio-home','home-watchlist','series-home','home-recommendations','recent-history']
+                  assert [x for x in order if x!='home-calendar'][:7]==['home-capture','nuvio-home','home-viewing','home-watchlist','series-home','home-recommendations','recent-history']
                   triangle=nuvio_page.locator('.brand-triangle').bounding_box()
                   assert triangle['height']>=25 and triangle['width']>=23
                   assert nuvio_page.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'No horizontal page overflow'

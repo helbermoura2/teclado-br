@@ -1,10 +1,10 @@
 import {createCaptureMemory} from './capture-memory.js';
 import {prepareCoverReading} from './cover-reading.js';
 import {createTitleAliasResolver} from './title-aliases.js';
-import {recentWatches} from './recent-watches.js';
+import {recentWatches,viewingDayKey,viewingDays} from './recent-watches.js';
 import {createOnlineAI} from './online-ai.js';
 import {availabilityRows} from './availability.js';
-import {profileCollection,yearlyHistory,personalRatings,watchedGenres,watchedTitles,castRanking} from './profile-stats.js';
+import {profileCollection,yearlyHistory,personalRatings,watchedGenres,watchedTitles,castRanking,combinedViewing} from './profile-stats.js';
 import {NuvioSeriesEngine} from './nuvio-series.js';
 import {seriesUniverse,seriesCards,nextEpisodeEntries,combineContinuity,traktPausedEntries,currentTraktProgress} from './series-continuity.js';
 import {mountVisionModel} from './vision-model-panel.js';
@@ -65,7 +65,39 @@ let resumeExpanded=false,homeMetadata=new Map(),homeMetadataTried=new Set(),home
 const resumeHiddenKey='cena.resume.hidden.v1';
 let resumeHidden={};try{resumeHidden=JSON.parse(storage.getItem(resumeHiddenKey)||'{}')||{};}catch{}
 let historyState={totals:{},years:[],media:[]},deferredHistoryState=null,historyYear='all',historyKind='all',historyMode='history',historyMedia='',historyRows=[],historyRequest=0,historyPage=1,historyHasMore=false,historyResults=[];
-let statsSource='auto';
+let statsSource='auto',homeViewingDay='';
+const statsMetadataKey='cena.stats.catalog.v1';
+const statsMetadata=new Map();
+const statsMetadataTried=new Set();
+let statsMetadataLoading=false;
+try{for(const item of JSON.parse(storage.getItem(statsMetadataKey)||'[]'))statsMetadata.set(item.type+':'+item.id,item);}catch{}
+function warmStatsMetadata(dates){
+ if(statsMetadataLoading||tab!=='profile'||historyMode!=='stats')return;
+ const candidates=(dates.media||[]).filter(item=>/^tt[0-9]{5,12}$/.test(item.id)&&!statsMetadataTried.has(item.type+':'+item.id)&&!statsMetadata.has(item.type+':'+item.id)).slice(0,80);
+ if(!candidates.length)return;
+ statsMetadataLoading=true;
+ void(async()=>{
+  try{
+   for(let offset=0;offset<candidates.length&&tab==='profile'&&historyMode==='stats';offset+=3){
+    await Promise.all(candidates.slice(offset,offset+3).map(async item=>{
+     const key=item.type+':'+item.id;statsMetadataTried.add(key);
+     try{
+      const resolved=await getTitleDetails(item);
+      if(resolved.id===item.id&&resolved.type===item.type&&(resolved.genres?.length||resolved.cast?.length)){
+       statsMetadata.set(key,{id:item.id,type:item.type,name:resolved.name,poster:resolved.poster,genres:resolved.genres,cast:resolved.cast});
+      }
+     }catch{}
+    }));
+    if(tab==='profile'&&historyMode==='stats'&&(offset===0||offset%12===0))renderHistoryStats();
+   }
+  }finally{
+   statsMetadataLoading=false;
+   try{storage.setItem(statsMetadataKey,JSON.stringify([...statsMetadata.values()].slice(-500)));}catch{}
+   if(tab==='profile'&&historyMode==='stats')renderHistoryStats(false);
+  }
+ })();
+}
+
 let historyDedicated=false,profileStatsTab='overview',historyPeriod='all',periodRequest=0,periodStats=null;
 let discoveryScroll=0,discoveryRailOffsets=[];
 let recentHistoryRequest='',recentHistoryRows=[],recentHistoryResults=[];
@@ -118,9 +150,10 @@ function loadHistoryRows(reset=true){
  const id=String(++historyRequest);window.CenaAndroid.historyRows(id,historyYear,historyKind,reset?1:historyPage+1,historyMedia);
 }
 function activeStatsSource(){
- return statsSource==='auto' ? (nuvioState.active&&nuvioState.statistics ? 'Nuvio' : historyState.lastImport ? 'Trakt' : items.some(item=>item.importedFrom==='Stremio') ? 'Stremio' : 'Nuvio') : statsSource;
+ return statsSource==='auto' ? (nuvioState.active&&nuvioState.statistics&&historyState.lastImport?'Combinado':nuvioState.active&&nuvioState.statistics ? 'Nuvio' : historyState.lastImport ? 'Trakt' : items.some(item=>item.importedFrom==='Stremio') ? 'Stremio' : 'Nuvio') : statsSource;
 }
 function viewingStats(){
+ if(activeStatsSource()==='Combinado')return combinedViewing(nuvioState.statistics,historyState);
  return activeStatsSource()==='Nuvio' ? (nuvioState.statistics || {origin:'Nuvio'}) : activeStatsSource()==='Stremio' ? {origin:'Stremio'} : historyState;
 }
 function mountStatsRecap(){
@@ -128,7 +161,7 @@ function mountStatsRecap(){
  if(element)mountRetrospective(element,{state:viewingStats(),bridge:window.CenaAndroid,toast});
 }
 function profile(){
- main.innerHTML=`${historyDedicated?'<div class="collection-header"><button class="collection-back" id="history-back" aria-label="Voltar">←</button><h1>Últimos vistos</h1></div>':'<div class="profile-header"><div class="eyebrow">SUA MEMÓRIA DE CINEMA</div><h1>Estatísticas</h1></div>'}<div class="profile-main-tabs" role="tablist" aria-label="Áreas do perfil"><button class="profile-main-tab ${historyMode==='stats'?'selected':''}" id="history-stats-tab" role="tab" aria-selected="${historyMode==='stats'}">Estatísticas</button><button class="profile-main-tab ${historyMode==='history'?'selected':''}" id="history-tab" role="tab" aria-selected="${historyMode==='history'}">Histórico</button></div><div class="history-filters ${historyMode==='stats'?'stats-filters':''}"><div><label for="stats-source" ${historyMode==='stats'?'':'hidden'}>Fonte das estatísticas</label><select id="stats-source" ${historyMode==='stats'?'':'hidden'}><option>Nuvio</option><option>Stremio</option><option>Trakt</option></select></div><div><label for="history-year">Ano</label><select id="history-year"></select></div><label for="history-kind" ${historyMode==='stats'?'hidden':''}>Tipo</label><select id="history-kind" ${historyMode==='stats'?'hidden':''}><option value="all">Filmes e episódios</option><option value="movie">Filmes</option><option value="episode">Episódios</option></select></div><div id="history-stats"></div><section id="viewing-period" ${historyMode==='stats'&&!historyDedicated?'':'hidden'}><div class="period-controls" role="group" aria-label="Período de visualização"><button class="chip" data-period="today">Hoje</button><button class="chip" data-period="month">Mês</button><button class="chip" data-period="year">Ano</button><button class="chip" data-period="all">Desde o início</button></div><details class="period-custom"><summary>Escolher outra data</summary><label class="period-date">Dia <input id="period-date" type="date"></label><label class="period-date">Mês <input id="period-month" type="month"></label><label class="period-date">Ano <input id="period-year" type="number" min="1" max="9999" inputmode="numeric" placeholder="Ex.: 2025"></label></details><h2>Atividade de filmes</h2><div id="period-results" aria-live="polite"></div></section><div id="history-records"></div><details class="profile-sync" ${historyDedicated?'hidden':''}><summary>Sincronização e exportação</summary><div id="history-summary"></div></details><details class="profile-tools" ${historyDedicated?'hidden':''}><summary>Retrospectiva e backup</summary><section class="panel" id="retrospective-panel"></section><section class="panel" id="backup-panel"></section></details>`;
+ main.innerHTML=`${historyDedicated?'<div class="collection-header"><button class="collection-back" id="history-back" aria-label="Voltar">←</button><h1>Últimos vistos</h1></div>':'<div class="profile-header"><div class="eyebrow">SUA MEMÓRIA DE CINEMA</div><h1>Estatísticas</h1></div>'}<div class="profile-main-tabs" role="tablist" aria-label="Áreas do perfil"><button class="profile-main-tab ${historyMode==='stats'?'selected':''}" id="history-stats-tab" role="tab" aria-selected="${historyMode==='stats'}">Estatísticas</button><button class="profile-main-tab ${historyMode==='history'?'selected':''}" id="history-tab" role="tab" aria-selected="${historyMode==='history'}">Histórico</button></div><div class="history-filters ${historyMode==='stats'?'stats-filters':''}"><div><label for="stats-source" ${historyMode==='stats'?'':'hidden'}>Fonte das estatísticas</label><select id="stats-source" ${historyMode==='stats'?'':'hidden'}><option value="auto">Automático</option><option value="Combinado">Nuvio + Trakt</option><option>Nuvio</option><option>Stremio</option><option>Trakt</option></select></div><div><label for="history-year">Ano</label><select id="history-year"></select></div><label for="history-kind" ${historyMode==='stats'?'hidden':''}>Tipo</label><select id="history-kind" ${historyMode==='stats'?'hidden':''}><option value="all">Filmes e episódios</option><option value="movie">Filmes</option><option value="episode">Episódios</option></select></div><div id="history-stats"></div><section id="viewing-period" ${historyMode==='stats'&&!historyDedicated?'':'hidden'}><div class="period-controls" role="group" aria-label="Período de visualização"><button class="chip" data-period="today">Hoje</button><button class="chip" data-period="month">Mês</button><button class="chip" data-period="year">Ano</button><button class="chip" data-period="all">Desde o início</button></div><details class="period-custom"><summary>Escolher outra data</summary><label class="period-date">Dia <input id="period-date" type="date"></label><label class="period-date">Mês <input id="period-month" type="month"></label><label class="period-date">Ano <input id="period-year" type="number" min="1" max="9999" inputmode="numeric" placeholder="Ex.: 2025"></label></details><h2>Atividade de filmes</h2><div id="period-results" aria-live="polite"></div></section><div id="history-records"></div><details class="profile-sync" ${historyDedicated?'hidden':''}><summary>Sincronização e exportação</summary><div id="history-summary"></div></details><details class="profile-tools" ${historyDedicated?'hidden':''}><summary>Retrospectiva e backup</summary><section class="panel" id="retrospective-panel"></section><section class="panel" id="backup-panel"></section></details>`;
  for(const button of document.querySelectorAll('[data-period]'))button.onclick=()=>{historyPeriod=button.dataset.period;loadPeriod();};
  for(const id of ['period-date','period-month','period-year'])$('#'+id).onchange=event=>{
   if(!event.target.value||!event.target.validity.valid)return;
@@ -175,8 +208,15 @@ function renderHistorySummary(){
  if(select&&document.activeElement!==select){select.innerHTML=`<option value="all">Todos os anos</option>${(dates.years||[]).map(row=>`<option value="${Number(row.year)}">${row.year} · ${row.plays} registros</option>`).join('')}${dates.totals?.unknownDates?'<option value="unknown">Data desconhecida</option>':''}`;select.value=historyYear;if(select.selectedIndex<0){historyYear='all';select.value='all';}}
  renderHistoryStats();
 }
-function renderHistoryStats(){
+function renderHistoryStats(loadMetadata=true){
  const target=$('#history-stats');if(!target)return;const source=activeStatsSource(),dates=viewingStats(),stats=historyStats(dates,historyYear),minutes=Number(stats.estimatedMinutes)||0,collection=profileCollection(items),years=yearlyHistory(dates);
+ const enriched=new Map(statsMetadata);
+ for(const item of items){
+  const key=item.type+':'+item.id,meta=enriched.get(key);
+  enriched.set(key,{...meta,...item,genres:item.genres?.length?item.genres:meta?.genres,cast:item.cast?.length?item.cast:meta?.cast});
+ }
+ const statsItems=[...enriched.values()];
+ if(loadMetadata)warmStatsMetadata(dates);
  let notes={};try{notes=JSON.parse(storage.getItem('cena.story.notes.v1')||'{}')||{};}catch{}const ratings=personalRatings(notes);
  if(source==='Stremio'){
   const imported=profileCollection(items.filter(item=>item.importedFrom==='Stremio'));
@@ -200,11 +240,11 @@ function renderHistoryStats(){
  const periodLabel=historyYear==='all'?'Desde o início':historyYear==='unknown'?'Registros sem data':historyYear;
  const thisYear=years.find(row=>row.year===new Date().getFullYear());
  const count=value=>(Number(value)||0).toLocaleString('pt-BR');
- const playLabel=source==='Nuvio'?'Itens assistidos':'Reproduções';
+ const playLabel=source==='Trakt'?'Reproduções':'Itens assistidos';
  const overview=`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(source)} · ${escape(periodLabel)}</span><h2>Sua atividade</h2><strong class="stats-dashboard-total">${count(stats.plays)}</strong><span class="stats-dashboard-label">${playLabel}</span><dl class="stats-dashboard-kpis"><div><dt>Filmes</dt><dd>${count(stats.movies)}</dd></div><div><dt>Séries</dt><dd>${count(stats.series)}</dd></div><div><dt>Episódios</dt><dd>${count(stats.episodes)}</dd></div></dl>${source==='Trakt'&&stats.timedPlays?`<p class="muted">${Math.floor(minutes/60)}h ${minutes%60}min estimados em ${count(stats.timedPlays)} reproduções com duração</p>`:''}</section>`;
  const annual=historyYear==='all'&&thisYear?`<section class="stats-dashboard-section"><header class="stats-section-heading"><h2>Este ano</h2><span>${thisYear.year}</span></header><dl class="stats-dashboard-kpis"><div><dt>Filmes</dt><dd>${count(thisYear.movies)}</dd></div><div><dt>Episódios</dt><dd>${count(thisYear.episodes)}</dd></div><div><dt>${playLabel}</dt><dd>${count(thisYear.plays)}</dd></div></dl></section>`:'';
  const genreSection=type=>{
-  const {classified,total,rows}=watchedGenres(dates.media||[],items,historyYear,type,genreLabel);
+  const {classified,total,rows}=watchedGenres(dates.media||[],statsItems,historyYear,type,genreLabel);
   return `<section class="stats-dashboard-section"><h2>Gêneros mais assistidos</h2>${rows.length?`<ul class="stats-genres">${rows.map(([genre,value])=>`<li><span>${escape(genre)}</span><meter min="0" max="${classified}" value="${value}" aria-label="${escape(genre)}"></meter><strong>${count(value)}</strong></li>`).join('')}</ul><p class="muted">${count(classified)} de ${count(total)} títulos identificados têm gênero no catálogo. Um título pode contar em mais de um gênero.</p>`:'<p class="muted">Ainda não há gêneros disponíveis para os títulos assistidos neste período.</p>'}</section>`;
  };
  const feedback=readFeedback(storage);
@@ -238,13 +278,13 @@ function renderHistoryStats(){
   }).join('')}</div></section>`;
  };
  const actorList=type=>{
-  const titles=watchedTitles(dates.media||[],items,historyYear,type);
+  const titles=watchedTitles(dates.media||[],statsItems,historyYear,type);
   const actors=castRanking(titles);
   if(!actors.length)return '<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><p class="muted">Aparecem quando os títulos assistidos têm elenco cadastrado no catálogo local.</p></section>';
   return `<section class="stats-dashboard-section"><h2>Atores mais vistos</h2><ol class="stats-ranking">${actors.map(({name,count:total})=>`<li><span>${escape(name)}</span><strong>${count(total)} ${total===1?'título':'títulos'}</strong><button class="chip" data-favorite-actor="${escape(name)}" aria-label="Favoritar ${escape(name)}" aria-pressed="${favoriteActors.includes(name)}">${favoriteActors.includes(name)?'♥':'♡'}</button></li>`).join('')}</ol><p class="muted">Contagem de títulos assistidos com elenco disponível.</p></section>`;
  };
  const topTitles=(type,metric,label)=>{
-  const rows=watchedTitles(dates.media||[],items,historyYear,type).filter(row=>row[metric]>0&&row.item.name)
+  const rows=watchedTitles(dates.media||[],statsItems,historyYear,type).filter(row=>row[metric]>0&&row.item.name)
    .sort((a,b)=>b[metric]-a[metric]||a.item.name.localeCompare(b.item.name,'pt-BR')).slice(0,10);
   if(!rows.length)return '';
   return `<section class="stats-dashboard-section"><h2>${label}</h2><ol class="stats-ranking">${rows.map(row=>{
@@ -280,8 +320,8 @@ function renderHistoryStats(){
  };
  const activity=(metric,label)=>`<section class="stats-dashboard-section"><h2>${label}</h2>${chart(metric,label)}</section>`;
  let content='';
- if(profileStatsTab==='overview')content=`${historyPending?historyEmpty:`${overview}${annual}${genreSection()}`}${favoriteShelf('movie')}${favoriteShelf('series')}${actorFavorites()}${historyPending?'':actorList()}${savedShelf('movie')}${savedShelf('series')}${items.length?viewingLegend():''}${historyPending?'':activity('plays',source==='Nuvio'?'Itens assistidos por ano':'Reproduções por ano')}`;
- if(profileStatsTab==='movies')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Filmes assistidos</h2><strong class="stats-dashboard-total">${count(stats.movies)}</strong><span class="stats-dashboard-label">Filmes diferentes</span></section>${detailActivity('movies')}${statusSection('movie')}${topTitles('movie','plays','Filmes mais vistos')}${actorList('movie')}${weekdaySection('movies')}${genreSection('movie')}${activity('movies','Filmes diferentes por ano')}`;
+ if(profileStatsTab==='overview')content=`${source==='Combinado'?'<p class="muted">Nuvio + Trakt · filmes e episódios identificados, sem duplicar o mesmo título ou episódio. Reprises aparecem na visão do Trakt.</p>':''}${historyPending?historyEmpty:`${overview}${annual}${genreSection()}`}${favoriteShelf('movie')}${favoriteShelf('series')}${actorFavorites()}${historyPending?'':actorList()}${savedShelf('movie')}${savedShelf('series')}${items.length?viewingLegend():''}${historyPending?'':activity('plays',source==='Trakt'?'Reproduções por ano':'Itens assistidos por ano')}`;
+ if(profileStatsTab==='movies')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Filmes assistidos</h2><strong class="stats-dashboard-total">${count(stats.movies)}</strong><span class="stats-dashboard-label">Filmes diferentes</span></section>${detailActivity('movies')}${statusSection('movie')}${(source==='Trakt'?topTitles('movie','plays','Filmes mais vistos'):'')}${actorList('movie')}${weekdaySection('movies')}${genreSection('movie')}${activity('movies','Filmes diferentes por ano')}`;
  if(profileStatsTab==='series')content=historyPending?historyEmpty:`<section class="stats-dashboard-hero"><span class="eyebrow">${escape(periodLabel)}</span><h2>Séries assistidas</h2><dl class="stats-dashboard-kpis"><div><dt>Séries</dt><dd>${count(stats.series)}</dd></div><div><dt>Episódios</dt><dd>${count(stats.episodes)}</dd></div></dl></section>${detailActivity('series')}${statusSection('series')}${topTitles('series','minutes','Séries por tempo assistido')}${topTitles('series','episodes','Séries por episódios vistos')}${actorList('series')}${weekdaySection('episodes')}${genreSection('series')}${activity('episodes','Episódios diferentes por ano')}`;
  if(profileStatsTab==='library')content=`<div class="profile-hero"><span>SUA COLEÇÃO NESTE APARELHO</span><strong>${collection.total} ${collection.total===1?'título':'títulos'}</strong><div><span>${collection.movies} filmes</span><span>${collection.series} séries</span><span>${collection.watchlist} para assistir</span></div></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">A coleção inclui títulos salvos para assistir. Os números do histórico seguem a fonte selecionada.</p>`;
  if(profileStatsTab==='library'&&!collection.total&&nuvioState.active)content=`<div class="profile-hero"><span>SUA ATIVIDADE CONECTADA</span><strong>Nuvio</strong><p>${Number(nuvioState.watchedCount)||0} registros recebidos${nuvioState.profileName?' · '+escape(nuvioState.profileName):''}.</p></div><h2>Histórico assistido</h2>${historyPending?historyEmpty:cards}<p class="muted">Sua coleção reúne os títulos que você salva no CENA. Os registros recebidos do Nuvio podem incluir episódios e não equivalem ao total de filmes assistidos.</p>`;
@@ -307,18 +347,25 @@ function renderHistoryStats(){
  target.querySelectorAll('[data-profile-stats]').forEach(button=>button.onclick=()=>{profileStatsTab=button.dataset.profileStats;renderHistoryStats();});target.hidden=historyMode!=='stats';const records=$('#history-records');if(records)records.hidden=historyMode!=='history';
 }
 function renderHistoryRows(total){
- const target=$('#history-records');if(!target)return;historyResults=historyRows.map(row=>historyItem(row,items));
+ const other=(nuvioState.active?[...viewingDays([],nuvioState).values()].flatMap(day=>[...day.values()]):[])
+  .filter(row=>(!historyMedia||row.id===historyMedia)&&(historyKind==='all'||row.kind===historyKind)&&(historyYear==='all'||historyYear===String(new Date(row.watchedAt).getFullYear())));
+ const key=row=>[viewingDayKey(new Date(row.watchedAt)),row.kind,row.id,row.season||0,row.episode||0].join(':');
+ const imported=new Set(historyRows.filter(row=>row.datePrecision==='exact'&&row.id).map(key));
+ const extra=other.filter(row=>!imported.has(key(row)));
+ const rows=[...historyRows,...extra].sort((a,b)=>(b.datePrecision==='exact'?new Date(b.watchedAt).getTime():0)-(a.datePrecision==='exact'?new Date(a.watchedAt).getTime():0));
+
+ const target=$('#history-records');if(!target)return;historyResults=rows.map(row=>historyItem(row,items));
  const groups=[];
- historyRows.forEach((row,index)=>{
+ rows.forEach((row,index)=>{
    const [day,time]=historyDate(row).split(', ');
    let group=groups.at(-1);
    if(group?.day!==day){group={day,entries:[]};groups.push(group);}
    const item=historyResults[index];
    const episode=row.kind==='episode'?`T${escape(row.season)} · E${escape(row.episode)}${row.episodeTitle?` · ${escape(row.episodeTitle)}`:''}`:'Filme';
-   group.entries.push(`<li><button class="history-row poster-card" data-history-index="${index}">${poster(item)}<span class="history-entry-copy">${viewingRibbon(item,null,'watched')}<strong>${escape(item.name)}</strong><small>${episode}</small></span>${time?`<time>${escape(time)}</time>`:''}</button></li>`);
+   group.entries.push(`<li><button class="history-row poster-card" data-history-index="${index}">${poster(item)}<span class="history-entry-copy">${viewingRibbon(item,null,'watched')}<strong>${escape(item.name)}</strong><small>${episode}${nuvioState.active?' · '+escape([...(row.sources||[row.source||'Trakt'])].join(' + ')):''}</small></span>${time?`<time>${escape(time)}</time>`:''}</button></li>`);
  });
  const timeline=groups.map(({day,entries})=>`<section class="history-day"><h3>${escape(day)}</h3><ul>${entries.join('')}</ul></section>`).join('');
- target.innerHTML=`<p class="muted">${total} registros ${historyYear==='all'?'em todos os anos':historyYear==='unknown'?'sem data confirmada':`em ${escape(historyYear)}`}</p>${timeline||'<div class="empty"><p>Nenhum registro disponível para este filtro.</p></div>'}${historyHasMore?'<button class="secondary wide" id="history-more">Mais registros</button>':''}`;
+ target.innerHTML=`<p class="muted">${nuvioState.active?'Nuvio (registros recentes) + histórico importado do Trakt. ':''}${total} registros ${historyYear==='all'?'em todos os anos':historyYear==='unknown'?'sem data confirmada':`em ${escape(historyYear)}`}</p>${timeline||'<div class="empty"><p>Nenhum registro disponível para este filtro.</p></div>'}${historyHasMore?'<button class="secondary wide" id="history-more">Mais registros</button>':''}`;
  for(const button of target.querySelectorAll('[data-history-index]'))button.onclick=()=>showDetail(historyResults[Number(button.dataset.historyIndex)]);
  if($('#history-more'))$('#history-more').onclick=()=>loadHistoryRows(false);
  wireImages();
@@ -433,7 +480,7 @@ window.CenaNuvioResult=state=>{
  if(changed&&apiBase==='local'){items=merged;storage.setItem('cena.local.items.v1',JSON.stringify(items));}
  if(tab==='connect'&&!document.querySelector('#nuvio-profile:focus')){const panel=$('#nuvio-panel');renderNuvioPanel(panel,state,window.CenaAndroid);}
  if(!$('#detail').open){if(tab==='library'&&changed)patchLibrary();else if(tab==='home'&&changed){const y=window.scrollY;home();window.scrollTo(0,y);}}
- if(tab==='profile'){renderHistorySummary();mountStatsRecap();}
+ if(tab==='profile'){renderHistorySummary();mountStatsRecap();if(historyMode==='history')loadHistoryRows(true);}
  renderNuvioSections();renderSeriesSections();renderRecentHistory();
 };
 async function refreshNuvioEpisodes(){const ticket=++nuvioSeriesTicket;if(!nuvioState.active){nuvioSeriesRows=[];return;}const scope=nuvioState.scope;await nuvioSeriesEngine.refresh(nuvioState,{isCurrent:()=>ticket===nuvioSeriesTicket&&scope===nuvioState.scope,onRow:row=>{nuvioSeriesRows=[...nuvioSeriesRows.filter(old=>old.id!==row.id),row];renderNuvioSections();renderSeriesSections();}});}
@@ -655,10 +702,29 @@ function setTab(next, fromBack=false) {
 window.CenaBack=()=>{const dialog=document.querySelector('dialog[open]');if(dialog){dialog.close();return true;}if(tab==='discover'&&highlightView){highlightView='';discover();window.scrollTo(0,discoveryScroll);document.querySelectorAll('#discovery-highlights .poster-rail').forEach((rail,i)=>rail.scrollLeft=discoveryRailOffsets[i]||0);return true;}if(tab==='collections'&&activeCollection){activeCollection='';collections();return true;}if(tabHistory.length){setTab(tabHistory.pop(),true);return true;}if(tab!=='home'){setTab('home',true);return true;}return false;};
 function horizontalGrid(rows,recommendation=false){return grid(rows,recommendation).replace('class="grid"','class="poster-rail"');}
 function loadRecentHistory(){if(tab!=='home')return;if(!historyState.scope||typeof window.CenaAndroid?.historyRows!=='function'){recentHistoryRows=[];renderRecentHistory();return;}recentHistoryRequest=String(++historyRequest);window.CenaAndroid.historyRows(recentHistoryRequest,'all','all',1,'');}
-function renderRecentHistory(){const target=$('#recent-history');if(!target)return;const rows=recentWatches(recentHistoryRows,nuvioState,12);recentHistoryResults=rows.map(row=>historyItem(row,items));target.innerHTML=`<div class="section-heading"><h2>Últimos vistos</h2><button id="recent-see-all">Ver histórico</button></div>${rows.length?`<div class="poster-rail">${rows.map((row,index)=>{const item=recentHistoryResults[index];return `<button class="poster-card" data-id="${escape(item.id)}">${poster(item,'',true)}${viewingRibbon(item,null,'watched')}<strong>${escape(item.name)}</strong><small>${row.kind==='episode'?`T${Number(row.season)} · E${Number(row.episode)} · `:''}${escape(historyDate(row))}</small></button>`;}).join('')}</div>`:`<p class="home-empty muted">${historyState.importing?'Importando o histórico do Trakt… Os registros aparecem ao concluir.':historyState.error?escape(historyState.error):'Seu histórico de filmes e episódios aparece aqui.'}</p>`}`;$('#recent-see-all').onclick=()=>{historyYear='all';historyKind='all';historyMedia='';historyMode='history';historyDedicated=true;setTab('profile');};wireImages();}
+function renderHomeViewing(){
+ const target=$('#home-viewing');if(!target)return;
+ const groups=viewingDays(recentHistoryRows,nuvioState);
+ const days=new Set([...groups.keys(),...(historyState.activity||[]).map(row=>row.date),...(nuvioState.active?nuvioState.statistics?.activity||[]:[]).map(row=>row.date)]);
+ if(!days.size){target.replaceChildren();return;}
+ const today=new Date(),offset=delta=>new Date(today.getFullYear(),today.getMonth(),today.getDate()+delta);
+ let streak=0,start=days.has(viewingDayKey(today))?0:-1;
+ while(days.has(viewingDayKey(offset(start-streak))))streak++;
+ const week=Array.from({length:7},(_,i)=>offset(i-6));
+ const available=week.map(viewingDayKey);
+ const selected=available.includes(homeViewingDay)?homeViewingDay:[...available].reverse().find(day=>days.has(day))||available.at(-1);
+ const rows=[...(groups.get(selected)?.values()||[])];
+ target.innerHTML=`<div class="section-heading"><h2>Diário de visualização</h2><strong>${streak} ${streak===1?'dia':'dias'} em sequência</strong></div>
+ <div class="viewing-week" role="group" aria-label="Últimos sete dias">${week.map(day=>{const key=viewingDayKey(day);return `<button class="chip" data-viewing-day="${key}" aria-label="${day.toLocaleDateString('pt-BR')}${days.has(key)?', com atividade':''}" aria-pressed="${key===selected}"><span>${day.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')}</span><strong>${day.getDate()}</strong>${days.has(key)?'<span aria-hidden="true">●</span>':''}</button>`;}).join('')}</div>
+ <ul class="stats-ranking">${rows.map((row,index)=>`<li><button class="link-button" data-daily-title="${index}">${escape(historyItem(row,items).name)}${row.kind==='episode'?` · T${Number(row.season)} E${Number(row.episode)}`:''}</button><small>${escape([...row.sources].join(' + '))}</small></li>`).join('')}</ul>
+ ${rows.length?'':`<p class="muted">${days.has(selected)?'Há atividade neste dia. Os títulos desse dia não vieram na consulta recente.':'Sem visualizações registradas neste dia.'}</p>`}`;
+ for(const button of target.querySelectorAll('[data-viewing-day]'))button.onclick=()=>{homeViewingDay=button.dataset.viewingDay;renderHomeViewing();};
+ for(const button of target.querySelectorAll('[data-daily-title]'))button.onclick=()=>showDetail(historyItem(rows[Number(button.dataset.dailyTitle)],items));
+}
+function renderRecentHistory(){renderHomeViewing();const target=$('#recent-history');if(!target)return;const rows=recentWatches(recentHistoryRows,nuvioState,12);recentHistoryResults=rows.map(row=>historyItem(row,items));target.innerHTML=`<div class="section-heading"><h2>Últimos vistos</h2><button id="recent-see-all">Ver histórico</button></div>${rows.length?`<div class="poster-rail">${rows.map((row,index)=>{const item=recentHistoryResults[index];return `<button class="poster-card" data-id="${escape(item.id)}">${poster(item,'',true)}${viewingRibbon(item,null,'watched')}<strong>${escape(item.name)}</strong><small>${row.kind==='episode'?`T${Number(row.season)} · E${Number(row.episode)} · `:''}${escape(historyDate(row))}</small></button>`;}).join('')}</div>`:`<p class="home-empty muted">${historyState.importing?'Importando o histórico do Trakt… Os registros aparecem ao concluir.':historyState.error?escape(historyState.error):'Seu histórico de filmes e episódios aparece aqui.'}</p>`}`;$('#recent-see-all').onclick=()=>{historyYear='all';historyKind='all';historyMedia='';historyMode='history';historyDedicated=true;setTab('profile');};wireImages();}
 function home() {
  const pending=items.filter(item=>item.status==='watchlist'&&!item.watchedEpisodes);
- main.innerHTML=`<section class="capture-hero" id="home-capture"><div class="capture-editorial"><h1>Que filme é esse?</h1><p>Descubra o título pela capa.</p><button class="primary" id="hero-scan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotografar capa</button></div><div class="capture-emblem" aria-hidden="true"><picture><source media="(prefers-reduced-motion: reduce)" srcset="brand-still.webp"><source type="image/webp" srcset="brand-loop.webp"><img src="brand-mark.png" alt=""></picture></div></section><section id="nuvio-home"></section><section class="home-watchlist" id="home-watchlist"><div class="section-heading"><div><h2>Começar a assistir</h2></div><button id="see-all">${pending.length?`Ver todos · ${pending.length}`:'Seu catálogo'}</button></div>${pending.length?horizontalGrid(pending.slice(0,12)):'<p class="home-empty muted">Salve filmes e séries para encontrar aqui depois.</p><button class="secondary" id="empty-search">Buscar título</button>' }</section><section id="series-home" ${homeSections.series===false?'hidden':''}></section><section class="calendar-preview" id="home-calendar"></section><section id="home-recommendations" ${homeSections.recommendations===false?'hidden':''}><div class="section-heading"><div><h2>Para você</h2></div><button id="home-discover">Explorar</button></div><div id="home-recommendation-grid"></div></section><section id="recent-history" ${homeSections.recent===false?'hidden':''}></section>${viewingLegend()}<button class="home-sync" id="home-sync"><span class="sync-dot ${nuvioState.error||traktState.error?'pending':''}" aria-hidden="true"></span>${nuvioState.active?'Nuvio conectado':traktState.connected?'Trakt conectado':'Lista salva neste aparelho'}<span aria-hidden="true">→</span></button>`;
+ main.innerHTML=`<section class="capture-hero" id="home-capture"><div class="capture-editorial"><h1>Que filme é esse?</h1><p>Descubra o título pela capa.</p><button class="primary" id="hero-scan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotografar capa</button></div><div class="capture-emblem" aria-hidden="true"><picture><source media="(prefers-reduced-motion: reduce)" srcset="brand-still.webp"><source type="image/webp" srcset="brand-loop.webp"><img src="brand-mark.png" alt=""></picture></div></section><section id="nuvio-home"></section><section id="home-viewing"></section><section class="home-watchlist" id="home-watchlist"><div class="section-heading"><div><h2>Começar a assistir</h2></div><button id="see-all">${pending.length?`Ver todos · ${pending.length}`:'Seu catálogo'}</button></div>${pending.length?horizontalGrid(pending.slice(0,12)):'<p class="home-empty muted">Salve filmes e séries para encontrar aqui depois.</p><button class="secondary" id="empty-search">Buscar título</button>' }</section><section id="series-home" ${homeSections.series===false?'hidden':''}></section><section class="calendar-preview" id="home-calendar"></section><section id="home-recommendations" ${homeSections.recommendations===false?'hidden':''}><div class="section-heading"><div><h2>Para você</h2></div><button id="home-discover">Explorar</button></div><div id="home-recommendation-grid"></div></section><section id="recent-history" ${homeSections.recent===false?'hidden':''}></section>${viewingLegend()}<button class="home-sync" id="home-sync"><span class="sync-dot ${nuvioState.error||traktState.error?'pending':''}" aria-hidden="true"></span>${nuvioState.active?'Nuvio conectado':traktState.connected?'Trakt conectado':'Lista salva neste aparelho'}<span aria-hidden="true">→</span></button>`;
  $('#hero-scan').onclick=()=>{setTab('scan');if(native)$('#take-photo').click();};$('#see-all').onclick=()=>{filter='watchlist';setTab('library');};$('#home-discover').onclick=()=>{discoveryMode='recommend';setTab('discover');};$('#home-sync').onclick=()=>setTab('connect');
  if($('#empty-search'))$('#empty-search').onclick=()=>{setTab('library');$('#query').focus();};
  wireCards(pending);renderSeriesSections();renderNuvioSections();renderHomeRecommendations();

@@ -74,6 +74,11 @@ object WatchHistoryCodec {
   fun metrics(events:List<JSONObject>)=JSONObject().put("plays",events.size)
    .put("episodes",events.filter{it.optString("kind")=="episode"&&!it.optString("episodeKey").startsWith("unknown-episode:")}.map{it.optString("episodeKey")}.toSet().size)
    .put("minutes",events.sumOf{it.optInt("runtimeMinutes").toLong()})
+  fun titleMetrics(events:List<JSONObject>):JSONObject{
+   val keys=events.filter{it.optString("kind")=="episode"&&!it.optString("episodeKey").startsWith("unknown-episode:")}
+    .map{it.optString("episodeKey").removePrefix("series:")}.filter{it.matches(Regex("tt[0-9]{5,12}:[0-9]+:[0-9]+"))}.toSet()
+   return metrics(events).put("episodeKeys",JSONArray(keys))
+  }
   val byDate=rows.groupBy{date(it)}
   val years=JSONArray()
   for((year,events) in rows.groupBy{date(it)?.year}.filterKeys{it!=null}.toSortedMap(compareByDescending{it?:0}))years.put(stats(events).put("year",year))
@@ -88,9 +93,9 @@ object WatchHistoryCodec {
    val first=events.first()
    val groups=events.groupBy{date(it)?.year}
    val periods=JSONObject()
-   for((year,viewings) in groups)periods.put(year?.toString()?:"unknown",metrics(viewings))
+   for((year,viewings) in groups)periods.put(year?.toString()?:"unknown",titleMetrics(viewings))
    val dates=events.filter{date(it)!=null}.map{it.optLong("watchedMs")}.sorted()
-   media.put(metrics(events).put("id",first.getString("id")).put("type",first.getString("type")).put("name",first.optString("name")).put("year",first.opt("year")?:"")
+   media.put(titleMetrics(events).put("id",first.getString("id")).put("type",first.getString("type")).put("name",first.optString("name")).put("year",first.opt("year")?:"")
     .put("years",JSONArray(groups.keys.filterNotNull().sorted())).put("unknownDates",groups[null]?.size?:0)
     .put("periods",periods).put("firstWatched",dates.firstOrNull()?:JSONObject.NULL).put("lastWatched",dates.lastOrNull()?:JSONObject.NULL))
   }

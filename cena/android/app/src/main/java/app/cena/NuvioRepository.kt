@@ -217,10 +217,10 @@ internal object NuvioCodec {
   for((key,title) in media){
    val periods=titlePeriods.getValue(key)
    val all=periods.getValue("all")
-   title.put("plays",all.movies.size+all.episodes.size).put("episodes",all.episodes.size)
+   title.put("plays",all.movies.size+all.episodes.size).put("episodes",all.episodes.size).put("episodeKeys",JSONArray(all.episodes))
     .put("years",JSONArray(periods.keys.mapNotNull{it.toIntOrNull()}.sorted()))
     .put("periods",JSONObject(periods.filterKeys{it!="all"}.mapValues{(_,value)->
-     JSONObject().put("plays",value.movies.size+value.episodes.size).put("episodes",value.episodes.size)
+     JSONObject().put("plays",value.movies.size+value.episodes.size).put("episodes",value.episodes.size).put("episodeKeys",JSONArray(value.episodes))
     }))
   }
   val activity=JSONArray(days.map{(day,value)->JSONObject().put("date",day.toString())

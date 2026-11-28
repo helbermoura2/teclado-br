@@ -50,3 +50,44 @@ export function castRanking(titles){
  }
  return [...names.values()].sort((a,b)=>b.count-a.count||a.name.localeCompare(b.name,'pt-BR')).slice(0,12);
 }
+
+export function combinedViewing(nuvio,trakt){
+ const titles=new Map(),years=new Set();
+ for(const source of [nuvio,trakt]){
+  for(const title of source?.media||[]){
+   if(!/^tt[0-9]{5,12}$/.test(title.id)||!['movie','series'].includes(title.type))continue;
+   const key=title.type+':'+title.id;
+   const current=titles.get(key)||{id:title.id,type:title.type,periods:new Map()};
+   if(title.name&&!current.name)current.name=title.name;
+   for(const [period,stats] of Object.entries({all:title,...title.periods})){
+    if(!(stats.plays>0))continue;
+    const episodes=current.periods.get(period)||new Set();
+    for(const episode of stats.episodeKeys||[])episodes.add(episode);
+    current.periods.set(period,episodes);
+    if(/^[0-9]{4}$/.test(period))years.add(period);
+   }
+   titles.set(key,current);
+  }
+ }
+ const metrics=(title,episodes)=>({episodes:episodes.size,plays:title.type==='movie'?1:episodes.size});
+ const media=[...titles.values()].map(title=>({
+  id:title.id,type:title.type,name:title.name||title.id,
+  ...metrics(title,title.periods.get('all')||new Set()),
+  periods:Object.fromEntries([...title.periods].map(([period,episodes])=>[period,metrics(title,episodes)])),
+  years:[...title.periods.keys()].filter(period=>years.has(period)).map(Number),
+  unknownDates:title.periods.has('unknown'),
+ }));
+ const totals=period=>{
+  const result={movies:0,series:0,episodes:0,plays:0};
+  for(const title of media){
+   if(!title.periods[period])continue;
+   result[title.type==='movie'?'movies':'series']++;
+   result.episodes+=title.periods[period].episodes;
+   result.plays+=title.periods[period].plays;
+  }
+  return result;
+ };
+ const unknown=totals('unknown');
+ return {origin:'Combinado',media,totals:{...totals('all'),unknownDates:unknown.plays},unknown,
+  years:[...years].sort().reverse().map(year=>({...totals(year),year:Number(year)}))};
+}
