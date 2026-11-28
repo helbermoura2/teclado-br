@@ -5,13 +5,19 @@ import androidx.work.*
 import java.util.concurrent.TimeUnit
 
 class WatchHistoryWorker(context:Context,parameters:WorkerParameters):Worker(context,parameters){
- override fun doWork():Result=try{WatchHistoryRepository(applicationContext).use{repo->when(repo.importBatch(inputData.getBoolean("force",false))){
-  HistoryPass.COMPLETE->Result.success()
-  HistoryPass.FAILED->Result.retry()
-  HistoryPass.MORE->{WorkManager.getInstance(applicationContext).enqueueUniqueWork("cena-history-pages",ExistingWorkPolicy.APPEND_OR_REPLACE,request());Result.success()}
- }}}catch(_:Exception){Result.retry()}
+ override fun doWork():Result {
+  // Work persisted by older versions (periodic or automatic) must never import.
+  if(!inputData.getBoolean("manual",false))return Result.success()
+  return try{WatchHistoryRepository(applicationContext).use{repo->when(repo.importBatch(inputData.getBoolean("force",false),manual=true)){
+   HistoryPass.COMPLETE->Result.success()
+   HistoryPass.FAILED->Result.failure()
+   HistoryPass.MORE->{WorkManager.getInstance(applicationContext).enqueueUniqueWork(NAME,ExistingWorkPolicy.APPEND_OR_REPLACE,request(false));Result.success()}
+  }}}catch(_:Exception){Result.failure()}
+ }
  companion object {
-  private fun request(force:Boolean=false)=OneTimeWorkRequestBuilder<WatchHistoryWorker>().setInputData(workDataOf("force" to force)).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).setBackoffCriteria(BackoffPolicy.EXPONENTIAL,30,TimeUnit.SECONDS).build()
-  fun schedule(context:Context,force:Boolean=false){val manager=WorkManager.getInstance(context);manager.enqueueUniquePeriodicWork("cena-history-periodic",ExistingPeriodicWorkPolicy.KEEP,PeriodicWorkRequestBuilder<WatchHistoryWorker>(12,TimeUnit.HOURS).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build());manager.enqueueUniqueWork("cena-history-import",ExistingWorkPolicy.KEEP,request(force))}
+  private const val NAME="cena-history-manual-v2"
+  private fun request(force:Boolean)=OneTimeWorkRequestBuilder<WatchHistoryWorker>().setInputData(workDataOf("force" to force,"manual" to true)).setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
+  fun cancelLegacy(context:Context){val manager=WorkManager.getInstance(context);for(name in listOf("cena-history-periodic","cena-history-import","cena-history-pages"))manager.cancelUniqueWork(name)}
+  fun schedule(context:Context,force:Boolean=false){if(!force)return;cancelLegacy(context);WorkManager.getInstance(context).enqueueUniqueWork(NAME,ExistingWorkPolicy.KEEP,request(true))}
  }
 }

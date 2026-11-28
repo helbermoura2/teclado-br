@@ -71,7 +71,7 @@ jobs:
                   page.evaluate("window.CenaNativeResult({lines:['SISU']})")
                   expect(page.locator('#detail')).not_to_be_visible()
                   expect(page.locator('#search-results .poster-card').filter(has_text=re.compile('sisu', re.I)).first).to_be_visible(timeout=60000)
-                  expect(page.locator('#app-version')).to_contain_text('0.28.30')
+                  expect(page.locator('#app-version')).to_contain_text('0.28.31')
                   page.evaluate("window.CenaNativeResult({lines:['LSMARSHAIG','TOMMY LEE JONES','WESLEY SNIPES','ROBERT DOWNEY JR.']})")
                   recovered = page.locator('#search-results .poster-card[data-id="tt0120873"]')
                   expect(recovered).to_be_visible(timeout=60000)
@@ -194,7 +194,7 @@ jobs:
                   native_page.evaluate("window.CenaStremioResult({connected:true,account:'t***@example.org',library:[]})")
                   native_page.locator('#stremio-read').click()
                   expect(native_page.locator('#stremio-summary')).to_have_text('2 novos · 1 já no CENA · 1 sem identificador compatível.')
-                  expect(native_page.locator('#stremio-trakt')).not_to_be_checked()
+                  expect(native_page.locator('#stremio-trakt')).to_have_count(0)
                   native_page.locator('#stremio-filter').fill('breaking')
                   expect(native_page.locator('#stremio-rows .stremio-row')).to_have_count(1)
                   native_page.locator('#stremio-filter').fill('')
@@ -211,15 +211,13 @@ jobs:
                   native_page.evaluate("window.stremioRows.push({id:'tt0120873',type:'movie',name:'U.S. Marshals',removed:false,temp:false})")
                   native_page.locator('#stremio-read').click()
                   expect(native_page.locator('#stremio-summary')).to_contain_text('1 novos')
-                  native_page.locator('#stremio-trakt').check()
                   native_page.locator('#stremio-import').click()
-                  native_page.wait_for_function('window.traktBatches.length===1')
-                  assert native_page.evaluate('window.traktBatches[0]')==[{'id':'tt0120873','type':'movie','action':'add'}]
+                  assert native_page.evaluate('window.traktBatches.length')==0
                   native_page.screenshot(path='qa/stremio-import.png',full_page=True)
                   native_page.locator('#stremio-disconnect').click()
                   expect(native_page.locator('#stremio-connect')).to_be_visible()
                   assert len(native_page.evaluate("JSON.parse(localStorage.getItem('cena.local.items.v1'))"))==4
-                  print('Stremio preview and selected import preserve watched records, deduplicate, keep custom IDs visible, and only send new titles to Trakt when explicitly checked. Provider authorization is mocked in this browser test.')
+                  print('Stremio preview and selected import preserve watched records, deduplicate, keep custom IDs visible, and never send titles to Trakt. Provider authorization is mocked in this browser test.')
                   native_page.close()
                   scroll_page=browser.new_page(viewport={'width':412,'height':915})
                   scroll_page.on('pageerror',lambda error:errors.append(str(error)))
@@ -296,7 +294,7 @@ jobs:
                   expect(discovery_page.locator('.status-label')).to_contain_text('Quero assistir')
                   discovery_page.locator('#detail .close').click()
                   expect(discovery_page.locator('#recommendation-grid .poster-card[data-id="tt0000002"]')).to_have_count(0)
-                  assert discovery_page.evaluate('window.discoveryActions')==[{'id':'tt0000002','type':'movie','action':'add'}]
+                  assert discovery_page.evaluate('window.discoveryActions')==[]
                   discovery_page.locator('[data-discovery-mode="series"]').click()
                   expect(discovery_page.locator('#series-discovery')).to_contain_text('T1 · E3')
                   discovery_page.locator('#series-discovery [data-series-refresh]').click()
@@ -331,7 +329,7 @@ jobs:
                   print('Manual refresh keeps the exact loaded image/card nodes while waiting or offline, then displays different suggestions. Account/catalog fixtures simulated.')
                   discovery_page.screenshot(path='qa/personalized-discovery.png',full_page=True)
                   discovery_page.close()
-                  print('Five centered tabs, personalized recommendations, existing-title exclusion, Trakt queue on add, available episodes and future releases verified. Account responses are simulated.')
+                  print('Five centered tabs, personalized recommendations, existing-title exclusion, no Trakt writes on add, available episodes and future releases verified. Account responses are simulated.')
                   similar_page=browser.new_page(viewport={'width':412,'height':915})
                   similar_page.on('pageerror',lambda error:errors.append(str(error)))
                   def similar_route(route):

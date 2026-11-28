@@ -56,7 +56,6 @@ class MainActivity : ComponentActivity() {
     }
     private fun emitTrakt() {
         val state=trakt.status()
-        if(state.optBoolean("connected")&&(!historyScheduled||state.optLong("lastSync")>lastHistorySync)){historyScheduled=true;lastHistorySync=state.optLong("lastSync");WatchHistoryWorker.schedule(applicationContext,true)}else if(!state.optBoolean("connected")){historyScheduled=false;lastHistorySync=0L}
         traktWaitingAuth=state.optString("userCode").isNotBlank()
         val fingerprint=state.optBoolean("connected").toString()+state.optString("username")+state.optJSONArray("progress").toString()
         if(fingerprint!=seriesFingerprint||state.optLong("lastSync")>lastSeriesSync){seriesFingerprint=fingerprint;lastSeriesSync=state.optLong("lastSync");if(state.optBoolean("connected"))seriesTask()else{series.clear();emitSeries()}}
@@ -98,8 +97,6 @@ class MainActivity : ComponentActivity() {
     }}
     private val historyExecutor=Executors.newSingleThreadScheduledExecutor()
     private val history by lazy {WatchHistoryRepository(applicationContext)}
-    @Volatile private var historyScheduled=false
-    private var lastHistorySync=0L
     private var historyLoop=false
     private fun emitHistory(){val value=history.status();runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaHistoryResult && window.CenaHistoryResult($value)",null)}}
     private fun historyTask(task:()->Unit={}){try{historyExecutor.execute{try{task();emitHistory()}catch(_:Exception){runOnUiThread{if(!isDestroyed)sendError("Não consegui ler o histórico local. Tente novamente.")}}}}catch(_:java.util.concurrent.RejectedExecutionException){}}
@@ -222,6 +219,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WatchHistoryWorker.cancelLegacy(applicationContext)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         val root = FrameLayout(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
         web = WebView(this).apply { setBackgroundColor(android.graphics.Color.BLACK) }
@@ -387,10 +385,6 @@ class MainActivity : ComponentActivity() {
             if(requestId<=0||raw.length>2000)return
             nuvioTask{val result=try{nuvio.markEpisode(raw)}catch(_:Exception){JSONObject().put("ok",false).put("error","Não consegui confirmar no Nuvio. Marcação local preservada.")};emitManualEpisode(requestId,result)}
         }
-        @JavascriptInterface fun markTraktEpisode(requestId:Int,raw:String){
-            if(requestId<=0||raw.length>2000)return
-            traktTask{val result=try{trakt.markEpisode(raw)}catch(_:Exception){JSONObject().put("ok",false).put("error","Não consegui confirmar no Trakt. Marcação local preservada.")};emitManualEpisode(requestId,result);if(result.optBoolean("ok")){trakt.sync(true);WatchHistoryWorker.schedule(applicationContext,true);seriesTask(true)}}
-        }
         private fun emitNuvioCopy(requestId:Int,result:JSONObject){
             result.put("requestId",requestId)
             runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaNuvioCopyResult && window.CenaNuvioCopyResult($result)",null)}
@@ -498,12 +492,6 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun syncTrakt() { traktTask { trakt.sync(true) } }
         @JavascriptInterface fun disconnectTrakt() { traktTask { trakt.disconnect();TraktWorker.cancel(applicationContext);series.clear();emitSeries() } }
         @JavascriptInterface fun traktInventory(raw: String) { if(raw.length<=300000) traktTask { trakt.inventory(JSONArray(raw));seriesTask() } }
-        @JavascriptInterface fun queueTraktBatch(raw: String) { if(raw.length<=300000) traktTask {
-            val values=JSONArray(raw); require(values.length()<=2000)
-            for(i in 0 until values.length()) trakt.enqueue(values.getJSONObject(i))
-            trakt.initialUploadComplete(); TraktWorker.schedule(applicationContext); trakt.sync()
-        } }
-        @JavascriptInterface fun queueTrakt(raw: String) { if(raw.length<=2000) traktTask { trakt.enqueue(JSONObject(raw)); TraktWorker.schedule(applicationContext); trakt.sync();seriesTask() } }
         @JavascriptInterface fun saveStory(encoded: String) {
             if(encoded.length>12_000_000) return
             val bytes=try { Base64.decode(encoded,Base64.DEFAULT) } catch(_:Exception) { return }

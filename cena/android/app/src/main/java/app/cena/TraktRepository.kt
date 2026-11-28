@@ -85,9 +85,9 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         val s = load()
         JSONObject().put("configured", id(s).isNotBlank()).put("clientId", id(s)).put("connected", connected(s))
             .put("account",s.optString("account")).put("username", s.optString("username")).put("error", s.optString("error"))
-            .put("needsUpload",s.optBoolean("needsUpload")).put("blocked",s.optBoolean("blocked")).put("lastSync", s.optLong("lastSync")).put("userCode", s.optString("userCode"))
+            .put("readOnly",true).put("needsUpload",false).put("blocked",false).put("lastSync", s.optLong("lastSync")).put("userCode", s.optString("userCode"))
             .put("verificationUrl", s.optString("verificationUrl")).put("authExpires", s.optLong("authExpires"))
-            .put("pending", s.optJSONArray("queue") ?: JSONArray()).put("synced", s.optJSONArray("synced") ?: JSONArray())
+            .put("pending", JSONArray()).put("synced", JSONArray())
             .put("watchlist", s.optJSONArray("watchlist") ?: JSONArray()).put("watched", s.optJSONArray("watched") ?: JSONArray())
             .put("paused",s.optJSONArray("paused")?:JSONArray()).put("playbackError",s.optString("playbackError")).put("pausedLastSync",s.optLong("pausedLastSync")).put("progress", s.optJSONArray("progress") ?: JSONArray()).put("limits", s.optJSONObject("limits") ?: JSONObject())
     }
@@ -121,7 +121,7 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         if(now() < s.optLong("nextPoll")) return@synchronized
         val r = transport.request("POST","/oauth/device/token",JSONObject().put("code",s.getString("deviceCode")).put("client_id",id(s)),id(s),null)
         when(r.status) {
-            200 -> { tokens(s,JSONObject(r.body));s.remove("historyAccount");s.remove("historyUsername"); clearGrant(s); s.put("queue",JSONArray()).put("synced",JSONArray()).put("watchlist",JSONArray()).put("watched",JSONArray()).put("lastSync",0).put("needsUpload",true); save(s) }
+            200 -> { tokens(s,JSONObject(r.body));s.remove("historyAccount");s.remove("historyUsername"); clearGrant(s); s.put("queue",JSONArray()).put("synced",JSONArray()).put("watchlist",JSONArray()).put("watched",JSONArray()).put("lastSync",0).put("needsUpload",false); save(s) }
             400 -> {
                 val error=try { JSONObject(r.body).optString("error") } catch(_:Exception) { "" }
                 if(error.isNotBlank() && error !in setOf("authorization_pending","pending")) { clearGrant(s); s.put("error","O Trakt recusou a autorização: $error. Confira o cadastro da integração.") }
@@ -133,6 +133,7 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         }
     }
     private fun api(s: JSONObject, method: String, path: String, body: JSONObject? = null): TraktResponse {
+        check(method=="GET"){"Integração Trakt somente leitura."}
         if(now()+60000 >= s.optLong("expires")) {
             val r = transport.request("POST","/oauth/token",JSONObject().put("client_id",id(s)).put("refresh_token",s.optString("refresh")).put("grant_type","refresh_token"),id(s),null)
             if(r.status != 200) { if(r.status in setOf(400,401,403)) { s.remove("access"); s.remove("refresh"); s.put("queue",JSONArray()); save(s) }; error("Sua autorização precisa ser renovada. Conecte o Trakt novamente.") }
@@ -179,32 +180,9 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
         require(raw.length() <= 2000)
         val s = load(); s.put("inventory",JSONArray(records(raw).filter(::valid).map { JSONObject().put("id",it.getString("id")).put("type",it.getString("type")) })); save(s)
     }
-    fun markEpisode(raw:String):JSONObject=synchronized(lock){
-        val item=JSONObject(raw);val id=item.getString("id");val season=item.getInt("season");val episode=item.getInt("episode")
-        require(imdb.matches(id)&&season>0&&episode>0)
-        val s=load();check(connected(s)&&s.optString("account").isNotBlank()&&s.optString("account")==item.optString("scope"))
-        val user=JSONObject(api(s,"GET","/users/settings").body).getJSONObject("user").getJSONObject("ids").getString("slug")
-        check(user==item.optString("scope"))
-        fun seen():Boolean{
-            val progress=JSONObject(api(s,"GET","/shows/$id/progress/watched?hidden=false&specials=false&count_specials=false").body)
-            return records(progress.optJSONArray("seasons")).any{row->row.optInt("number")==season&&records(row.optJSONArray("episodes")).any{it.optInt("number")==episode&&it.optBoolean("completed")}}
-        }
-        if(!seen()){
-            val ep=JSONObject().put("number",episode).put("watched_at",java.time.Instant.ofEpochMilli(now()).toString())
-            val show=JSONObject().put("ids",JSONObject().put("imdb",id)).put("seasons",JSONArray().put(JSONObject().put("number",season).put("episodes",JSONArray().put(ep))))
-            api(s,"POST","/sync/history",JSONObject().put("shows",JSONArray().put(show)))
-            check(seen()){"O Trakt ainda não confirmou o episódio."}
-        }
-        JSONObject().put("ok",true)
-    }
-    fun enqueue(raw: JSONObject) = synchronized(lock) {
-        require(valid(raw) && raw.optString("action") in setOf("add","remove"))
-        val s=load(); if(!connected(s)) return@synchronized
-        val queue=records(s.optJSONArray("queue")).filter { contentKey(it) != contentKey(raw) }.toMutableList()
-        check(queue.size < 2000) { "Muitos títulos aguardam sincronização. Sincronize antes de adicionar mais." }
-        queue.add(JSONObject().put("id",raw.getString("id")).put("type",raw.getString("type")).put("action",raw.getString("action")))
-        s.put("queue",JSONArray(queue)).put("blocked",false).put("queueError","").put("error",""); save(s)
-    }
+    // Legacy bridge calls are deliberately inert; no user data can be sent to Trakt.
+    fun markEpisode(raw:String):JSONObject=JSONObject().put("ok",false).put("error","Trakt somente leitura.")
+    fun enqueue(raw:JSONObject)=Unit
     private fun all(s: JSONObject, path: String): List<JSONObject> {
         val result=mutableListOf<JSONObject>(); var page=1; var pages=1
         do {
@@ -216,6 +194,7 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
     }
     fun sync(force: Boolean = false,refresh:Boolean=false) = synchronized(lock) {
         val s=load(); if(!connected(s)) return@synchronized
+        s.put("queue",JSONArray()).put("synced",JSONArray()).put("needsUpload",false).put("blocked",false).put("queueError","");save(s)
         if(now()<s.optLong("retryAt")) return@synchronized
         if(!force&&!refresh && now()-s.optLong("lastSync") < 60000 && records(s.optJSONArray("queue")).isEmpty()) return@synchronized
         if(force) s.put("blocked",false).put("queueError","")
@@ -224,22 +203,6 @@ class TraktRepository(context: Context, private val transport: TraktTransport = 
             val account=settings.getJSONObject("user").getJSONObject("ids").getString("slug")
             if(s.optString("account").isNotBlank() && s.optString("account") != account) { s.put("queue",JSONArray()).put("synced",JSONArray()).put("watched",JSONArray()).put("watchlist",JSONArray()).put("progress",JSONArray()).put("paused",JSONArray()).put("pausedLastSync",0).put("lastSync",0).put("playbackError","") }
             s.put("account",account).put("username",settings.getJSONObject("user").optString("username",account)).put("limits",settings.optJSONObject("limits") ?: JSONObject()); save(s)
-            if(!s.optBoolean("blocked")) for(action in listOf("add","remove")) {
-                val batch=records(s.optJSONArray("queue")).filter { it.optString("action")==action }
-                if(batch.isEmpty()) continue
-                val body=JSONObject()
-                for(type in listOf("movie","series")) body.put(if(type=="movie")"movies" else "shows",JSONArray(batch.filter { it.optString("type")==type }.map { JSONObject().put("ids",JSONObject().put("imdb",it.getString("id"))) }))
-                val reply=JSONObject(api(s,"POST",if(action=="add")"/sync/watchlist" else "/sync/watchlist/remove",body).body)
-                check(reply.has("added") || reply.has("deleted") || reply.has("existing")) { "O Trakt não confirmou os títulos enviados." }
-                val missing=reply.optJSONObject("not_found")
-                val missingIds=listOf("movies","shows").flatMap { records(missing?.optJSONArray(it)) }.map { it.optJSONObject("ids")?.optString("imdb") ?: "" }.toSet()
-                val failed=batch.filter { it.getString("id") in missingIds }
-                val completedKeys=(batch-failed.toSet()).map(::contentKey).toSet()
-                s.put("queue",JSONArray(records(s.optJSONArray("queue")).filter { contentKey(it) !in completedKeys }))
-                val synced=records(s.optJSONArray("synced")).filter { contentKey(it) !in completedKeys }.toMutableList(); synced.addAll(batch.filter { contentKey(it) in completedKeys }.map { JSONObject(it.toString()).put("at",now()) })
-                s.put("synced",JSONArray(synced.takeLast(2000))); save(s)
-                if(failed.isNotEmpty()) { s.put("blocked",true); error("Alguns títulos não foram encontrados no Trakt. Eles continuam na sua lista local.") }
-            }
             val remote=mutableListOf<JSONObject>()
             for(type in listOf("movies","shows")) for(row in all(s,"/sync/watchlist/$type/added")) {
                 val movie=row.optJSONObject(if(type=="movies")"movie" else "show") ?: continue

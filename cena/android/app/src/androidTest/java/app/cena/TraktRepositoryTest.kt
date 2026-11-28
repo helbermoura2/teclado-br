@@ -37,18 +37,15 @@ class TraktRepositoryTest {
         val raw=context.getSharedPreferences("cena.trakt.v1",Context.MODE_PRIVATE).getString("sealed","")!!
         assertFalse(raw.contains("private-access-test"));assertFalse(raw.contains("private-refresh-test"))
     }
-    @Test fun failedWritesStayPendingAndOnlyAcknowledgedWritesBecomeSynced() {
-        var accept=false
-        val fake=transport { method,path,_ ->
-            if(method=="POST" && path=="/sync/watchlist") if(accept) response(JSONObject().put("added",JSONObject().put("movies",1))) else response(JSONObject(),503)
-            else response(JSONArray())
-        }
+    @Test fun legacyActionsNeverWriteToTrakt() {
+        var writes=0
+        val fake=transport{method,path,_->if(method!="GET"&&path.startsWith("/sync/"))writes++;response(JSONArray())}
         val repo=TraktRepository(context,fake){clock};login(repo)
-        val action=JSONObject().put("id","tt14846026").put("type","movie").put("action","add")
-        repo.enqueue(action);repo.sync(true)
-        assertEquals(1,repo.status().getJSONArray("pending").length());assertEquals(0,repo.status().getJSONArray("synced").length())
-        accept=true;clock+=60000;repo.sync(true)
-        assertEquals(0,repo.status().getJSONArray("pending").length());assertEquals(1,repo.status().getJSONArray("synced").length())
+        repo.enqueue(JSONObject().put("id","tt14846026").put("type","movie").put("action","add"))
+        repo.sync(true)
+        assertEquals(0,writes);assertEquals(0,repo.status().getJSONArray("pending").length())
+        assertFalse(repo.status().getBoolean("needsUpload"));assertTrue(repo.status().getBoolean("readOnly"))
+        assertFalse(repo.markEpisode("{}").getBoolean("ok"))
     }
     @Test fun remoteWatchlistAndWatchedHistoryAreReadIncludingLaterPages() {
         val fake=transport { _,path,_ ->
@@ -81,10 +78,11 @@ class TraktRepositoryTest {
         val fake=transport { _,path,_ -> if(path.startsWith("/sync/playback")){if(fail)response(JSONArray(),503)else response(JSONArray().put(JSONObject().put("type","movie").put("movie",JSONObject().put("title","Filme").put("ids",JSONObject().put("imdb","tt1335975"))).put("progress",15).put("paused_at","2026-11-04T00:00:00Z")))}else response(JSONArray()) }
         val repo=TraktRepository(context,fake){clock};login(repo);repo.sync(true);assertEquals(1,repo.status().getJSONArray("paused").length());fail=true;clock+=1000;repo.sync(refresh=true);assertEquals(clock,repo.status().getLong("lastSync"));assertEquals(1,repo.status().getJSONArray("paused").length());assertTrue(repo.status().getString("playbackError").isNotBlank());assertTrue(repo.status().getString("error").isBlank())
     }
-    @Test fun foregroundRefreshDoesNotRetryWritesBlockedByAnAccountLimit() {
+    @Test fun foregroundRefreshNeverWritesToTrakt() {
         var writes=0
-        val fake=transport { method,path,_ -> if(method=="POST"&&path=="/sync/watchlist"){writes++;response(JSONObject(),420)}else response(JSONArray()) }
-        val repo=TraktRepository(context,fake){clock};login(repo);repo.enqueue(JSONObject().put("id","tt1335975").put("type","movie").put("action","add"));repo.sync(true);assertTrue(repo.status().getBoolean("blocked"));clock+=1000;repo.sync(refresh=true);assertEquals(1,writes);assertEquals(1,repo.status().getJSONArray("pending").length())
+        val fake=transport { method,path,_ -> if(method=="POST"&&path.startsWith("/sync/"))writes++;response(JSONArray()) }
+        val repo=TraktRepository(context,fake){clock};login(repo);repo.enqueue(JSONObject().put("id","tt1335975").put("type","movie").put("action","add"));repo.sync(true);clock+=1000;repo.sync(refresh=true)
+        assertEquals(0,writes);assertEquals(0,repo.status().getJSONArray("pending").length())
     }
 
 }

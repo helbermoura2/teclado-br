@@ -33,7 +33,7 @@ class WatchHistoryRepository(context:Context,private val source:WatchHistorySour
   val revision=owner+":"+meta.optLong("lastImport")+":"+ZoneId.systemDefault().id
   if(revision!=memoKey){memo=WatchHistoryCodec.summary(if(owner.isBlank())emptyList()else store.rows(owner));memoKey=revision}
   return JSONObject(memo.toString()).put("scope",if(owner.isBlank())"" else scope(owner)).put("connected",snapshot.optBoolean("connected")).put("account",meta.optString("username",snapshot.optString("username"))).put("lastImport",meta.optLong("lastImport"))
-   .put("importing",running.get()||meta.optBoolean("pending")).put("page",meta.optInt("nextPage",1)-1).put("pages",meta.optInt("pages")).put("processed",meta.optInt("processed")).put("expected",meta.optLong("expected",-1)).put("coverage",meta.optString("coverage","unverified"))
+   .put("importing",running.get()||(meta.optBoolean("manual")&&meta.optBoolean("pending"))).put("page",meta.optInt("nextPage",1)-1).put("pages",meta.optInt("pages")).put("processed",meta.optInt("processed")).put("expected",meta.optLong("expected",-1)).put("coverage",meta.optString("coverage","unverified"))
    .put("error",meta.optString("error",preferences.getString("error","").orEmpty())).put("invalid",meta.optInt("invalid"))
  }
  fun moviePeriod(period:String):JSONObject {
@@ -42,7 +42,7 @@ class WatchHistoryRepository(context:Context,private val source:WatchHistorySour
   return WatchHistoryCodec.moviePeriod(rows,period).put("scope",if(owner.isBlank())""else scope(owner))
  }
  fun page(year:String,kind:String,page:Int,mediaId:String=""):JSONObject {val owner=ownerForView();require(page in 1..100000);return (if(owner.isBlank())JSONObject().put("rows",JSONArray()).put("total",0).put("page",page).put("hasMore",false)else store.page(owner,year,kind,page,mediaId)).put("scope",if(owner.isBlank())""else scope(owner))}
- fun importBatch(force:Boolean=false):HistoryPass {
+ fun importBatch(force:Boolean=false,manual:Boolean=false):HistoryPass {
   if(!running.compareAndSet(false,true))return HistoryPass.COMPLETE
   var owner="";var meta=JSONObject()
   try{return synchronized(lock){
@@ -50,28 +50,28 @@ class WatchHistoryRepository(context:Context,private val source:WatchHistorySour
    owner=source.owner();check(owner.isNotBlank()){"Não consegui identificar a conta Trakt."};meta=store.meta(owner)
    preferences.edit().putString("account",owner).remove("error").apply()
    if(!force&&!meta.optBoolean("pending")&&!meta.optBoolean("retryRequired")&&meta.optLong("lastImport")>0&&now()>=meta.optLong("lastImport")&&now()-meta.optLong("lastImport")<INTERVAL)return@synchronized HistoryPass.COMPLETE
-   if(!meta.optBoolean("pending")){
+   if(!meta.optBoolean("pending")||manual&&force){
     val expected=try{source.expectedPlays(owner)}catch(_:Exception){-1}
-    meta.put("pending",true).put("nextPage",1).put("pages",0).put("processed",0).put("invalid",0).put("startedAt",now()).put("expected",expected).put("fingerprint",source.activities(owner)).put("error","").put("retryRequired",false).put("username",source.snapshot().optString("username"))
+    meta.put("manual",manual).put("pending",true).put("nextPage",1).put("pages",0).put("processed",0).put("invalid",0).put("startedAt",now()).put("expected",expected).put("fingerprint",source.activities(owner)).put("error","").put("retryRequired",false).put("username",source.snapshot().optString("username"))
     store.begin(owner,meta)
    }
    var processedPages=0
    while(processedPages<20){
     check(source.snapshot().optBoolean("connected")&&source.snapshot().optString("account")==owner){"A conta Trakt mudou. Inicie a importação novamente."}
     val page=meta.optInt("nextPage",1);val reply=source.page(owner,page);check(reply.status in 200..299){"O Trakt não devolveu o histórico (${reply.status})."};check(reply.pages in 1..1000){"Histórico muito extenso. A importação não foi concluída."}
-    if(page>1&&reply.pages!=meta.optInt("pages")){meta.put("pending",false).put("retryRequired",true);throw IllegalStateException("Histórico alterado durante a importação. Vou consultar novamente.")}
+    if(page>1&&reply.pages!=meta.optInt("pages")){meta.put("pending",false).put("retryRequired",true);throw IllegalStateException("Histórico alterado durante a importação. Toque em Importar para tentar novamente.")}
     val raw=JSONArray(reply.body);val parsed=mutableListOf<JSONObject>();var invalid=0
     for(index in 0 until raw.length()){val row=raw.optJSONObject(index);val value=if(row!=null)WatchHistoryCodec.parse(row)else null;if(value==null)invalid++ else parsed.add(value)}
     meta.put("pages",reply.pages).put("nextPage",page+1).put("processed",meta.optInt("processed")+raw.length()).put("invalid",meta.optInt("invalid")+invalid).put("headerTotal",reply.itemCount).put("error","")
     store.stage(owner,parsed,meta);processedPages++
     if(page>=reply.pages){
-     if(source.activities(owner)!=meta.optString("fingerprint")){meta.put("pending",false).put("retryRequired",true);throw IllegalStateException("Histórico alterado durante a importação. Vou consultar novamente.")}
+     if(source.activities(owner)!=meta.optString("fingerprint")){meta.put("pending",false).put("retryRequired",true);throw IllegalStateException("Histórico alterado durante a importação. Toque em Importar para tentar novamente.")}
      val count=meta.optLong("processed");val expected=meta.optLong("expected",-1);val header=meta.optLong("headerTotal",-1)
      val coverage=when{meta.optInt("invalid")>0||expected>=0&&count<expected||header>=0&&count<header->"partial";expected>=0&&count==expected||header>=0&&count==header->"complete";else->"unverified"}
      meta.put("pending",false).put("retryRequired",false).put("lastImport",now()).put("coverage",coverage).put("error","");store.commit(owner,meta);return@synchronized HistoryPass.COMPLETE
     }
    };HistoryPass.MORE
-  }}catch(error:Exception){val message=safe(error);if(owner.isNotBlank()){meta.put("error",message);store.setMeta(owner,meta)}else preferences.edit().putString("error",message).apply();return HistoryPass.FAILED}
+  }}catch(error:Exception){val message=safe(error);if(owner.isNotBlank()){meta.put("error",message);if(manual)meta.put("pending",false).put("retryRequired",false);store.setMeta(owner,meta)}else preferences.edit().putString("error",message).apply();return HistoryPass.FAILED}
   finally{running.set(false)}
  }
  private fun exportOwner(owner:String):JSONObject {check(owner.isNotBlank()){"Nenhum histórico local para exportar."};return JSONObject().put("format","cena-watch-history").put("version",1).put("source","Trakt").put("exportedAt",java.time.Instant.ofEpochMilli(now()).toString()).put("account",store.meta(owner).optString("username")).put("events",JSONArray(store.rows(owner)))}

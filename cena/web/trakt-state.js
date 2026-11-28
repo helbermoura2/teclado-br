@@ -20,6 +20,7 @@ export function applyTraktState(items, state, {preserveWatchState=false}={}) {
   return [...result.values()];
 }
 export function traktItemLabel(item,state) {
+  if(state.readOnly)return !state.connected?'Salvo neste aparelho':item.watchedSource==='Trakt'?'✓ Assistido — recebido do Trakt':(state.watchlist||[]).some(row=>key(row)===key(item))?'✓ Recebido do Trakt · somente leitura':'Salvo neste aparelho';
   if(!state.connected) return 'Salvo neste aparelho';
   if((state.pending || []).some(row => key(row)===key(item))) return state.error ? 'Sincronização pendente — confira Conectar' : 'Aguardando envio ao Trakt';
   if((state.synced || []).some(row=>key(row)===key(item)) || item.syncStatus==='synced') return item.status==='watched' && item.watchedSource==='Trakt' ? '✓ Assistido — recebido do Trakt' : '✓ Enviado ao Trakt';
