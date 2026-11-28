@@ -7,8 +7,7 @@ export function titleArtwork(item,value){
  const parsed=new URL(url);
  const embedded=parsed.pathname.match(/tt[0-9]{5,12}/g);
  if(embedded&&embedded.some(id=>id!==item.id))return '';
- // A Wikipedia page thumbnail need not depict the show itself.
- if(parsed.hostname==='upload.wikimedia.org')return '';
+ // Regional artwork is accepted after the exact IMDb match in regionalArtwork.
  // Repair known contaminated poster regardless of old cache provenance.
  if(item.id==='tt0185906'&&parsed.hostname!=='images.metahub.space')return '';
  return url;
@@ -106,7 +105,7 @@ export class ArtworkResolver {
     for(const candidate of [this.peek(item),item.poster]) {const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}}
     let catalog='';try{catalog=await catalogArtwork(item,this.fetcher);}catch{}
     for(const candidate of [catalog,`https://images.metahub.space/poster/medium/${item.id}/img`]) {const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}}
-    for(const lookup of [searchCatalogArtwork]){
+    for(const lookup of [searchCatalogArtwork,regionalArtwork]){
       let candidate='';try{candidate=await lookup(item,this.fetcher);}catch{}
       const poster=await attempt(candidate);if(poster){this.remember(item,poster);return poster;}
     }
