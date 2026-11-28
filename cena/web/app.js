@@ -130,7 +130,7 @@ function historyBadge(item){return `<span class="watch-years">${escape(historyYe
 window.CenaHistoryResult=state=>{
  if(!libraryReady){deferredHistoryState=state;return;}
  if(JSON.stringify(state)===JSON.stringify(historyState))return;
- const previous=historyState;historyState=state;renderSync();const merged=applyHistoryMetadata(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
+ const previous=historyState;historyState=state;updateCopyHistory(previous,state);renderSync();const merged=applyHistoryMetadata(items,state),changed=JSON.stringify(merged)!==JSON.stringify(items);
  if(previous.scope!==state.scope){recentHistoryRows=[];recentHistoryResults=[];recentHistoryRequest='';renderRecentHistory();}
  if(changed&&apiBase==='local'){items=merged;storage.setItem('cena.local.items.v1',JSON.stringify(items));}
  if(tab==='profile'){renderHistorySummary();if(previous.scope!==state.scope||previous.lastImport!==state.lastImport)loadPeriod();if(previous.scope!==state.scope||previous.lastImport!==state.lastImport)mountStatsRecap();if(previous.scope!==state.scope||previous.lastImport!==state.lastImport){const records=$('#history-records');if(records)records.innerHTML='<p class="muted">Carregando histórico desta conta…</p>';loadHistoryRows(true);}}
@@ -561,7 +561,7 @@ window.CenaTraktResult = state => {
   if(JSON.stringify(state)===JSON.stringify(traktState)) return;
   const becameConnected = state.connected && !traktWasConnected;
   if(!state.connected) traktInitialUploadRequested=false;
-  traktWasConnected = Boolean(state.connected); traktState = state;renderSync();
+  if(traktState.connected!==state.connected||traktState.username!==state.username){copyPreview=null;copyMessage='';copyImportQueued=false;} traktWasConnected = Boolean(state.connected); traktState = state;renderSync();mountNuvioCopy($('#nuvio-copy'));
   if(apiBase !== 'local') return;
   const merged = applyTraktState(items,state,{preserveWatchState:nuvioState.active});
   const libraryChanged=JSON.stringify(merged)!==JSON.stringify(items);
@@ -1129,27 +1129,54 @@ function finishLibrarySend(service,result){
 }
 window.CenaNuvioLibraryResult=result=>finishLibrarySend('Nuvio',result);
 window.CenaStremioLibraryResult=result=>finishLibrarySend('Stremio',result);
-let copyRequest=0,copyBusy=false,copyPreview=null,copyMessage='';
+let copyRequest=0,copyBusy=false,copyPreview=null,copyMessage='',copyImportQueued=false,copyImportAttempt=0;
+function updateCopyHistory(previous,state){
+ if(previous.scope!==state.scope||previous.lastImport!==state.lastImport||previous.connected!==state.connected||state.importing){copyPreview=null;if(!copyBusy)copyMessage='';}
+ if(state.importing||previous.lastImport!==state.lastImport||previous.error!==state.error||!state.connected)copyImportQueued=false;
+ mountNuvioCopy($('#nuvio-copy'));
+}
 function mountNuvioCopy(target){
  const bridge=window.CenaAndroid;
  if(!target||typeof bridge?.previewNuvioCopy!=='function'||typeof bridge.applyNuvioCopy!=='function'){if(target)target.hidden=true;return;}
  const ready=traktState.connected&&nuvioState.active&&Boolean(nuvioState.scope);
  const preview=copyPreview;
+ const importing=Boolean(historyState.importing||copyImportQueued);
+ const imported=Boolean(historyState.connected&&Number(historyState.lastImport)>0);
+ const canImport=traktState.connected&&typeof bridge.importHistory==='function'&&!importing&&!copyBusy;
+ const canPreview=ready&&imported&&!importing&&!copyBusy;
  target.innerHTML=`<h2>Copiar do Trakt para o Nuvio</h2><p>Copie a lista Quero assistir e as marcações de filmes e episódios vistos para o perfil Nuvio selecionado.</p>
  ${ready?'':'<p class="muted">Conecte o Trakt e selecione um perfil do Nuvio para usar a cópia.</p>'}
- <button class="secondary" id="nuvio-copy-preview" ${ready&&!copyBusy?'':'disabled'}>Gerar prévia</button>
+ <p><strong>1. Importar histórico do Trakt</strong></p>
+ <p class="muted" role="status">${!traktState.connected?'Conecte sua conta Trakt acima.':importing?'Importando histórico… '+(Number(historyState.processed)||0)+' registros lidos.':imported?'Última importação: '+new Date(historyState.lastImport).toLocaleString('pt-BR'):'Importe o histórico antes de gerar a prévia.'}</p>
+ ${historyState.error?'<p class="error" role="alert">'+escape(historyState.error)+'</p>':''}
+ ${imported&&historyState.coverage!=='complete'?'<p class="notice">A cobertura do histórico é parcial ou não confirmada.</p>':''}
+ <button class="primary" id="nuvio-copy-import" ${canImport?'':'disabled'}>${importing?'Importando…':imported?'Atualizar histórico do Trakt':'Importar histórico do Trakt'}</button>
+ <p><strong>2. Gerar prévia</strong></p>
+ <button class="secondary" id="nuvio-copy-preview" ${canPreview?'':'disabled'}>Gerar prévia</button>
+ <p><strong>3. Transferir para o Nuvio</strong></p>
+ ${preview?'':'<button class="primary" id="nuvio-copy-confirm" disabled>Transferir para o Nuvio</button>'}
  ${preview?`<p>Perfil de destino: <strong>${escape(preview.profile||'Nuvio')}</strong></p>
  <ul><li>${Number(preview.titles)} títulos para adicionar à biblioteca</li><li>${Number(preview.movies)} filmes a marcar como vistos</li>
  <li>${Number(preview.episodes)} episódios a marcar como vistos</li><li>${Number(preview.existing)} itens já presentes · ${Number(preview.skipped)} registros pulados</li></ul>
  ${preview.partial?'<p class="notice">O histórico importado do Trakt tem cobertura parcial ou não confirmada.</p>':''}
- <button class="primary" id="nuvio-copy-confirm" ${ready&&!copyBusy&&(preview.titles||preview.movies||preview.episodes)?'':'disabled'}>Confirmar cópia</button>`:''}
+ <button class="primary" id="nuvio-copy-confirm" ${canPreview&&(preview.titles||preview.movies||preview.episodes)?'':'disabled'}>Transferir para o Nuvio</button>`:''}
  <p class="muted" role="status">${escape(copyMessage)}</p>`;
+ target.querySelector('#nuvio-copy-import').onclick=()=>{
+  if(!canImport)return;
+  copyPreview=null;copyMessage='';copyImportQueued=true;const attempt=++copyImportAttempt;
+  mountNuvioCopy(target);
+  try{bridge.importHistory();bridge.historyState?.();}
+  catch(error){copyImportQueued=false;copyMessage='Não consegui iniciar a importação. Tente novamente.';mountNuvioCopy(target);return;}
+  setTimeout(()=>{if(attempt!==copyImportAttempt||!copyImportQueued)return;copyImportQueued=false;copyMessage='Importação solicitada. Confira o andamento ou tente novamente.';bridge.historyState?.();mountNuvioCopy($('#nuvio-copy'));},30000);
+ };
  target.querySelector('#nuvio-copy-preview').onclick=()=>{
+  if(!canPreview)return;
   copyPreview=null;copyBusy=true;copyMessage='Conferindo a biblioteca e o histórico…';
   mountNuvioCopy(target);bridge.previewNuvioCopy(++copyRequest);
  };
  const confirm=target.querySelector('#nuvio-copy-confirm');
- if(confirm)confirm.onclick=()=>{
+ if(confirm&&preview)confirm.onclick=()=>{
+  if(!canPreview)return;
   copyBusy=true;copyPreview=null;copyMessage='Copiando para o perfil Nuvio…';
   mountNuvioCopy(target);bridge.applyNuvioCopy(++copyRequest,preview.planId);
  };
@@ -1334,6 +1361,7 @@ function localConnection() {
     </div></section><div class="settings-quick">
     <button class="secondary" id="jump-updates">Atualizações do CENA</button>
     <button class="secondary" id="jump-history">Histórico e backup</button>
+    <button class="secondary" id="jump-nuvio-copy">Copiar Trakt para Nuvio</button>
     </div><details class="panel home-customize" id="home-preferences"><summary>Personalizar início</summary><div class="home-customize-options">
     <label><input type="checkbox" data-home-section="recent" ${homeSections.recent!==false?'checked':''}> Últimos vistos</label>
     <label><input type="checkbox" data-home-section="series" ${homeSections.series!==false?'checked':''}> Suas séries</label>
@@ -1367,7 +1395,10 @@ function localConnection() {
       panel.scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
     };
   }
-  if($('#manage-remote-list'))$('#manage-remote-list').onclick=()=>connect(true);
+  const copyPanel=$('#nuvio-copy');$('#trakt-panel').after(copyPanel);copyPanel.tabIndex=-1;
+   const copyJump=$('#jump-nuvio-copy');copyJump.hidden=copyPanel.hidden;copyJump.onclick=()=>{copyPanel.focus({preventScroll:true});copyPanel.scrollIntoView({block:'start'});};
+   window.CenaAndroid?.historyState?.();
+   if($('#manage-remote-list'))$('#manage-remote-list').onclick=()=>connect(true);
   $('#clear-capture-memory').onclick=event=>{
     try{captureMemory.clear();event.currentTarget.disabled=true;$('#capture-memory-status').textContent='Confirmações apagadas.';}
     catch{$('#capture-memory-status').textContent='Não consegui apagar as confirmações. Tente novamente.';}
