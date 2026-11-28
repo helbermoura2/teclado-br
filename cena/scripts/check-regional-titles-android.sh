@@ -2,7 +2,7 @@
 set -euo pipefail
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w -r -e class app.cena.StreamingPolicyTest,app.cena.CoverLayoutTest,app.cena.CoverRecognitionTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner > /tmp/cena-regional-titles-android.txt
+adb shell am instrument -w -r -e class app.cena.StreamingPolicyTest,app.cena.CoverLayoutTest,app.cena.CoverRecognitionTest,app.cena.NuvioRepositoryTest app.cena.mobile.test/androidx.test.runner.AndroidJUnitRunner > /tmp/cena-regional-titles-android.txt
 cat /tmp/cena-regional-titles-android.txt
 python3 - <<'PY'
 from pathlib import Path

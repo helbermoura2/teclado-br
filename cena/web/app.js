@@ -1050,6 +1050,14 @@ function mountSynopsis(item, awaitingDetails=false) {
   retry.click();
 }
 
+let nuvioLibraryRequest=0,nuvioLibraryPending=null;
+window.CenaNuvioLibraryResult=result=>{
+ const pending=nuvioLibraryPending;
+ if(!pending||pending.id!==result.requestId)return;
+ nuvioLibraryPending=null;
+ if(pending.button.isConnected)pending.button.disabled=false;
+ toast(result.ok?(result.existing?'Já está na biblioteca do Nuvio.':'Adicionado à biblioteca do Nuvio.'):result.error||'Não consegui confirmar o envio ao Nuvio.');
+};
 function showDetail(item, enriched = false, capture = null) {
   if (!item) return;
   localAI.cancel();similarTicket++;
@@ -1063,12 +1071,25 @@ function showDetail(item, enriched = false, capture = null) {
     <h3>A identificação está correta?</h3><div class="actions"><button class="secondary" id="capture-correct" aria-pressed="${Boolean(capture.confirmed)}">Correto</button><button class="secondary" id="capture-wrong">Errado</button></div>
     <p class="muted" id="capture-verdict" role="status">${capture.remembered ? 'Confirmação guardada neste aparelho.' : capture.confirmed ? 'Identificação confirmada neste resultado.' : ''}</p>
   </section>` : '';
-  const addLabel = capture && traktReady ? (saved?.status === 'watchlist' ? 'Enviar ao Nuvio via Trakt' : 'Adicionar ao Nuvio via Trakt') : saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir';
-  const syncHint = capture ? `<p class="muted capture-sync-tip">${traktReady ? 'O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.' : 'Para levar a lista ao Nuvio, conecte o Trakt e selecione-o como fonte da biblioteca do player.'}</p>` : '';
+  const nuvioDestinationScope=nuvioState.scope;
+  const directNuvio=nuvioState.active&&nuvioDestinationScope&&/^tt[0-9]{5,12}$/.test(item.id)&&typeof window.CenaAndroid?.sendNuvioLibraryTitle==='function';
+  const addLabel = capture && !directNuvio && traktReady ? (saved?.status === 'watchlist' ? 'Enviar ao Nuvio via Trakt' : 'Adicionar ao Nuvio via Trakt') : saved?.status === 'watchlist' ? '✓ Está na minha lista' : '+ Quero assistir';
+  const syncHint = directNuvio ? `<p class="muted capture-sync-tip">Destino direto · Nuvio${nuvioState.profileName?' · '+escape(nuvioState.profileName):''}</p>` : capture ? `<p class="muted capture-sync-tip">${traktReady ? 'O CENA envia ao Trakt. No Nuvio, use a mesma conta Trakt como fonte da biblioteca.' : 'Para levar a lista ao Nuvio, conecte o Trakt e selecione-o como fonte da biblioteca do player.'}</p>` : '';
   $('#detail-content').innerHTML = `<div class="detail-backdrop" id="detail-backdrop" aria-hidden="true"></div><div class="detail-top">${poster(item)}<div>${viewingRibbon(item)}<div class="eyebrow">${titleType(item)}</div><h2>${escape(item.name)}</h2>${scoreMarkup(item)}<span class="meta">${escape(item.year)}${!capture && item.genre ? ` · ${escape(item.genre)}` : ''}</span></div></div><div class="detail-body"><section class="detail-summary" aria-label="Sinopse"><h3>Sinopse</h3><p id="detail-synopsis" class="synopsis-clamp" hidden></p><p class="muted" id="synopsis-status" role="status"></p><button class="link-button" id="synopsis-expand" aria-expanded="false" hidden>Ler sinopse completa</button><button class="link-button" id="synopsis-retry" hidden>Tentar traduzir novamente</button></section>${captureReview}<button class="primary wide" id="add-title">${addLabel}</button>${syncHint}<div id="detail-providers" data-stream-key="${escape(item.type+':'+item.id)}" aria-live="polite"></div><p id="detail-loading" class="muted" role="status">${enriched ? '' : 'Buscando sinopse e ficha técnica…'}</p>${item.runtime ? `<p><strong>Duração:</strong> ${escape(item.runtime)}</p>` : ''}${item.directors?.length ? `<p><strong>Direção:</strong> ${escape(item.directors.join(', '))}</p>` : ''}${item.cast?.length ? `<p><strong>Elenco:</strong> ${escape(item.cast.slice(0,12).join(', '))}</p>` : ''}${item.detailError ? `<p role="alert">${escape(item.detailError)}</p>` : ''}${saved ? `<div class="status-label">✓ ${saved.status === 'watched' ? 'Você já assistiu' : 'Na sua lista Quero assistir'}</div>` : ''}<div id="title-watch-history"></div><div id="series-detail-state"></div><p class="muted" id="trakt-item-state">${escape(traktItemLabel(item,traktState))}</p>${saved?.watchedSource === "Nuvio" ? '<p class="muted">✓ Assistido confirmado no histórico Nuvio.</p>' : ''}${saved?.watchedSource === "Trakt" ? '<p class="muted">✓ Assistido confirmado no histórico Trakt.</p>' : ''}<div class="actions"><button class="secondary" id="rate-title">☆ Avaliar</button><button class="secondary" id="share-title">↗ Criar Story</button>${saved ? `<button class="secondary" id="mark-status">${saved.status === 'watched' ? '↺ Rever depois' : '✓ Já assisti'}</button>` : ''}</div>${saved ? '<button class="link-button" id="remove-title">Remover do catálogo</button>' : ''}<p class="muted">${apiBase === 'local' ? 'Sua lista fica salva neste aparelho.' : 'A lista foi atualizada no servidor. Atualize o catálogo no player.'}</p>${item.sourceUrl ? `<p class="muted">Metadados: <a href="${escape(item.sourceUrl)}" target="_blank" rel="noreferrer">${escape(item.source || "Catálogo")}</a></p>` : ''}<button class="secondary wide" id="similar-titles">✧ Ver semelhantes</button><div id="similar-panel"></div><section class="detail-section" id="title-feedback"></section><section class="detail-section" id="title-collections"></section><div id="story-editor"></div></div>`;
+  if(directNuvio){
+   const button=document.createElement('button');
+   button.className='secondary wide';button.type='button';button.textContent='Enviar direto ao Nuvio';
+   $('#add-title').after(button);
+   button.onclick=()=>{
+    if(nuvioLibraryPending){toast('Aguarde o envio anterior ao Nuvio.');return;}
+    const id=++nuvioLibraryRequest,scope=nuvioDestinationScope;
+    button.disabled=true;nuvioLibraryPending={id,button};
+    window.CenaAndroid.sendNuvioLibraryTitle(id,JSON.stringify({id:item.id,type:item.type,name:item.name,year:item.year,scope}));
+   };
+  }
   $('#add-title').onclick = () => {
     if(saved?.status !== 'watchlist') return save(item,'watchlist',capture);
-    if(capture && traktReady){queueTrakt(item,'add');toast('Envio para a lista do Trakt solicitado.');return;}
+    if(capture && traktReady&&!directNuvio){queueTrakt(item,'add');toast('Envio para a lista do Trakt solicitado.');return;}
     toast('Este título já está na sua lista.');
   };
   if(capture){

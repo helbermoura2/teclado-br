@@ -48,6 +48,45 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
  })}
  private fun safeError(error:Exception)=error.message?.takeIf{it.startsWith("O Nuvio")||it.startsWith("A sessão")||it.startsWith("Esta função")||it.startsWith("Não consegui")||it.startsWith("Resposta de")||it.startsWith("Escolha")||it.startsWith("Perfil")||it.startsWith("A autorização")}?:"Não consegui acessar o Nuvio. Confira a conexão e tente novamente. [NUVIO_REDE]"
  fun inventory(raw:String)=synchronized(lock){val rows=JSONArray(raw);require(rows.length()<=5000);val safe=JSONArray();for(i in 0 until rows.length()){val item=rows.optJSONObject(i)?:continue;if(item.optString("id").matches(Regex("tt\\d{5,12}"))&&item.optString("type") in listOf("movie","series"))safe.put(JSONObject().put("id",item.optString("id")).put("type",item.optString("type")))};inventory.edit().putString("items",safe.toString()).apply()}
+ private fun scope(a:JSONObject,selected:Int)=java.security.MessageDigest.getInstance("SHA-256").digest((a.optString("uid")+":"+selected).toByteArray()).joinToString(""){"%02x".format(it)}.take(24)
+ fun addToLibrary(raw:String):JSONObject=synchronized(lock){
+  val item=JSONObject(raw);val id=item.getString("id");val type=item.getString("type")
+  val a=auth.read();val profile=a.optInt("profile")
+  require(id.matches(Regex("tt\\d{5,12}"))&&type in listOf("movie","series"))
+  if(!a.optBoolean("active")||profile<=0||scope(a,profile)!=item.optString("scope"))
+   failure("Escolha novamente o perfil do Nuvio antes de enviar.")
+  val jwt=token(a)
+  fun containsTitle():Boolean{
+   for(offset in 0 until 20000 step 100){
+    val rows=rpc("sync_pull_library",JSONObject().put("p_profile_id",profile).put("p_limit",100).put("p_offset",offset),jwt)
+    for(index in 0 until rows.length()){
+     val row=rows.optJSONObject(index)?:continue
+     if(row.optString("content_id")==id&&row.optString("content_type")==type)return true
+    }
+    if(rows.length()<100)return false
+   }
+   failure("Não consegui conferir toda a biblioteca do Nuvio.")
+  }
+  val existing=containsTitle()
+  if(!existing){
+   val client=inventory.getString("libraryClientId",null)?:("cena-"+java.util.UUID.randomUUID()).also{
+    inventory.edit().putString("libraryClientId",it).apply()
+   }
+   val title=JSONObject().put("content_id",id).put("content_type",type)
+    .put("name",item.getString("name").take(200)).put("poster_shape","POSTER")
+    .put("poster","https://images.metahub.space/poster/medium/$id/img")
+    .put("background",JSONObject.NULL).put("description",JSONObject.NULL)
+    .put("release_info",item.optString("year").take(30)).put("imdb_rating",JSONObject.NULL)
+    .put("genres",JSONArray()).put("addon_base_url",JSONObject.NULL).put("added_at",now())
+   val args=JSONObject().put("p_profile_id",profile).put("p_origin_client_id",client).put("p_items",JSONArray().put(title))
+   checkReply(transport.request("/rest/v1/rpc/sync_push_library_items",args,jwt))
+   if(!containsTitle())failure("Não consegui confirmar o título na biblioteca do Nuvio.")
+  }
+  JSONObject().put("ok",true).put("existing",existing)
+ }
+ fun sendLibraryTitle(raw:String):JSONObject=try{addToLibrary(raw)}catch(error:Exception){
+  JSONObject().put("ok",false).put("error",safeError(error))
+ }
  fun status():JSONObject=synchronized(lock){
   val a=auth.read();val d=data.read();val connected=a.optString("access").isNotBlank();val selected=a.optInt("profile",0);val active=connected&&a.optBoolean("active")&&selected>0
   val known=mutableSetOf<String>();try{val list=JSONArray(inventory.getString("items","[]"));for(i in 0 until list.length()){val row=list.optJSONObject(i)?:continue;known.add(row.optString("type")+":"+row.optString("id"))}}catch(_:Exception){}
@@ -59,7 +98,7 @@ class NuvioRepository(context:Context,private val transport:NuvioTransport=Nuvio
   for((id,show)in shows){show.put("episodes",episodeKeys[id]?.size?:0).put("seen",JSONArray(episodeKeys[id]?.toList()?:emptyList<String>()))}
   val progress=d.optJSONArray("progress")?:JSONArray();val resume=JSONArray();for(i in 0 until progress.length()){val row=progress.optJSONObject(i)?:continue;if(row.optString("id").isBlank()){unsupported++;continue};if(resume.length()<100&&row.optString("type")+":"+row.optString("id")+":"+row.optInt("season")+":"+row.optInt("episode") !in finished)resume.put(row)}
   val output=JSONObject().put("connected",connected).put("active",active).put("profileId",selected).put("profiles",a.optJSONArray("profiles")?:JSONArray()).put("profileName",a.optString("profileName")).put("account",a.optString("account"))
-   .put("scope",java.security.MessageDigest.getInstance("SHA-256").digest((a.optString("uid")+":"+selected).toByteArray()).joinToString(""){"%02x".format(it)}.take(24)).put("lastSync",if(d.optInt("profile")==selected)d.optLong("lastSync") else 0).put("error",a.optString("error")).put("series",if(active&&d.optInt("profile")==selected)JSONArray(shows.values.sortedByDescending{it.optLong("watchedAt")})else JSONArray()).put("watchedCount",watched.length()).put("unsupported",unsupported).put("watched",if(active&&d.optInt("profile")==selected)filtered else JSONArray()).put("recent",if(active&&d.optInt("profile")==selected)recent else JSONArray()).put("progress",if(active&&d.optInt("profile")==selected)resume else JSONArray())
+   .put("scope",scope(a,selected)).put("lastSync",if(d.optInt("profile")==selected)d.optLong("lastSync") else 0).put("error",a.optString("error")).put("series",if(active&&d.optInt("profile")==selected)JSONArray(shows.values.sortedByDescending{it.optLong("watchedAt")})else JSONArray()).put("watchedCount",watched.length()).put("unsupported",unsupported).put("watched",if(active&&d.optInt("profile")==selected)filtered else JSONArray()).put("recent",if(active&&d.optInt("profile")==selected)recent else JSONArray()).put("progress",if(active&&d.optInt("profile")==selected)resume else JSONArray())
   if(active&&d.optInt("profile")==selected)output.put("statistics",NuvioCodec.statistics(watched))
   if(!connected&&a.optLong("pairExpires")>now())output.put("pairing",true).put("userCode",a.optString("userCode")).put("verificationUrl",a.optString("verificationUrl"))
   output

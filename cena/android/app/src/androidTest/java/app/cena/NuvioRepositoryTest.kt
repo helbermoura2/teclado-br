@@ -10,6 +10,7 @@ class NuvioRepositoryTest {
  private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
  private class Fixture:NuvioTransport {
   var paged=false;val pages=mutableListOf<Int>();var clock=1700000000000L;var failProgress=false;var refreshes=0;val calls=mutableListOf<String>()
+  val library=mutableMapOf<Int,JSONArray>();var writes=0
   override fun request(path:String,body:JSONObject?,token:String?):NuvioResponse {
    calls.add(path)
    val value=when(path){
@@ -19,6 +20,8 @@ class NuvioRepositoryTest {
     "/rest/v1/rpc/sync_pull_profiles"->"[{\"profile_index\":1,\"name\":\"Pessoa A\"},{\"profile_index\":2,\"name\":\"Pessoa B\"}]"
     "/rest/v1/rpc/sync_pull_watched_items"->{pages.add(body!!.optInt("p_page"));if(paged&&body.optInt("p_page")==1){val rows=JSONArray();for(index in 0 until 500)rows.put(JSONObject().put("content_id","tt${7000000+index}").put("content_type","movie"));rows.toString()}else if(paged){"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"}else if(body.optInt("p_profile_id")==1)"[{\"content_id\":\"tt1335975\",\"content_type\":\"movie\",\"title\":\"47 Ronin\",\"watched_at\":1700000000},{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":1}]"else"[]"}
     "/rest/v1/rpc/sync_pull_watch_progress"->{if(failProgress)return NuvioResponse(503,"private server details");if(body!!.optInt("p_profile_id")==1)"[{\"content_id\":\"tt0903747\",\"content_type\":\"series\",\"season\":1,\"episode\":2,\"position\":600000,\"duration\":2400000}]"else"[]"}
+    "/rest/v1/rpc/sync_pull_library"->(library[body!!.getInt("p_profile_id")]?:JSONArray()).toString()
+    "/rest/v1/rpc/sync_push_library_items"->{writes++;library[body!!.getInt("p_profile_id")]=body.getJSONArray("p_items");""}
     else->throw IllegalStateException("Unexpected endpoint $path")
    };return NuvioResponse(200,value)
   }
@@ -31,6 +34,21 @@ class NuvioRepositoryTest {
    val output=state.toString();for(secret in listOf("private-access-token-marker","private-refresh-token-marker","private-device-nuvio-code","nonce"))assertFalse(output.contains(secret))
    assertFalse(f.calls.any{it.contains("sync_push")||it.contains("sync_delete")||it.contains("password")})
    repo.selectProfile(2);assertEquals(0,repo.status().getJSONArray("watched").length());assertEquals(0,repo.status().getJSONArray("progress").length());assertEquals("Pessoa B",repo.status().getString("profileName"))
+  }finally{repo.disconnect()}
+ }
+ @Test fun explicitLibraryWriteConfirmsTheTitleAndRejectsAnOldProfile(){
+  val f=Fixture();val repo=loggedIn(f)
+  try{
+   repo.selectProfile(1)
+   val item=JSONObject().put("id","tt0903747").put("type","series")
+    .put("name","Breaking Bad").put("scope",repo.status().getString("scope")).toString()
+   assertTrue(repo.sendLibraryTitle(item).getBoolean("ok"))
+   assertTrue(repo.sendLibraryTitle(item).getBoolean("existing"))
+   repo.selectProfile(2)
+   assertFalse(repo.sendLibraryTitle(item).getBoolean("ok"))
+   assertEquals(1,f.writes)
+   assertEquals("tt0903747",f.library.getValue(1).getJSONObject(0).getString("content_id"))
+   assertFalse(f.library.containsKey(2))
   }finally{repo.disconnect()}
  }
  @Test fun transientFailuresPreserveTheLastCompleteHistoryAndRefreshTokens(){

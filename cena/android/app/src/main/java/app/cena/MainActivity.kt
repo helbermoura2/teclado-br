@@ -379,6 +379,13 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun connectNuvio(){nuvioTask{nuvio.begin()}}
         @JavascriptInterface fun refreshNuvioProfiles(){nuvioTask{nuvio.profiles()}}
         @JavascriptInterface fun selectNuvioProfile(id:Int){nuvioTask{nuvio.selectProfile(id);NuvioWorker.schedule(applicationContext)}}
+        @JavascriptInterface fun sendNuvioLibraryTitle(requestId:Int,raw:String){
+            if(requestId<=0||raw.length>4000)return
+            nuvioTask{
+                val result=nuvio.sendLibraryTitle(raw).put("requestId",requestId)
+                runOnUiThread{if(!isDestroyed&&pageReady)web.evaluateJavascript("window.CenaNuvioLibraryResult && window.CenaNuvioLibraryResult($result)",null)}
+            }
+        }
         @JavascriptInterface fun syncNuvio(){nuvioTask{nuvio.sync(true)}}
         @JavascriptInterface fun nuvioInventory(raw:String){if(raw.length<250000)nuvioTask{nuvio.inventory(raw)}}
         @JavascriptInterface fun disconnectNuvio(){nuvioTask{nuvio.disconnect();NuvioWorker.cancel(applicationContext)}}
