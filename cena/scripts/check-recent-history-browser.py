@@ -27,6 +27,19 @@ try:
   page.locator('#history-back').click()
   page.evaluate('window.CenaNuvioResult({connected:true,active:true,scope:"nuvio-b",profileId:2,lastSync:2,recent:[],watched:[],series:[]})')
   assert page.locator('#recent-history strong').get_by_text('47 Ronin').count()==0
+  page.evaluate("""window.railFixture={connected:true,active:true,scope:'rail-a',profileId:1,lastSync:1,watched:[],recent:[{id:'tt0374463',type:'series',name:'The Pacific',season:1,episode:4,watchedAt:Date.now()}],progress:Array.from({length:6},(_,i)=>({id:'tt900010'+i,type:'movie',name:'Filme '+i,position:1200000,duration:3600000,lastWatched:100-i}))};window.CenaNuvioResult(window.railFixture)""")
+  rail=page.locator('#nuvio-home .resume-rail')
+  rail.locator('.resume-card').nth(4).wait_for(timeout=5000)
+  rail.evaluate('(e)=>e.scrollLeft=260')
+  page.wait_for_timeout(80)
+  page.evaluate("window.CenaNuvioResult({...window.railFixture,lastSync:2,progress:window.railFixture.progress.map((r,i)=>({...r,position:r.position+i*60000}))})")
+  page.wait_for_timeout(900)
+  assert rail.evaluate('(e)=>e.scrollLeft')>=250, 'Resume rail must keep its position after syncing'
+  page.evaluate("window.CenaHistoryResult({scope:'rail-history',connected:true,totals:{},media:[],lastImport:3})")
+  page.wait_for_timeout(900)
+  assert rail.evaluate('(e)=>e.scrollLeft')>=250, 'Resume rail must keep its position after history refresh'
+  assert page.locator('#home-viewing .diary-entry').count()>=1
+  assert 'Episódio 4' in page.locator('#home-viewing').inner_text()
   assert not errors, errors
   print('Últimos vistos: Trakt e Nuvio, episódio, data e isolamento de perfil conferidos.')
   b.close()
